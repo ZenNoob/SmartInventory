@@ -37,17 +37,19 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription
+} from "@/components/ui/dialog"
+import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
 import { formatCurrency } from "@/lib/utils"
@@ -70,6 +72,7 @@ export default function ProductsPage() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<ProductStatus>('all');
   const [isUpdating, startTransition] = useTransition();
+  const [viewingLotsFor, setViewingLotsFor] = useState<Product | null>(null);
   
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -200,13 +203,51 @@ export default function ProductsPage() {
 
 
   return (
-    <TooltipProvider>
+    <>
       <ProductForm 
         isOpen={isFormOpen}
         onOpenChange={setIsFormOpen}
         product={selectedProduct}
         categories={categories || []}
       />
+       <Dialog open={!!viewingLotsFor} onOpenChange={(open) => !open && setViewingLotsFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Lịch sử nhập hàng cho: {viewingLotsFor?.name}</DialogTitle>
+            <DialogDescription>
+              Danh sách chi tiết tất cả các lần nhập hàng cho sản phẩm này.
+            </DialogDescription>
+          </DialogHeader>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Ngày nhập</TableHead>
+                <TableHead className="text-right">Số lượng</TableHead>
+                <TableHead className="text-right">Giá</TableHead>
+                <TableHead>Đơn vị</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {viewingLotsFor?.purchaseLots && viewingLotsFor.purchaseLots.length > 0 ? (
+                viewingLotsFor.purchaseLots.map((lot, index) => (
+                  <TableRow key={index}>
+                    <TableCell>{new Date(lot.importDate).toLocaleDateString()}</TableCell>
+                    <TableCell className="text-right">{lot.quantity}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(lot.cost)}</TableCell>
+                    <TableCell>{lot.unit}</TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center h-24">
+                    Không có dữ liệu nhập hàng cho sản phẩm này.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </DialogContent>
+      </Dialog>
       <Tabs defaultValue="all" onValueChange={(value) => setStatusFilter(value as ProductStatus)}>
         <div className="flex items-center">
           <TabsList>
@@ -320,15 +361,9 @@ export default function ProductsPage() {
                           {formatCurrency(averageCost)}
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
-                           <Tooltip>
-                            <TooltipTrigger>
-                              <span className="cursor-help">{sold} / {imported}</span>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Đã bán: {sold}</p>
-                              <p>Đã nhập: {imported}</p>
-                            </TooltipContent>
-                          </Tooltip>
+                            <button className="underline cursor-pointer" onClick={() => setViewingLotsFor(product)}>
+                              {sold} / {imported}
+                            </button>
                         </TableCell>
                         <TableCell className="font-medium">{stock}</TableCell>
                         <TableCell>
@@ -393,6 +428,6 @@ export default function ProductsPage() {
           </Card>
         </TabsContent>
       </Tabs>
-    </TooltipProvider>
+    </>
   )
 }
