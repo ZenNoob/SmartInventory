@@ -32,7 +32,7 @@ export function MainNav() {
     return pathname === path
   }
 
-  if (pathname === '/login' || isUserLoading) {
+  if (pathname.startsWith('/login') || isUserLoading) {
     return null;
   }
 
