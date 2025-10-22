@@ -1,23 +1,44 @@
 'use server'
 
 import { AppUser } from "@/lib/types";
-import { initializeFirebase } from "@/firebase";
+import { firebaseConfig } from '@/firebase/config';
+import { initializeApp as initializeAdminApp, getApps as getAdminApps, getApp as getAdminApp, cert } from 'firebase-admin/app';
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 
+function getServiceAccount() {
+  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (!serviceAccount) {
+    // This is a server-side check, so console.error is acceptable.
+    console.error('FIREBASE_SERVICE_ACCOUNT environment variable is not set. This is required for admin actions.');
+    throw new Error('Server configuration error: Missing service account credentials.');
+  }
+  try {
+    return JSON.parse(serviceAccount);
+  } catch (e) {
+    console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT JSON.', e);
+    throw new Error('Server configuration error: Invalid service account credentials format.');
+  }
+}
+
 // This is an admin action, so we use firebase-admin
 async function getAdminServices() {
-    const { firebaseApp } = initializeFirebase();
-    // Dynamically import admin SDKs only when needed
-    const { getAuth } = await import('firebase-admin/auth');
-    const { getFirestore } = await import('firebase-admin/firestore');
-    return { auth: getAuth(firebaseApp), firestore: getFirestore(firebaseApp) };
+    if (!getAdminApps().length) {
+       const serviceAccount = getServiceAccount();
+       initializeAdminApp({
+         credential: cert(serviceAccount),
+         databaseURL: `https://${firebaseConfig.projectId}.firebaseio.com`
+       });
+    }
+    const adminApp = getAdminApp();
+    return { auth: getAuth(adminApp), firestore: getFirestore(adminApp) };
 }
 
 
 export async function upsertUser(user: AppUser & { password?: string }): Promise<{ success: boolean; error?: string }> {
   try {
     const { auth, firestore } = await getAdminServices();
+    const userRole = user.role || 'inventory_manager';
 
     if (user.id) {
       // Update existing user
@@ -26,7 +47,7 @@ export async function upsertUser(user: AppUser & { password?: string }): Promise
         displayName: user.displayName,
       });
       await firestore.collection('users').doc(user.id).set({
-        role: user.role,
+        role: userRole,
         displayName: user.displayName,
         email: user.email,
       }, { merge: true });
@@ -42,7 +63,7 @@ export async function upsertUser(user: AppUser & { password?: string }): Promise
         displayName: user.displayName,
       });
       await firestore.collection('users').doc(userRecord.uid).set({
-        role: user.role,
+        role: userRole,
         displayName: user.displayName,
         email: user.email,
       });

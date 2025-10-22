@@ -2,50 +2,32 @@
 
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore'
-import { initializeApp as initializeAdminApp, getApps as getAdminApps, getApp as getAdminApp, cert } from 'firebase-admin/app';
+import { getAuth, Auth } from 'firebase/auth';
+import { getFirestore, Firestore } from 'firebase/firestore';
 
-function getServiceAccount() {
-  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (!serviceAccount) {
-    throw new Error('FIREBASE_SERVICE_ACCOUNT environment variable is not set.');
-  }
-  return JSON.parse(serviceAccount);
+interface FirebaseServices {
+  firebaseApp: FirebaseApp;
+  auth: Auth;
+  firestore: Firestore;
 }
 
 // IMPORTANT: DO NOT MODIFY THIS FUNCTION
-export function initializeFirebase() {
+export function initializeFirebase(): FirebaseServices {
   if (typeof window === 'undefined') {
-    // Server-side initialization
-    if (!getAdminApps().length) {
-       const serviceAccount = getServiceAccount();
-       initializeAdminApp({
-         credential: cert(serviceAccount),
-         databaseURL: `https://${firebaseConfig.projectId}.firebaseio.com`
-       });
-    }
-    return getSdks(getAdminApp() as any);
+    // This case should ideally not be hit in client components.
+    // If server-side logic is needed, it should be in server components or actions.
+    throw new Error("Firebase client initialization called on the server.");
   }
 
   // Client-side initialization
   if (!getApps().length) {
-    let firebaseApp;
-    try {
-      firebaseApp = initializeApp();
-    } catch (e) {
-      if (process.env.NODE_ENV === "production") {
-        console.warn('Automatic initialization failed. Falling back to firebase config object.', e);
-      }
-      firebaseApp = initializeApp(firebaseConfig);
-    }
-    return getSdks(firebaseApp);
+    return getSdks(initializeApp(firebaseConfig));
   }
 
   return getSdks(getApp());
 }
 
-export function getSdks(firebaseApp: FirebaseApp) {
+export function getSdks(firebaseApp: FirebaseApp): FirebaseServices {
   return {
     firebaseApp,
     auth: getAuth(firebaseApp),
@@ -61,3 +43,4 @@ export * from './non-blocking-updates';
 export * from './non-blocking-login';
 export * from './errors';
 export * from './error-emitter';
+export * from './auth/use-user';

@@ -1,7 +1,7 @@
 'use client';
 
 import { useDoc, useFirestore, useUser } from "@/firebase";
-import { doc } from "firebase/firestore";
+import { doc, query } from "firebase/firestore";
 
 export function useUserRole() {
   const { user } = useUser();
