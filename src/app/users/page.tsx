@@ -34,9 +34,9 @@ import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebas
 import { collection, query, where } from "firebase/firestore"
 import { AppUser } from "@/lib/types"
 import { UserForm } from "./components/user-form"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useUserRole } from "@/hooks/use-user-role"
-import { useRouter } from "next/navigation"
+import Link from "next/link"
 
 function getRoleVietnamese(role: string) {
   switch (role) {
@@ -54,9 +54,8 @@ function getRoleVietnamese(role: string) {
 export default function UsersPage() {
   const { user } = useUser();
   const { role, isLoading: isRoleLoading } = useUserRole();
-  const router = useRouter();
   const firestore = useFirestore();
-
+  
   const usersQuery = useMemoFirebase(() => {
       if (!firestore) return null;
       return query(collection(firestore, "users"))
@@ -65,7 +64,6 @@ export default function UsersPage() {
   
   const adminsQuery = useMemoFirebase(() => {
       if (!firestore) return null;
-      // This query specifically checks for users with the 'admin' role.
       return query(collection(firestore, "users"), where("role", "==", "admin"))
     }, [firestore]
   );
@@ -78,35 +76,8 @@ export default function UsersPage() {
 
   const isLoading = isUsersLoading || isAdminLoading || isRoleLoading;
   
-  // This is the bootstrap logic.
   // Allow access if the user's role is 'admin' OR if the `admins` collection is empty.
   const canAccess = role === 'admin' || (!isLoading && admins?.length === 0);
-  
-  useEffect(() => {
-    // Only redirect if loading is complete and access is definitively denied.
-    if (!isLoading && !canAccess) {
-      router.push('/dashboard');
-    }
-  }, [isLoading, canAccess, router]);
-
-  // While roles and admin status are loading, show a loading state.
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div>Đang tải...</div>
-      </div>
-    );
-  }
-
-  // If loading is finished and the user still can't access, show a redirecting message.
-  // This prevents the page from flashing content before redirecting.
-  if (!canAccess) {
-     return (
-      <div className="flex items-center justify-center h-screen">
-        <div>Đang chuyển hướng...</div>
-      </div>
-    );
-  }
   
   const handleAddUser = () => {
     setSelectedUser(undefined);
@@ -116,6 +87,33 @@ export default function UsersPage() {
   const handleEditUser = (user: AppUser) => {
     setSelectedUser(user);
     setIsFormOpen(true);
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div>Đang tải...</div>
+      </div>
+    );
+  }
+
+  if (!canAccess) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Truy cập bị từ chối</CardTitle>
+          <CardDescription>
+            Bạn không có quyền truy cập trang này.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p>Chỉ những người dùng có vai trò 'Quản trị viên' mới có thể quản lý người dùng.</p>
+          <Button asChild className="mt-4">
+            <Link href="/dashboard">Quay lại Bảng điều khiển</Link>
+          </Button>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
@@ -141,7 +139,7 @@ export default function UsersPage() {
           <CardTitle>Người dùng</CardTitle>
           <CardDescription>
             Danh sách tất cả người dùng trong hệ thống của bạn.
-            {admins?.length === 0 && !isLoading && (
+            {admins?.length === 0 && (
                <p className="text-destructive text-sm mt-2">
                  Chưa có quản trị viên nào. Hãy thêm một người dùng có vai trò 'Quản trị viên' để bảo mật trang này.
                </p>
