@@ -327,7 +327,6 @@ const SidebarInset = React.forwardRef<
       className={cn(
         "relative flex min-h-svh flex-1 flex-col bg-background transition-all",
         !isMobile && state === 'collapsed' && 'md:pl-[--sidebar-width-icon]',
-        !isMobile && state === 'expanded' && 'md:pl-[--sidebar-width]',
         className
       )}
       {...props}

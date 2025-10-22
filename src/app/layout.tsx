@@ -37,13 +37,15 @@ export default function RootLayout({
         <FirebaseClientProvider>
           <GlobalError>
             <SidebarProvider>
-              <MainNav />
-              <SidebarInset>
-                <Header />
-                <main className="flex-1 md:gap-8">
-                  {children}
-                </main>
-              </SidebarInset>
+              <div className='flex'>
+                <MainNav />
+                <SidebarInset>
+                  <Header />
+                  <main className="flex-1 md:gap-8 p-4 md:p-8">
+                    {children}
+                  </main>
+                </SidebarInset>
+              </div>
             </SidebarProvider>
           </GlobalError>
         </FirebaseClientProvider>
