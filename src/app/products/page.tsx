@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useMemo } from "react"
 import {
   File,
   ListFilter,
@@ -42,13 +42,19 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
 import { formatCurrency } from "@/lib/utils"
 import { PredictShortageForm } from "./components/predict-shortage-form"
 import { ProductForm } from "./components/product-form"
-import { Category, Product } from "@/lib/types"
-import { collection, query } from "firebase/firestore"
+import { Category, Product, SalesItem } from "@/lib/types"
+import { collection, query, getDocs } from "firebase/firestore"
 import { Input } from "@/components/ui/input"
 import { updateProductStatus } from "./actions"
 import { useToast } from "@/hooks/use-toast"
@@ -79,9 +85,38 @@ export default function ProductsPage() {
     if (!firestore) return null;
     return query(collection(firestore, "categories"));
   }, [firestore]);
+  
+  const salesItemsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    // This creates a collection group query to get all sales_items across all sales_transactions
+    return query(collection(firestore, 'sales_transactions'));
+  }, [firestore]);
 
   const { data: products, isLoading: productsLoading } = useCollection<Product>(productsQuery);
   const { data: categories, isLoading: categoriesLoading } = useCollection<Category>(categoriesQuery);
+  const { data: sales, isLoading: salesLoading } = useCollection(salesItemsQuery);
+  
+  const [allSalesItems, setAllSalesItems] = useState<SalesItem[]>([]);
+  const [salesItemsLoading, setSalesItemsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchAllSalesItems() {
+      if (!firestore || !sales) return;
+      
+      setSalesItemsLoading(true);
+      const items: SalesItem[] = [];
+      for (const sale of sales) {
+        const itemsCollectionRef = collection(firestore, `sales_transactions/${sale.id}/sales_items`);
+        const itemsSnapshot = await getDocs(itemsCollectionRef);
+        itemsSnapshot.forEach(doc => {
+          items.push(doc.data() as SalesItem);
+        });
+      }
+      setAllSalesItems(items);
+      setSalesItemsLoading(false);
+    }
+    fetchAllSalesItems();
+  }, [sales, firestore]);
 
   const handleAddProduct = () => {
     setSelectedProduct(undefined);
@@ -112,11 +147,19 @@ export default function ProductsPage() {
     });
   }
 
-  const isLoading = productsLoading || categoriesLoading;
+  const isLoading = productsLoading || categoriesLoading || salesLoading || salesItemsLoading;
   
-  const getStock = (product: Product) => {
+  const getImportedStock = (product: Product) => {
     return product.purchaseLots?.reduce((acc, lot) => acc + lot.quantity, 0) || 0
   }
+  
+  const getSoldQuantity = useMemo(() => {
+    return (productId: string) => {
+      return allSalesItems
+        .filter(item => item.productId === productId)
+        .reduce((acc, item) => acc + item.quantity, 0);
+    };
+  }, [allSalesItems]);
 
   const getAverageCost = (product: Product) => {
     if (!product.purchaseLots || product.purchaseLots.length === 0) return 0;
@@ -157,7 +200,7 @@ export default function ProductsPage() {
 
 
   return (
-    <>
+    <TooltipProvider>
       <ProductForm 
         isOpen={isFormOpen}
         onOpenChange={setIsFormOpen}
@@ -242,7 +285,7 @@ export default function ProductsPage() {
                       Giá nhập trung bình
                     </TableHead>
                     <TableHead className="hidden md:table-cell">
-                      Tồn kho
+                      Nhập / Bán
                     </TableHead>
                     <TableHead>
                       <span className="sr-only">Hành động</span>
@@ -253,7 +296,9 @@ export default function ProductsPage() {
                   {isLoading && <TableRow><TableCell colSpan={7} className="text-center">Đang tải...</TableCell></TableRow>}
                   {!isLoading && filteredProducts?.map((product, index) => {
                     const category = categories?.find(c => c.id === product.categoryId);
-                    const stock = getStock(product);
+                    const imported = getImportedStock(product);
+                    const sold = getSoldQuantity(product.id);
+                    const stock = imported - sold;
                     const averageCost = getAverageCost(product)
 
                     return (
@@ -274,7 +319,14 @@ export default function ProductsPage() {
                           {formatCurrency(averageCost)}
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
-                          {stock}
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <span className="cursor-help">{sold} / {imported}</span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Tồn kho: {stock}</p>
+                            </TooltipContent>
+                          </Tooltip>
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>
@@ -338,6 +390,6 @@ export default function ProductsPage() {
           </Card>
         </TabsContent>
       </Tabs>
-    </>
+    </TooltipProvider>
   )
 }
