@@ -42,40 +42,38 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex items-center justify-center">
-      <Card className="mx-auto max-w-sm">
-        <CardHeader>
-          <CardTitle className="text-2xl">Đăng nhập</CardTitle>
-          <CardDescription>
-            Nhập email của bạn dưới đây để đăng nhập vào tài khoản của bạn
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin} className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="m@example.com"
-                required
-              />
+    <Card className="mx-auto max-w-sm">
+      <CardHeader>
+        <CardTitle className="text-2xl">Đăng nhập</CardTitle>
+        <CardDescription>
+          Nhập email của bạn dưới đây để đăng nhập vào tài khoản của bạn
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleLogin} className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="m@example.com"
+              required
+            />
+          </div>
+          <div className="grid gap-2">
+            <div className="flex items-center">
+              <Label htmlFor="password">Mật khẩu</Label>
+              <a href="#" className="ml-auto inline-block text-sm underline">
+                Quên mật khẩu?
+              </a>
             </div>
-            <div className="grid gap-2">
-              <div className="flex items-center">
-                <Label htmlFor="password">Mật khẩu</Label>
-                <a href="#" className="ml-auto inline-block text-sm underline">
-                  Quên mật khẩu?
-                </a>
-              </div>
-              <Input id="password" type="password" required />
-            </div>
-            <Button type="submit" className="w-full">
-              Đăng nhập
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+            <Input id="password" type="password" required />
+          </div>
+          <Button type="submit" className="w-full">
+            Đăng nhập
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   )
 }
