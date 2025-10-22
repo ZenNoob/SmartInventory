@@ -122,7 +122,12 @@ export default function CategoriesPage() {
       </AlertDialog>
 
       <div className="flex items-center gap-2 mb-4">
-        <h1 className="text-2xl font-semibold">Danh mục sản phẩm</h1>
+        <div className="grid gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight">Danh mục sản phẩm</h1>
+            <p className="text-sm text-muted-foreground">
+                Thêm, sửa hoặc xóa các danh mục sản phẩm của bạn.
+            </p>
+        </div>
         <div className="ml-auto flex items-center gap-2">
           <Button size="sm" className="h-8 gap-1" onClick={handleAddCategory}>
             <PlusCircle className="h-3.5 w-3.5" />
@@ -133,13 +138,7 @@ export default function CategoriesPage() {
         </div>
       </div>
       <Card>
-        <CardHeader>
-          <CardTitle>Quản lý danh mục</CardTitle>
-          <CardDescription>
-            Thêm, sửa hoặc xóa các danh mục sản phẩm của bạn.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -181,6 +180,13 @@ export default function CategoriesPage() {
                     </TableCell>
                   </TableRow>
                 ))}
+                {!isLoading && categories?.length === 0 && (
+                    <TableRow>
+                        <TableCell colSpan={3} className="text-center h-24">
+                            Không tìm thấy danh mục nào. Hãy bắt đầu bằng cách thêm một danh mục mới.
+                        </TableCell>
+                    </TableRow>
+                )}
             </TableBody>
           </Table>
         </CardContent>
