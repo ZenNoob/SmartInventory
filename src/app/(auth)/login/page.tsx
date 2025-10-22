@@ -34,11 +34,15 @@ export default function LoginPage() {
   }
 
   if (isUserLoading || user) {
-    return <div>Đang tải...</div>;
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div>Đang tải...</div>
+      </div>
+    );
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen">
+    <div className="flex items-center justify-center">
       <Card className="mx-auto max-w-sm">
         <CardHeader>
           <CardTitle className="text-2xl">Đăng nhập</CardTitle>

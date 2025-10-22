@@ -30,7 +30,7 @@ export function Header() {
   const pathname = usePathname()
   const { user, isUserLoading } = useUser()
 
-  if (pathname === '/login' || isUserLoading || !user) {
+  if (pathname.startsWith('/login') || isUserLoading || !user) {
     return null
   }
 
