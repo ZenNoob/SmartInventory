@@ -6,16 +6,11 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(amount: number) {
-  // Use Vietnamese locale for number formatting, and specify VND.
-  // The default symbol is '₫', so we replace it with 'VNĐ'.
-  // Then, replace the dot group separator with a comma as requested.
-  return new Intl.NumberFormat('vi-VN', {
-    style: 'currency',
-    currency: 'VND',
+  // Use Vietnamese locale but customize it to match user's request: 6,769 VNĐ
+  return new Intl.NumberFormat('en-US', { // Using en-US to get comma separators
+    style: 'decimal',
     maximumFractionDigits: 0,
-  }).format(amount)
-    .replace('₫', ' VNĐ')
-    .replace(/\./g, ',');
+  }).format(amount) + ' VNĐ';
 }
 
 /**
@@ -25,7 +20,7 @@ export function formatCurrency(amount: number) {
  * @returns {string} The HEX color string.
  */
 export function hslToHex(hslString: string): string {
-  if (!hslString) {
+  if (!hslString || typeof hslString !== 'string' || hslString.split(' ').length < 3) {
     return '#000000'; // Return a default color if input is invalid
   }
   const [h, s, l] = hslString.split(" ").map(val => parseInt(val, 10));
