@@ -13,16 +13,33 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { getInventoryShortagePrediction } from '@/app/actions'
-import { products, sales } from '@/lib/data'
 import { type PredictInventoryShortageOutput } from '@/ai/flows/predict-inventory-shortage'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase'
+import { collection, query } from 'firebase/firestore'
+import { Product, Sale } from '@/lib/types'
 
 export function PredictShortageForm() {
   const [open, setOpen] = useState(false)
   const [prediction, setPrediction] = useState<PredictInventoryShortageOutput | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const firestore = useFirestore();
+
+  const productsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, "products"));
+  }, [firestore]);
+
+  const salesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, "sales_transactions"));
+  }, [firestore]);
+
+  const { data: products } = useCollection<Product>(productsQuery);
+  const { data: sales } = useCollection<Sale>(salesQuery);
+
 
   const handlePredict = async () => {
     setIsLoading(true)
@@ -30,7 +47,10 @@ export function PredictShortageForm() {
     setPrediction(null)
 
     const historicalSalesData = JSON.stringify(sales);
-    const currentInventoryLevels = JSON.stringify(products.map(p => ({ productId: p.id, quantity: p.stock })));
+    const currentInventoryLevels = JSON.stringify(products?.map(p => ({ 
+        productId: p.id, 
+        quantity: p.purchaseLots.reduce((acc, lot) => acc + lot.quantity, 0)
+    })) || []);
     
     const result = await getInventoryShortagePrediction({
         historicalSalesData,
@@ -102,7 +122,7 @@ export function PredictShortageForm() {
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
                 Đóng
             </Button>
-            <Button type="button" onClick={handlePredict} disabled={isLoading}>
+            <Button type="button" onClick={handlePredict} disabled={isLoading || !products || !sales}>
                 {isLoading ? 'Đang dự đoán...' : 'Chạy dự đoán AI'}
             </Button>
         </DialogFooter>
