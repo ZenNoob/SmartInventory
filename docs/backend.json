@@ -211,30 +211,19 @@
       "type": "object",
       "description": "Represents a user of the system.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the user."
-        },
-        "username": {
-          "type": "string",
-          "description": "Username of the user."
-        },
         "role": {
           "type": "string",
           "description": "Role of the user (e.g., admin, accountant, inventory manager)."
         }
       },
       "required": [
-        "id",
-        "username",
         "role"
       ]
     }
   },
   "auth": {
     "providers": [
-      "password",
-      "anonymous"
+      "password"
     ]
   },
   "firestore": {

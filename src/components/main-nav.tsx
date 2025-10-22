@@ -22,12 +22,25 @@ import {
 } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
 import { Logo } from '@/components/icons'
+import { useUser } from '@/firebase'
 
 export function MainNav() {
   const pathname = usePathname()
+  const { user, isUserLoading } = useUser();
 
   const isActive = (path: string) => {
     return pathname === path
+  }
+
+  if (pathname === '/login' || isUserLoading) {
+    return null;
+  }
+
+  if (!user) {
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
+    return null;
   }
 
   return (
