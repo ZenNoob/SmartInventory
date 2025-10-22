@@ -46,50 +46,50 @@ export default function Dashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Total Revenue
+              Tổng doanh thu
             </CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(totalRevenue)}</div>
             <p className="text-xs text-muted-foreground">
-              +20.1% from last month
+              +20.1% so với tháng trước
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
+            <CardTitle className="text-sm font-medium">Tổng doanh số</CardTitle>
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">+{totalSales}</div>
             <p className="text-xs text-muted-foreground">
-              +19% from last month
+              +19% so với tháng trước
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Outstanding Debt</CardTitle>
+            <CardTitle className="text-sm font-medium">Nợ tồn đọng</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(totalCustomerDebt)}</div>
             <p className="text-xs text-muted-foreground">
-              +5 customers with new debt
+              +5 khách hàng có nợ mới
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Now</CardTitle>
+            <CardTitle className="text-sm font-medium">Hoạt động bây giờ</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">+573</div>
             <p className="text-xs text-muted-foreground">
-              +201 since last hour
+              +201 kể từ giờ trước
             </p>
           </CardContent>
         </Card>
@@ -98,9 +98,9 @@ export default function Dashboard() {
         <Card className="xl:col-span-2">
           <CardHeader className="flex flex-row items-center">
             <div className="grid gap-2">
-              <CardTitle>Recent Sales</CardTitle>
+              <CardTitle>Bán hàng gần đây</CardTitle>
               <CardDescription>
-                You made {totalSales} sales this month.
+                Bạn đã thực hiện {totalSales} lượt bán hàng trong tháng này.
               </CardDescription>
             </div>
           </CardHeader>
@@ -108,9 +108,9 @@ export default function Dashboard() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Customer</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="text-right">Date</TableHead>
+                  <TableHead>Khách hàng</TableHead>
+                  <TableHead className="text-right">Số tiền</TableHead>
+                  <TableHead className="text-right">Ngày</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -135,9 +135,9 @@ export default function Dashboard() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Low Stock Products</CardTitle>
+            <CardTitle>Sản phẩm sắp hết hàng</CardTitle>
             <CardDescription>
-              Products that are running low on stock.
+              Các sản phẩm sắp hết hàng.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-8">
@@ -147,13 +147,13 @@ export default function Dashboard() {
                 <AvatarFallback>WD</AvatarFallback>
               </Avatar>
               <div className="grid gap-1">
-                <p className="text-sm font-medium leading-none">Wooden Desk</p>
+                <p className="text-sm font-medium leading-none">Bàn gỗ</p>
                 <p className="text-sm text-muted-foreground">
-                  20 units left
+                  còn lại 20 chiếc
                 </p>
               </div>
               <div className="ml-auto font-medium">
-                <Badge variant="destructive">Low</Badge>
+                <Badge variant="destructive">Thấp</Badge>
               </div>
             </div>
             <div className="flex items-center gap-4">
@@ -164,11 +164,11 @@ export default function Dashboard() {
               <div className="grid gap-1">
                 <p className="text-sm font-medium leading-none">Laptop Pro</p>
                 <p className="text-sm text-muted-foreground">
-                  50 units left
+                  còn lại 50 chiếc
                 </p>
               </div>
               <div className="ml-auto font-medium">
-                <Badge variant="secondary">Medium</Badge>
+                <Badge variant="secondary">Vừa phải</Badge>
               </div>
             </div>
             <div className="flex items-center gap-4">
@@ -177,13 +177,13 @@ export default function Dashboard() {
                 <AvatarFallback>MM</AvatarFallback>
               </Avatar>
               <div className="grid gap-1">
-                <p className="text-sm font-medium leading-none">Milk (1 Gallon)</p>
+                <p className="text-sm font-medium leading-none">Sữa (1 Gallon)</p>
                 <p className="text-sm text-muted-foreground">
-                  80 units left
+                  còn lại 80 chiếc
                 </p>
               </div>
                <div className="ml-auto font-medium">
-                <Badge variant="secondary">Medium</Badge>
+                <Badge variant="secondary">Vừa phải</Badge>
               </div>
             </div>
           </CardContent>

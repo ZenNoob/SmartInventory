@@ -10,13 +10,13 @@ export default function ReportsPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Reports</CardTitle>
+        <CardTitle>Báo cáo</CardTitle>
         <CardDescription>
-          This is where sales, inventory, and debt reports will be generated.
+          Đây là nơi các báo cáo bán hàng, tồn kho và công nợ sẽ được tạo.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <p>Reporting functionality is under construction.</p>
+        <p>Chức năng báo cáo đang được xây dựng.</p>
       </CardContent>
     </Card>
   )

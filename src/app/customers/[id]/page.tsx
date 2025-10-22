@@ -42,62 +42,62 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
         <Button variant="outline" size="icon" className="h-7 w-7" asChild>
           <Link href="/customers">
             <ChevronLeft className="h-4 w-4" />
-            <span className="sr-only">Back</span>
+            <span className="sr-only">Quay lại</span>
           </Link>
         </Button>
         <h1 className="flex-1 shrink-0 whitespace-nowrap text-xl font-semibold tracking-tight sm:grow-0">
           {customer.name}
         </h1>
-        {customer.isAgent && <Badge variant="secondary">Agent</Badge>}
+        {customer.isAgent && <Badge variant="secondary">Đại lý</Badge>}
         <div className="hidden items-center gap-2 md:ml-auto md:flex">
           <Button variant="outline" size="sm">
-            Edit
+            Sửa
           </Button>
-          <Button size="sm">Record Payment</Button>
+          <Button size="sm">Ghi lại thanh toán</Button>
         </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Total Debt</CardDescription>
+            <CardDescription>Tổng nợ</CardDescription>
             <CardTitle className={`text-4xl ${totalDebt > 0 ? 'text-destructive' : 'text-primary'}`}>
               {formatCurrency(totalDebt)}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-xs text-muted-foreground">
-              Credit Limit: {formatCurrency(customer.creditLimit)}
+              Hạn mức tín dụng: {formatCurrency(customer.creditLimit)}
             </div>
           </CardContent>
           <CardFooter>
             <Button className="w-full">
-              <PlusCircle className="mr-2 h-4 w-4" /> Record Payment
+              <PlusCircle className="mr-2 h-4 w-4" /> Ghi lại thanh toán
             </Button>
           </CardFooter>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Contact</CardDescription>
+            <CardDescription>Liên hệ</CardDescription>
             <CardTitle className="text-lg">{customer.name}</CardTitle>
             <div className="text-sm text-muted-foreground">{customer.email}</div>
           </CardHeader>
           <CardContent>
             <div className="text-xs text-muted-foreground">
-              Customer since {new Date(customerSales[0]?.date || Date.now()).getFullYear()}
+              Khách hàng từ {new Date(customerSales[0]?.date || Date.now()).getFullYear()}
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardDescription>Debt Risk Prediction</CardDescription>
+              <CardDescription>Dự đoán rủi ro nợ</CardDescription>
               <Bot className="h-4 w-4 text-muted-foreground" />
             </div>
-            <CardTitle className="text-lg">Assess Repayment Risk</CardTitle>
+            <CardTitle className="text-lg">Đánh giá rủi ro trả nợ</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground mb-4">
-                Use AI to analyze payment history and predict default risk.
+                Sử dụng AI để phân tích lịch sử thanh toán và dự đoán rủi ro vỡ nợ.
             </p>
           </CardContent>
           <CardFooter>
@@ -107,16 +107,16 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>Payment History</CardTitle>
-          <CardDescription>A record of all payments made by the customer.</CardDescription>
+          <CardTitle>Lịch sử thanh toán</CardTitle>
+          <CardDescription>Hồ sơ tất cả các khoản thanh toán của khách hàng.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[100px]">ID</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
+                <TableHead>Ngày</TableHead>
+                <TableHead className="text-right">Số tiền</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -130,7 +130,7 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center">No payments found.</TableCell>
+                  <TableCell colSpan={3} className="text-center">Không tìm thấy thanh toán nào.</TableCell>
                 </TableRow>
               )}
             </TableBody>

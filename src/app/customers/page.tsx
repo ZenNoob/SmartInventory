@@ -37,39 +37,39 @@ export default function CustomersPage() {
   return (
     <div>
       <div className="flex items-center gap-2 mb-4">
-        <h1 className="text-2xl font-semibold">Customers</h1>
+        <h1 className="text-2xl font-semibold">Khách hàng</h1>
         <div className="ml-auto flex items-center gap-2">
           <Button size="sm" variant="outline" className="h-8 gap-1">
             <File className="h-3.5 w-3.5" />
             <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-              Export
+              Xuất
             </span>
           </Button>
           <Button size="sm" className="h-8 gap-1">
             <PlusCircle className="h-3.5 w-3.5" />
             <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-              Add Customer
+              Thêm khách hàng
             </span>
           </Button>
         </div>
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>Customer Overview</CardTitle>
+          <CardTitle>Tổng quan khách hàng</CardTitle>
           <CardDescription>
-            Manage customer information and track their debts.
+            Quản lý thông tin khách hàng và theo dõi công nợ của họ.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
+                <TableHead>Tên</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead className="hidden md:table-cell">Credit Limit</TableHead>
-                <TableHead className="text-right">Total Debt</TableHead>
+                <TableHead className="hidden md:table-cell">Hạn mức tín dụng</TableHead>
+                <TableHead className="text-right">Tổng nợ</TableHead>
                 <TableHead>
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">Hành động</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -82,7 +82,7 @@ export default function CustomersPage() {
                       <Link href={`/customers/${customer.id}`} className="hover:underline">
                         {customer.name}
                       </Link>
-                       {customer.isAgent && <Badge variant="secondary" className="ml-2">Agent</Badge>}
+                       {customer.isAgent && <Badge variant="secondary" className="ml-2">Đại lý</Badge>}
                     </TableCell>
                     <TableCell>{customer.email}</TableCell>
                     <TableCell className="hidden md:table-cell">
@@ -100,15 +100,15 @@ export default function CustomersPage() {
                             variant="ghost"
                           >
                             <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Toggle menu</span>
+                            <span className="sr-only">Chuyển đổi menu</span>
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuLabel>Hành động</DropdownMenuLabel>
                           <DropdownMenuItem asChild>
-                             <Link href={`/customers/${customer.id}`}>View Details</Link>
+                             <Link href={`/customers/${customer.id}`}>Xem chi tiết</Link>
                           </DropdownMenuItem>
-                          <DropdownMenuItem>Edit</DropdownMenuItem>
+                          <DropdownMenuItem>Sửa</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -120,7 +120,7 @@ export default function CustomersPage() {
         </CardContent>
         <CardFooter>
           <div className="text-xs text-muted-foreground">
-            Showing <strong>1-{customers.length}</strong> of <strong>{customers.length}</strong> customers
+            Hiển thị <strong>1-{customers.length}</strong> trên <strong>{customers.length}</strong> khách hàng
           </div>
         </CardFooter>
       </Card>

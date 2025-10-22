@@ -45,11 +45,11 @@ export default function SalesPage() {
     <Tabs defaultValue="all">
       <div className="flex items-center">
         <TabsList>
-          <TabsTrigger value="all">All</TabsTrigger>
-          <TabsTrigger value="paid">Paid</TabsTrigger>
-          <TabsTrigger value="pending">Pending</TabsTrigger>
+          <TabsTrigger value="all">Tất cả</TabsTrigger>
+          <TabsTrigger value="paid">Đã thanh toán</TabsTrigger>
+          <TabsTrigger value="pending">Đang chờ xử lý</TabsTrigger>
           <TabsTrigger value="refunded" className="hidden sm:flex">
-            Refunded
+            Đã hoàn tiền
           </TabsTrigger>
         </TabsList>
         <div className="ml-auto flex items-center gap-2">
@@ -58,29 +58,29 @@ export default function SalesPage() {
               <Button variant="outline" size="sm" className="h-8 gap-1">
                 <ListFilter className="h-3.5 w-3.5" />
                 <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                  Filter
+                  Lọc
                 </span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Filter by</DropdownMenuLabel>
+              <DropdownMenuLabel>Lọc theo</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuCheckboxItem checked>
-                Paid
+                Đã thanh toán
               </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem>Pending</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem>Đang chờ xử lý</DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button size="sm" variant="outline" className="h-8 gap-1">
             <File className="h-3.5 w-3.5" />
             <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-              Export
+              Xuất
             </span>
           </Button>
           <Button size="sm" className="h-8 gap-1">
             <PlusCircle className="h-3.5 w-3.5" />
             <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-              Create Sale
+              Tạo đơn hàng
             </span>
           </Button>
         </div>
@@ -88,21 +88,21 @@ export default function SalesPage() {
       <TabsContent value="all">
         <Card>
           <CardHeader>
-            <CardTitle>Sales Orders</CardTitle>
+            <CardTitle>Đơn hàng</CardTitle>
             <CardDescription>
-              A list of all sales transactions.
+              Danh sách tất cả các giao dịch bán hàng.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Order ID</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead className="hidden md:table-cell">Date</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead>Mã đơn hàng</TableHead>
+                  <TableHead>Khách hàng</TableHead>
+                  <TableHead className="hidden md:table-cell">Ngày</TableHead>
+                  <TableHead className="text-right">Tổng cộng</TableHead>
                   <TableHead>
-                    <span className="sr-only">Actions</span>
+                    <span className="sr-only">Hành động</span>
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -128,13 +128,13 @@ export default function SalesPage() {
                               variant="ghost"
                             >
                               <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Toggle menu</span>
+                              <span className="sr-only">Chuyển đổi menu</span>
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem>View Details</DropdownMenuItem>
-                            <DropdownMenuItem>Print Invoice</DropdownMenuItem>
+                            <DropdownMenuLabel>Hành động</DropdownMenuLabel>
+                            <DropdownMenuItem>Xem chi tiết</DropdownMenuItem>
+                            <DropdownMenuItem>In hóa đơn</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -146,8 +146,8 @@ export default function SalesPage() {
           </CardContent>
           <CardFooter>
             <div className="text-xs text-muted-foreground">
-              Showing <strong>1-10</strong> of <strong>{sales.length}</strong>{" "}
-              sales
+              Hiển thị <strong>1-10</strong> trên <strong>{sales.length}</strong>{" "}
+              đơn hàng
             </div>
           </CardFooter>
         </Card>

@@ -17,8 +17,8 @@ const ptSans = PT_Sans({
 })
 
 export const metadata: Metadata = {
-  title: 'Smart Inventory',
-  description: 'Manage your inventory, sales, and customer debt with AI-powered insights.',
+  title: 'Hàng tồn kho thông minh',
+  description: 'Quản lý hàng tồn kho, bán hàng và công nợ khách hàng của bạn với thông tin chi tiết do AI hỗ trợ.',
 }
 
 export default function RootLayout({
@@ -27,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="vi" suppressHydrationWarning>
       <body
         className={cn(
           'min-h-screen bg-background font-sans antialiased',

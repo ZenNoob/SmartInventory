@@ -10,13 +10,13 @@ export default function SettingsPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Settings</CardTitle>
+        <CardTitle>Cài đặt</CardTitle>
         <CardDescription>
-          Manage your application settings here.
+          Quản lý cài đặt ứng dụng của bạn tại đây.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <p>Settings page is under construction.</p>
+        <p>Trang cài đặt đang được xây dựng.</p>
       </CardContent>
     </Card>
   )

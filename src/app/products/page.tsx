@@ -48,11 +48,11 @@ export default function ProductsPage() {
     <Tabs defaultValue="all">
       <div className="flex items-center">
         <TabsList>
-          <TabsTrigger value="all">All</TabsTrigger>
-          <TabsTrigger value="active">Active</TabsTrigger>
-          <TabsTrigger value="draft">Draft</TabsTrigger>
+          <TabsTrigger value="all">Tất cả</TabsTrigger>
+          <TabsTrigger value="active">Hoạt động</TabsTrigger>
+          <TabsTrigger value="draft">Bản nháp</TabsTrigger>
           <TabsTrigger value="archived" className="hidden sm:flex">
-            Archived
+            Lưu trữ
           </TabsTrigger>
         </TabsList>
         <div className="ml-auto flex items-center gap-2">
@@ -61,33 +61,33 @@ export default function ProductsPage() {
               <Button variant="outline" size="sm" className="h-8 gap-1">
                 <ListFilter className="h-3.5 w-3.5" />
                 <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                  Filter
+                  Lọc
                 </span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Filter by</DropdownMenuLabel>
+              <DropdownMenuLabel>Lọc theo</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuCheckboxItem checked>
-                Active
+                Hoạt động
               </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem>Draft</DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem>Bản nháp</DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem>
-                Archived
+                Lưu trữ
               </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button size="sm" variant="outline" className="h-8 gap-1">
             <File className="h-3.5 w-3.5" />
             <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-              Export
+              Xuất
             </span>
           </Button>
           <PredictShortageForm />
           <Button size="sm" className="h-8 gap-1">
             <PlusCircle className="h-3.5 w-3.5" />
             <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-              Add Product
+              Thêm sản phẩm
             </span>
           </Button>
         </div>
@@ -95,9 +95,9 @@ export default function ProductsPage() {
       <TabsContent value="all">
         <Card>
           <CardHeader>
-            <CardTitle>Products</CardTitle>
+            <CardTitle>Sản phẩm</CardTitle>
             <CardDescription>
-              Manage your products and view their sales performance.
+              Quản lý sản phẩm của bạn và xem hiệu suất bán hàng của chúng.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -105,18 +105,18 @@ export default function ProductsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="hidden w-[100px] sm:table-cell">
-                    <span className="sr-only">Image</span>
+                    <span className="sr-only">Hình ảnh</span>
                   </TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Category</TableHead>
+                  <TableHead>Tên</TableHead>
+                  <TableHead>Loại</TableHead>
                   <TableHead className="hidden md:table-cell">
-                    Cost
+                    Giá
                   </TableHead>
                   <TableHead className="hidden md:table-cell">
-                    Stock
+                    Tồn kho
                   </TableHead>
                   <TableHead>
-                    <span className="sr-only">Actions</span>
+                    <span className="sr-only">Hành động</span>
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -156,13 +156,13 @@ export default function ProductsPage() {
                               variant="ghost"
                             >
                               <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Toggle menu</span>
+                              <span className="sr-only">Chuyển đổi menu</span>
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem>Edit</DropdownMenuItem>
-                            <DropdownMenuItem>Delete</DropdownMenuItem>
+                            <DropdownMenuLabel>Hành động</DropdownMenuLabel>
+                            <DropdownMenuItem>Sửa</DropdownMenuItem>
+                            <DropdownMenuItem>Xóa</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -174,8 +174,8 @@ export default function ProductsPage() {
           </CardContent>
           <CardFooter>
             <div className="text-xs text-muted-foreground">
-              Showing <strong>1-10</strong> of <strong>{products.length}</strong>{" "}
-              products
+              Hiển thị <strong>1-10</strong> trên <strong>{products.length}</strong>{" "}
+              sản phẩm
             </div>
           </CardFooter>
         </Card>

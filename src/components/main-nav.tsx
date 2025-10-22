@@ -48,7 +48,7 @@ export function MainNav() {
       <SidebarHeader>
         <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
           <Logo className="h-6 w-6 text-primary" />
-          <span className="">Smart Inventory</span>
+          <span className="">Hàng tồn kho thông minh</span>
         </Link>
       </SidebarHeader>
       <SidebarContent className="flex-grow">
@@ -57,11 +57,11 @@ export function MainNav() {
             <SidebarMenuButton
               asChild
               isActive={isActive('/dashboard')}
-              tooltip="Dashboard"
+              tooltip="Bảng điều khiển"
             >
               <Link href="/dashboard">
                 <Home />
-                <span>Dashboard</span>
+                <span>Bảng điều khiển</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -69,11 +69,11 @@ export function MainNav() {
             <SidebarMenuButton
               asChild
               isActive={isActive('/products')}
-              tooltip="Products"
+              tooltip="Sản phẩm"
             >
               <Link href="/products">
                 <Package />
-                <span>Products</span>
+                <span>Sản phẩm</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -81,11 +81,11 @@ export function MainNav() {
             <SidebarMenuButton
               asChild
               isActive={isActive('/sales')}
-              tooltip="Sales"
+              tooltip="Bán hàng"
             >
               <Link href="/sales">
                 <ShoppingCart />
-                <span>Sales</span>
+                <span>Bán hàng</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -93,11 +93,11 @@ export function MainNav() {
             <SidebarMenuButton
               asChild
               isActive={isActive('/customers')}
-              tooltip="Customers"
+              tooltip="Khách hàng"
             >
               <Link href="/customers">
                 <Users />
-                <span>Customers</span>
+                <span>Khách hàng</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -105,11 +105,11 @@ export function MainNav() {
             <SidebarMenuButton
               asChild
               isActive={isActive('/reports')}
-              tooltip="Reports"
+              tooltip="Báo cáo"
             >
               <Link href="/reports">
                 <LineChart />
-                <span>Reports</span>
+                <span>Báo cáo</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -122,11 +122,11 @@ export function MainNav() {
             <SidebarMenuButton
               asChild
               isActive={isActive('/settings')}
-              tooltip="Settings"
+              tooltip="Cài đặt"
             >
               <Link href="/settings">
                 <Settings />
-                <span>Settings</span>
+                <span>Cài đặt</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

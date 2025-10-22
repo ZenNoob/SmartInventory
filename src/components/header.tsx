@@ -40,7 +40,7 @@ export function Header() {
         <SheetTrigger asChild>
           <Button size="icon" variant="outline" className="sm:hidden">
             <PanelLeft className="h-5 w-5" />
-            <span className="sr-only">Toggle Menu</span>
+            <span className="sr-only">Chuyển đổi Menu</span>
           </Button>
         </SheetTrigger>
         <SheetContent side="left" className="sm:max-w-xs">
@@ -50,37 +50,37 @@ export function Header() {
               className="group flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full bg-primary text-lg font-semibold text-primary-foreground md:text-base"
             >
               <Logo className="h-5 w-5 transition-all group-hover:scale-110" />
-              <span className="sr-only">Smart Inventory</span>
+              <span className="sr-only">Hàng tồn kho thông minh</span>
             </Link>
             <Link
               href="/dashboard"
               className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
             >
-              Dashboard
+              Bảng điều khiển
             </Link>
             <Link
               href="/products"
               className="flex items-center gap-4 px-2.5 text-foreground"
             >
-              Products
+              Sản phẩm
             </Link>
             <Link
               href="/sales"
               className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
             >
-              Sales
+              Bán hàng
             </Link>
             <Link
               href="/customers"
               className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
             >
-              Customers
+              Khách hàng
             </Link>
             <Link
               href="#"
               className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
             >
-              Settings
+              Cài đặt
             </Link>
           </nav>
         </SheetContent>
@@ -89,7 +89,7 @@ export function Header() {
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
         <Input
           type="search"
-          placeholder="Search..."
+          placeholder="Tìm kiếm..."
           className="w-full rounded-lg bg-background pl-8 md:w-[200px] lg:w-[320px]"
         />
       </div>

@@ -34,16 +34,16 @@ export default function LoginPage() {
   }
 
   if (isUserLoading || user) {
-    return <div>Loading...</div>;
+    return <div>Đang tải...</div>;
   }
 
   return (
     <div className="flex items-center justify-center min-h-screen">
       <Card className="mx-auto max-w-sm">
         <CardHeader>
-          <CardTitle className="text-2xl">Login</CardTitle>
+          <CardTitle className="text-2xl">Đăng nhập</CardTitle>
           <CardDescription>
-            Enter your email below to login to your account
+            Nhập email của bạn dưới đây để đăng nhập vào tài khoản của bạn
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -59,15 +59,15 @@ export default function LoginPage() {
             </div>
             <div className="grid gap-2">
               <div className="flex items-center">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">Mật khẩu</Label>
                 <a href="#" className="ml-auto inline-block text-sm underline">
-                  Forgot your password?
+                  Quên mật khẩu?
                 </a>
               </div>
               <Input id="password" type="password" required />
             </div>
             <Button type="submit" className="w-full">
-              Login
+              Đăng nhập
             </Button>
           </form>
         </CardContent>

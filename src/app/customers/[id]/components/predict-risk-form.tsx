@@ -47,7 +47,7 @@ export function PredictRiskForm({ customer }: PredictRiskFormProps) {
     if (result.success && result.data) {
       setPrediction(result.data)
     } else {
-      setError(result.error || 'An unknown error occurred.')
+      setError(result.error || 'Đã xảy ra lỗi không xác định.')
     }
     setIsLoading(false)
   }
@@ -56,24 +56,24 @@ export function PredictRiskForm({ customer }: PredictRiskFormProps) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button className="w-full">
-          <Bot className="mr-2 h-4 w-4" /> Predict Risk
+          <Bot className="mr-2 h-4 w-4" /> Dự đoán rủi ro
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Debt Risk Prediction for {customer.name}</DialogTitle>
+          <DialogTitle>Dự đoán rủi ro nợ cho {customer.name}</DialogTitle>
           <DialogDescription>
-            AI-powered analysis of repayment risk based on customer data.
+            Phân tích rủi ro trả nợ dựa trên dữ liệu khách hàng được hỗ trợ bởi AI.
           </DialogDescription>
         </DialogHeader>
         
         {!prediction && !isLoading && !error && (
             <div className="flex items-center space-x-2 p-4">
-                <p>Click the button below to start the AI prediction.</p>
+                <p>Nhấp vào nút bên dưới để bắt đầu dự đoán của AI.</p>
             </div>
         )}
         
-        {isLoading && <div className="flex justify-center items-center p-8"><Bot className="h-8 w-8 animate-spin" /> <span className="ml-2">Analyzing data...</span></div>}
+        {isLoading && <div className="flex justify-center items-center p-8"><Bot className="h-8 w-8 animate-spin" /> <span className="ml-2">Đang phân tích dữ liệu...</span></div>}
         
         {error && <div className="text-destructive p-4 bg-destructive/10 rounded-md">{error}</div>}
 
@@ -81,15 +81,15 @@ export function PredictRiskForm({ customer }: PredictRiskFormProps) {
             <ScrollArea className="max-h-80 p-4 border rounded-md">
                 <div className="space-y-4">
                     <div>
-                        <h4 className="font-semibold">Risk Assessment</h4>
+                        <h4 className="font-semibold">Đánh giá rủi ro</h4>
                         <p className="text-sm p-2 bg-muted rounded-md mt-1">{prediction.riskAssessment}</p>
                     </div>
                     <div>
-                        <h4 className="font-semibold">Contributing Factors</h4>
+                        <h4 className="font-semibold">Các yếu tố góp phần</h4>
                         <p className="text-sm p-2 bg-muted rounded-md mt-1">{prediction.riskFactors}</p>
                     </div>
                     <div>
-                        <h4 className="font-semibold">Recommendations</h4>
+                        <h4 className="font-semibold">Khuyến nghị</h4>
                         <p className="text-sm p-2 bg-muted rounded-md mt-1">{prediction.recommendations}</p>
                     </div>
                 </div>
@@ -98,10 +98,10 @@ export function PredictRiskForm({ customer }: PredictRiskFormProps) {
         
         <DialogFooter className="sm:justify-between mt-4">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-                Close
+                Đóng
             </Button>
             <Button type="button" onClick={handlePredict} disabled={isLoading}>
-                {isLoading ? 'Running...' : 'Run Prediction Again'}
+                {isLoading ? 'Đang chạy...' : 'Chạy lại dự đoán'}
             </Button>
         </DialogFooter>
       </DialogContent>
