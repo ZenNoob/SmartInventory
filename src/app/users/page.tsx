@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
+import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase"
 import { collection, query, where } from "firebase/firestore"
 import { AppUser } from "@/lib/types"
 import { UserForm } from "./components/user-form"
@@ -52,6 +52,7 @@ function getRoleVietnamese(role: string) {
 }
 
 export default function UsersPage() {
+  const { user } = useUser();
   const { role, isLoading: isRoleLoading } = useUserRole();
   const router = useRouter();
   const firestore = useFirestore();
@@ -64,6 +65,7 @@ export default function UsersPage() {
   
   const adminsQuery = useMemoFirebase(() => {
       if (!firestore) return null;
+      // This query specifically checks for users with the 'admin' role.
       return query(collection(firestore, "users"), where("role", "==", "admin"))
     }, [firestore]
   );
@@ -76,7 +78,8 @@ export default function UsersPage() {
 
   const isLoading = isUsersLoading || isAdminLoading || isRoleLoading;
   
-  // Allow access if the user is an admin OR if there are no admins in the system yet.
+  // This is the bootstrap logic.
+  // Allow access if the user's role is 'admin' OR if the `admins` collection is empty.
   const canAccess = role === 'admin' || (!isLoading && admins?.length === 0);
   
   useEffect(() => {
@@ -86,7 +89,7 @@ export default function UsersPage() {
     }
   }, [isLoading, canAccess, router]);
 
-
+  // While roles and admin status are loading, show a loading state.
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -95,8 +98,8 @@ export default function UsersPage() {
     );
   }
 
-  // This check is important. If, after loading, access is still denied,
-  // we prevent rendering the page content while the redirect is happening.
+  // If loading is finished and the user still can't access, show a redirecting message.
+  // This prevents the page from flashing content before redirecting.
   if (!canAccess) {
      return (
       <div className="flex items-center justify-center h-screen">
@@ -140,7 +143,7 @@ export default function UsersPage() {
             Danh sách tất cả người dùng trong hệ thống của bạn.
             {admins?.length === 0 && !isLoading && (
                <p className="text-destructive text-sm mt-2">
-                 Chưa có quản trị viên nào. Hãy thêm một người dùng có vai trò 'Quản trị viên'.
+                 Chưa có quản trị viên nào. Hãy thêm một người dùng có vai trò 'Quản trị viên' để bảo mật trang này.
                </p>
             )}
           </CardDescription>

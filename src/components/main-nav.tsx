@@ -47,10 +47,10 @@ export function MainNav() {
     return pathname === path
   }
 
-  const isLoading = isUserLoading || isRoleLoading || isAdminLoading;
+  const isLoading = isUserLoading || isAdminLoading;
   
   // Show link if user is admin OR if no admins exist yet (bootstrap case)
-  const canSeeUserManagement = !isLoading && (role === 'admin' || admins?.length === 0);
+  const canSeeUserManagement = role === 'admin' || (!isLoading && admins?.length === 0);
 
   if (pathname.startsWith('/login') || isUserLoading) {
     return null;
