@@ -165,6 +165,7 @@ export default function CategoriesPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-16">STT</TableHead>
                 <TableHead>Tên</TableHead>
                 <TableHead className="hidden md:table-cell">Mô tả</TableHead>
                 <TableHead>
@@ -173,9 +174,10 @@ export default function CategoriesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && <TableRow><TableCell colSpan={3} className="text-center">Đang tải...</TableCell></TableRow>}
-              {!isLoading && filteredCategories?.map((category) => (
+              {isLoading && <TableRow><TableCell colSpan={4} className="text-center">Đang tải...</TableCell></TableRow>}
+              {!isLoading && filteredCategories?.map((category, index) => (
                   <TableRow key={category.id}>
+                    <TableCell className="font-medium">{index + 1}</TableCell>
                     <TableCell className="font-medium">
                       {category.name}
                     </TableCell>
@@ -205,7 +207,7 @@ export default function CategoriesPage() {
                 ))}
                 {!isLoading && filteredCategories?.length === 0 && (
                     <TableRow>
-                        <TableCell colSpan={3} className="text-center h-24">
+                        <TableCell colSpan={4} className="text-center h-24">
                             Không tìm thấy danh mục nào. Hãy thử một từ khóa tìm kiếm khác hoặc thêm một danh mục mới.
                         </TableCell>
                     </TableRow>
