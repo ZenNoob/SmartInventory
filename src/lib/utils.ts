@@ -6,8 +6,11 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(amount: number) {
-  return new Intl.NumberFormat('en-US', {
+  // Use Vietnamese locale for number formatting, and specify VND.
+  // The default symbol is '₫', so we replace it with 'VNĐ'.
+  return new Intl.NumberFormat('vi-VN', {
     style: 'currency',
-    currency: 'USD',
-  }).format(amount)
+    currency: 'VND',
+    maximumFractionDigits: 0,
+  }).format(amount).replace('₫', 'VNĐ');
 }
