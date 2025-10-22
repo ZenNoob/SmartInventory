@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -224,14 +225,14 @@ const Sidebar = React.forwardRef<
       >
         <div
           className={cn(
-            "duration-200 fixed inset-y-0 z-10 hidden h-dvh w-[--sidebar-width] transition-[left,right,width] ease-linear md:flex",
-            side === "left"
-              ? "left-0" : "right-0",
+            "fixed inset-y-0 z-10 hidden h-dvh transition-[width] ease-linear md:flex",
+            side === "left" ? "left-0" : "right-0",
+            state === "expanded" ? "w-[var(--sidebar-width)]" : "w-[var(--sidebar-width-icon)]",
             state === "collapsed" && collapsible === "offcanvas" ? "hidden" : "",
             // Adjust the padding for floating and inset variants.
             variant === "floating" || variant === "inset"
               ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4)_+2px)]"
-              : "group-data-[collapsible=icon]:w-[--sidebar-width-icon] group-data-[side=left]:border-r group-data-[side=right]:border-l",
+              : "group-data-[collapsible=icon]:w-[var(--sidebar-width-icon)] group-data-[side=left]:border-r group-data-[side=right]:border-l",
           )}
         >
           <div
@@ -369,7 +370,7 @@ const SidebarContent = React.forwardRef<
       ref={ref}
       data-sidebar="content"
       className={cn(
-        "flex min-h-0 flex-1 flex-col gap-2 p-3 overflow-auto group-data-[collapsible=icon]:items-center",
+        "flex min-h-0 flex-1 flex-col gap-2 p-3 overflow-auto group-data-[sidebar-state=collapsed]:items-center",
         className
       )}
       {...props}
@@ -477,7 +478,7 @@ const SidebarMenuItem = React.forwardRef<
 SidebarMenuItem.displayName = "SidebarMenuItem"
 
 const sidebarMenuButtonVariants = cva(
-  "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-ring transition-[width,height,padding] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 active:bg-accent active:text-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-accent data-[active=true]:font-medium data-[active=true]:text-accent-foreground data-[state=open]:hover:bg-accent data-[state=open]:hover:text-accent-foreground group-data-[collapsible=icon]:justify-center [&>span]:group-data-[collapsible=icon]:hidden [&>svg]:size-4 [&>svg]:shrink-0",
+  "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-ring transition-[width,height,padding] hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 active:bg-accent active:text-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-accent data-[active=true]:font-medium data-[active=true]:text-accent-foreground data-[state=open]:hover:bg-accent data-[state=open]:hover:text-accent-foreground group-data-[sidebar-state=collapsed]:justify-center [&>span]:group-data-[sidebar-state=collapsed]:hidden [&>svg]:size-4 [&>svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -577,7 +578,7 @@ const SidebarMenuAction = React.forwardRef<
         "peer-data-[size=sm]/menu-button:top-1",
         "peer-data-[size=default]/menu-button:top-1.5",
         "peer-data-[size=lg]/menu-button:top-2.5",
-        "group-data-[collapsible=icon]:hidden",
+        "group-data-[sidebar-state=collapsed]:hidden",
         showOnHover &&
           "group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 peer-data-[active=true]/menu-button:text-accent-foreground md:opacity-0",
         className
@@ -601,7 +602,7 @@ const SidebarMenuBadge = React.forwardRef<
       "peer-data-[size=sm]/menu-button:top-1",
       "peer-data-[size=default]/menu-button:top-1.5",
       "peer-data-[size=lg]/menu-button:top-2.5",
-      "group-data-[collapsible=icon]:hidden",
+      "group-data-[sidebar-state=collapsed]:hidden",
       className
     )}
     {...props}
@@ -656,7 +657,7 @@ const SidebarMenuSub = React.forwardRef<
     data-sidebar="menu-sub"
     className={cn(
       "mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l border-border px-2.5 py-0.5",
-      "group-data-[collapsible=icon]:hidden",
+      "group-data-[sidebar-state=collapsed]:hidden",
       className
     )}
     {...props}
@@ -691,7 +692,7 @@ const SidebarMenuSubButton = React.forwardRef<
         "data-[active=true]:bg-accent data-[active=true]:text-accent-foreground",
         size === "sm" && "text-xs",
         size === "md" && "text-sm",
-        "group-data-[collapsible=icon]:hidden",
+        "group-data-[sidebar-state=collapsed]:hidden",
         className
       )}
       {...props}

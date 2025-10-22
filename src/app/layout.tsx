@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next'
 import { PT_Sans } from 'next/font/google'
 import './globals.css'
@@ -43,7 +44,7 @@ export default function RootLayout({
                 <div className="relative flex h-dvh flex-1 flex-col">
                   <Header />
                   <div className="flex-1 overflow-auto">
-                    <main className="grid flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8">
+                    <main className="grid flex-1 items-start gap-6 p-6">
                        {children}
                     </main>
                   </div>
