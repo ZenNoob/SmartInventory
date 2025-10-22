@@ -4,6 +4,7 @@ import { useState } from "react"
 import {
   MoreHorizontal,
   PlusCircle,
+  Search,
 } from "lucide-react"
 
 import {
@@ -47,12 +48,14 @@ import { CategoryForm } from "./components/category-form"
 import { deleteCategory } from "./actions"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
+import { Input } from "@/components/ui/input"
 
 export default function CategoriesPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | undefined>(undefined);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -64,6 +67,14 @@ export default function CategoriesPage() {
   }, [firestore]);
 
   const { data: categories, isLoading } = useCollection<Category>(categoriesQuery);
+
+  const filteredCategories = categories?.filter(category => {
+    const term = searchTerm.toLowerCase();
+    return (
+      category.name.toLowerCase().includes(term) ||
+      (category.description && category.description.toLowerCase().includes(term))
+    );
+  })
 
   const handleAddCategory = () => {
     setSelectedCategory(undefined);
@@ -125,7 +136,7 @@ export default function CategoriesPage() {
         <div className="grid gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">Danh mục sản phẩm</h1>
             <p className="text-sm text-muted-foreground">
-                Thêm, sửa hoặc xóa các danh mục sản phẩm của bạn.
+                Thêm, sửa, xóa và tìm kiếm các danh mục sản phẩm của bạn.
             </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -138,6 +149,18 @@ export default function CategoriesPage() {
         </div>
       </div>
       <Card>
+        <CardHeader>
+             <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                    type="search"
+                    placeholder="Tìm kiếm theo tên hoặc mô tả..."
+                    className="w-full rounded-lg bg-background pl-8 md:w-1/3"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
+        </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -151,7 +174,7 @@ export default function CategoriesPage() {
             </TableHeader>
             <TableBody>
               {isLoading && <TableRow><TableCell colSpan={3} className="text-center">Đang tải...</TableCell></TableRow>}
-              {!isLoading && categories?.map((category) => (
+              {!isLoading && filteredCategories?.map((category) => (
                   <TableRow key={category.id}>
                     <TableCell className="font-medium">
                       {category.name}
@@ -180,10 +203,10 @@ export default function CategoriesPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {!isLoading && categories?.length === 0 && (
+                {!isLoading && filteredCategories?.length === 0 && (
                     <TableRow>
                         <TableCell colSpan={3} className="text-center h-24">
-                            Không tìm thấy danh mục nào. Hãy bắt đầu bằng cách thêm một danh mục mới.
+                            Không tìm thấy danh mục nào. Hãy thử một từ khóa tìm kiếm khác hoặc thêm một danh mục mới.
                         </TableCell>
                     </TableRow>
                 )}
@@ -192,7 +215,7 @@ export default function CategoriesPage() {
         </CardContent>
         <CardFooter>
           <div className="text-xs text-muted-foreground">
-            Hiển thị <strong>1-{categories?.length || 0}</strong> trên <strong>{categories?.length || 0}</strong> danh mục
+            Hiển thị <strong>{filteredCategories?.length || 0}</strong> trên <strong>{categories?.length || 0}</strong> danh mục
           </div>
         </CardFooter>
       </Card>
