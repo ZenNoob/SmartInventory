@@ -98,7 +98,7 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
                     name: product.name,
                     categoryId: product.categoryId,
                     status: product.status,
-                    purchaseLots: product.purchaseLots || []
+                    purchaseLots: product.purchaseLots && product.purchaseLots.length > 0 ? product.purchaseLots : []
                   }
                 : {
                     name: '',
@@ -131,7 +131,7 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="sm:max-w-3xl grid-rows-[auto,1fr,auto] max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>{product ? 'Chỉnh sửa sản phẩm' : 'Thêm sản phẩm mới'}</DialogTitle>
           <DialogDescription>
@@ -139,7 +139,7 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-rows-[1fr_auto] gap-4 max-h-[80vh]">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-rows-[1fr_auto] gap-4 overflow-hidden">
             <div className='space-y-4 overflow-y-auto pr-6'>
               <FormField
                 control={form.control}
@@ -222,84 +222,82 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
                 </Button>
               </div>
             
-              <ScrollArea className="max-h-48 w-full pr-2">
-                <div className="space-y-4">
-                    {fields.map((field, index) => (
-                      <div key={field.id} className="grid grid-cols-1 md:grid-cols-5 gap-3 p-3 border rounded-md relative">
+              <div className="space-y-4">
+                  {fields.map((field, index) => (
+                    <div key={field.id} className="grid grid-cols-1 md:grid-cols-5 gap-3 p-3 border rounded-md relative">
+                       <FormField
+                          control={form.control}
+                          name={`purchaseLots.${index}.importDate`}
+                          render={({ field }) => (
+                            <FormItem className="md:col-span-2">
+                              <FormLabel>Ngày nhập</FormLabel>
+                              <FormControl>
+                                <Input type="date" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name={`purchaseLots.${index}.quantity`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Số lượng</FormLabel>
+                              <FormControl>
+                                <Input type="number" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                          <FormField
-                            control={form.control}
-                            name={`purchaseLots.${index}.importDate`}
-                            render={({ field }) => (
-                              <FormItem className="md:col-span-2">
-                                <FormLabel>Ngày nhập</FormLabel>
+                          control={form.control}
+                          name={`purchaseLots.${index}.cost`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Giá</FormLabel>
+                              <FormControl>
+                                <Input type="number" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                         <FormField
+                          control={form.control}
+                          name={`purchaseLots.${index}.unit`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Đơn vị</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
-                                  <Input type="date" {...field} />
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Chọn đơn vị" />
+                                  </SelectTrigger>
                                 </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name={`purchaseLots.${index}.quantity`}
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Số lượng</FormLabel>
-                                <FormControl>
-                                  <Input type="number" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                           <FormField
-                            control={form.control}
-                            name={`purchaseLots.${index}.cost`}
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Giá</FormLabel>
-                                <FormControl>
-                                  <Input type="number" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                           <FormField
-                            control={form.control}
-                            name={`purchaseLots.${index}.unit`}
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Đơn vị</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Chọn đơn vị" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    {units.map(unit => (
-                                      <SelectItem key={unit.id} value={unit.name}>{unit.name}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="absolute top-1 right-1 h-6 w-6"
-                              onClick={() => remove(index)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                      </div>
-                    ))}
-                </div>
-              </ScrollArea>
+                                <SelectContent>
+                                  {units.map(unit => (
+                                    <SelectItem key={unit.id} value={unit.name}>{unit.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-1 right-1 h-6 w-6"
+                            onClick={() => remove(index)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                    </div>
+                  ))}
+              </div>
             </div>
 
             <DialogFooter className="pt-4 border-t">
