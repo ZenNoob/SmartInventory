@@ -79,12 +79,22 @@
           "items": {
             "$ref": "#/entities/PurchaseLot"
           }
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the product.",
+          "enum": [
+            "active",
+            "draft",
+            "archived"
+          ]
         }
       },
       "required": [
         "id",
         "name",
-        "categoryId"
+        "categoryId",
+        "status"
       ]
     },
     "Customer": {

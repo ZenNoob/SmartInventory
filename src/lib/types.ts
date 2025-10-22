@@ -16,6 +16,7 @@ export type Product = {
   name: string
   categoryId: string
   purchaseLots: PurchaseLot[]
+  status: 'active' | 'draft' | 'archived'
 }
 
 export type Customer = {

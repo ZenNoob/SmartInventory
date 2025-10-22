@@ -47,6 +47,7 @@ const purchaseLotSchema = z.object({
 const productFormSchema = z.object({
   name: z.string().min(1, "Tên sản phẩm không được để trống."),
   categoryId: z.string().min(1, "Danh mục là bắt buộc."),
+  status: z.enum(['active', 'draft', 'archived']),
   purchaseLots: z.array(purchaseLotSchema).optional(),
 });
 
@@ -68,11 +69,13 @@ export function ProductForm({ isOpen, onOpenChange, product, categories }: Produ
     ? { 
         name: product.name, 
         categoryId: product.categoryId,
+        status: product.status,
         purchaseLots: product.purchaseLots || []
       }
     : { 
         name: '', 
         categoryId: '',
+        status: 'draft',
         purchaseLots: []
       };
   
@@ -92,10 +95,12 @@ export function ProductForm({ isOpen, onOpenChange, product, categories }: Produ
         product ? {
           name: product.name,
           categoryId: product.categoryId,
+          status: product.status,
           purchaseLots: product.purchaseLots || []
         } : {
           name: '',
           categoryId: '',
+          status: 'draft',
           purchaseLots: [{ importDate: new Date().toISOString().split('T')[0], quantity: 0, cost: 0, unit: 'cái' }]
         }
       );
@@ -169,6 +174,29 @@ export function ProductForm({ isOpen, onOpenChange, product, categories }: Produ
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Trạng thái</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Chọn trạng thái" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="draft">Bản nháp</SelectItem>
+                          <SelectItem value="active">Hoạt động</SelectItem>
+                          <SelectItem value="archived">Lưu trữ</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
 
                 <Separator className='my-6'/>
                 

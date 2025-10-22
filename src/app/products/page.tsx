@@ -51,11 +51,15 @@ import { Category, Product } from "@/lib/types"
 import { collection, query } from "firebase/firestore"
 import { Input } from "@/components/ui/input"
 
+type ProductStatus = 'active' | 'draft' | 'archived' | 'all';
+
+
 export default function ProductsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<ProductStatus>('all');
   
   const firestore = useFirestore();
 
@@ -96,20 +100,33 @@ export default function ProductsPage() {
   }
 
   const filteredProducts = products?.filter(product => {
-    const term = searchTerm.toLowerCase();
-    const category = categories?.find(c => c.id === product.categoryId);
-    const averageCost = getAverageCost(product);
+    // Status Filter
+    if (statusFilter !== 'all' && product.status !== statusFilter) {
+      return false;
+    }
+    
+    // Category Filter
+    if (categoryFilter !== 'all' && product.categoryId !== categoryFilter) {
+      return false;
+    }
 
-    const matchesSearchTerm = (
-      product.name.toLowerCase().includes(term) ||
-      (category && category.name.toLowerCase().includes(term)) ||
-      averageCost.toString().includes(term) ||
-      formatCurrency(averageCost).toLowerCase().includes(term)
-    );
+    // Search Term Filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      const category = categories?.find(c => c.id === product.categoryId);
+      const averageCost = getAverageCost(product);
+      
+      const matchesSearchTerm = (
+        product.name.toLowerCase().includes(term) ||
+        (category && category.name.toLowerCase().includes(term)) ||
+        averageCost.toString().includes(term) ||
+        formatCurrency(averageCost).toLowerCase().includes(term)
+      );
 
-    const matchesCategory = categoryFilter === 'all' || product.categoryId === categoryFilter;
-
-    return matchesSearchTerm && matchesCategory;
+      return matchesSearchTerm;
+    }
+    
+    return true; // if no search term, return all products matching other filters
   })
 
 
@@ -121,7 +138,7 @@ export default function ProductsPage() {
         product={selectedProduct}
         categories={categories || []}
       />
-      <Tabs defaultValue="all">
+      <Tabs defaultValue="all" onValueChange={(value) => setStatusFilter(value as ProductStatus)}>
         <div className="flex items-center">
           <TabsList>
             <TabsTrigger value="all">Tất cả</TabsTrigger>
@@ -169,7 +186,7 @@ export default function ProductsPage() {
             </Button>
           </div>
         </div>
-        <TabsContent value="all">
+        <TabsContent value={statusFilter}>
           <Card>
             <CardHeader>
               <CardTitle>Sản phẩm</CardTitle>
@@ -193,6 +210,7 @@ export default function ProductsPage() {
                   <TableRow>
                     <TableHead className="w-16">STT</TableHead>
                     <TableHead>Tên</TableHead>
+                    <TableHead>Trạng thái</TableHead>
                     <TableHead>Loại</TableHead>
                     <TableHead className="hidden md:table-cell">
                       Giá nhập trung bình
@@ -206,7 +224,7 @@ export default function ProductsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isLoading && <TableRow><TableCell colSpan={6} className="text-center">Đang tải...</TableCell></TableRow>}
+                  {isLoading && <TableRow><TableCell colSpan={7} className="text-center">Đang tải...</TableCell></TableRow>}
                   {!isLoading && filteredProducts?.map((product, index) => {
                     const category = categories?.find(c => c.id === product.categoryId);
                     const stock = getStock(product);
@@ -217,6 +235,11 @@ export default function ProductsPage() {
                         <TableCell className="font-medium">{index + 1}</TableCell>
                         <TableCell className="font-medium">
                           {product.name}
+                        </TableCell>
+                         <TableCell>
+                          <Badge variant={product.status === 'active' ? 'default' : product.status === 'draft' ? 'secondary' : 'destructive'}>
+                            {product.status === 'active' ? 'Hoạt động' : product.status === 'draft' ? 'Bản nháp' : 'Lưu trữ'}
+                          </Badge>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">{category?.name || 'N/A'}</Badge>
@@ -251,7 +274,7 @@ export default function ProductsPage() {
                   })}
                    {!isLoading && filteredProducts?.length === 0 && (
                     <TableRow>
-                        <TableCell colSpan={6} className="text-center h-24">
+                        <TableCell colSpan={7} className="text-center h-24">
                             Không tìm thấy sản phẩm nào.
                         </TableCell>
                     </TableRow>
