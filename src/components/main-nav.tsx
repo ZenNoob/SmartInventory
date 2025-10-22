@@ -24,18 +24,33 @@ import {
 } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
 import { Logo } from '@/components/icons'
-import { useUser } from '@/firebase'
+import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase'
 import { useUserRole } from '@/hooks/use-user-role'
+import { AppUser } from '@/lib/types'
+import { collection, query, where } from 'firebase/firestore'
 
 export function MainNav() {
   const pathname = usePathname()
   const { user, isUserLoading } = useUser();
-  const { role } = useUserRole();
+  const { role, isLoading: isRoleLoading } = useUserRole();
   const { state } = useSidebar();
+  const firestore = useFirestore();
+
+  const adminsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, "users"), where("role", "==", "admin"))
+  }, [firestore]);
+
+  const { data: admins, isLoading: isAdminLoading } = useCollection<AppUser>(adminsQuery);
 
   const isActive = (path: string) => {
     return pathname === path
   }
+
+  const isLoading = isUserLoading || isRoleLoading || isAdminLoading;
+  
+  // Show link if user is admin OR if no admins exist yet (bootstrap case)
+  const canSeeUserManagement = !isLoading && (role === 'admin' || admins?.length === 0);
 
   if (pathname.startsWith('/login') || isUserLoading) {
     return null;
@@ -118,7 +133,7 @@ export function MainNav() {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
-           {role === 'admin' && (
+           {canSeeUserManagement && (
             <SidebarMenuItem>
               <SidebarMenuButton
                 asChild
