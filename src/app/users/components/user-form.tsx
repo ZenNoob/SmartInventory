@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -55,12 +55,31 @@ export function UserForm({ isOpen, onOpenChange, user }: UserFormProps) {
 
   const defaultValues: Partial<UserFormValues> = user
     ? { email: user.email, displayName: user.displayName || '', role: user.role }
-    : { role: 'inventory_manager', displayName: '' };
+    : { role: 'inventory_manager', displayName: '', email: '' };
   
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userFormSchema),
     defaultValues,
   });
+
+  useEffect(() => {
+    if (user) {
+      form.reset({
+        email: user.email,
+        displayName: user.displayName || '',
+        role: user.role,
+        password: '', // Don't pre-fill password
+      });
+    } else {
+      form.reset({
+        email: '',
+        displayName: '',
+        role: 'inventory_manager',
+        password: '',
+      });
+    }
+  }, [user, form]);
+
 
   const onSubmit = async (data: UserFormValues) => {
     const result = await upsertUser({ ...data, id: user?.id });
@@ -127,7 +146,7 @@ export function UserForm({ isOpen, onOpenChange, user }: UserFormProps) {
                 <FormItem>
                   <FormLabel>Tên hiển thị</FormLabel>
                   <FormControl>
-                    <Input placeholder="John Doe" {...field} />
+                    <Input placeholder="John Doe" {...field} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
