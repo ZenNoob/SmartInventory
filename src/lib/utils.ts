@@ -22,6 +22,9 @@ export function formatCurrency(amount: number) {
  * @returns {string} The HEX color string.
  */
 export function hslToHex(hslString: string): string {
+  if (!hslString) {
+    return '#000000'; // Return a default color if input is invalid
+  }
   const [h, s, l] = hslString.split(" ").map(val => parseInt(val, 10));
   const sDecimal = s / 100;
   const lDecimal = l / 100;
