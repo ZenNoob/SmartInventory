@@ -91,19 +91,23 @@ export function ProductForm({ isOpen, onOpenChange, product, categories }: Produ
 
   useEffect(() => {
     if (isOpen) {
-      form.reset(
-        product ? {
+      if (product) {
+        // Editing existing product
+        form.reset({
           name: product.name,
           categoryId: product.categoryId,
           status: product.status,
-          purchaseLots: product.purchaseLots || []
-        } : {
+          purchaseLots: product.purchaseLots || [] // Ensure it's an array
+        });
+      } else {
+        // Creating a new product, start with one empty lot
+        form.reset({
           name: '',
           categoryId: '',
           status: 'draft',
           purchaseLots: [{ importDate: new Date().toISOString().split('T')[0], quantity: 0, cost: 0, unit: 'cái' }]
-        }
-      );
+        });
+      }
     }
   }, [product, isOpen, form]);
 
