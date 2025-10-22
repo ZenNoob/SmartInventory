@@ -210,6 +210,7 @@ export default function UsersPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-16">STT</TableHead>
                 <TableHead>Tên hiển thị</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Vai trò</TableHead>
@@ -221,13 +222,14 @@ export default function UsersPage() {
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center">Đang tải...</TableCell>
+                  <TableCell colSpan={5} className="text-center">Đang tải...</TableCell>
                 </TableRow>
               )}
-              {!isLoading && users?.map((user) => {
+              {!isLoading && users?.map((user, index) => {
                 const isCurrentUser = user.id === currentUser?.uid;
                 return (
                   <TableRow key={user.id}>
+                    <TableCell className="font-medium">{index + 1}</TableCell>
                     <TableCell className="font-medium">
                       {user.displayName || 'N/A'}
                     </TableCell>
