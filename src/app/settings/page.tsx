@@ -29,11 +29,15 @@ import { doc } from 'firebase/firestore'
 import { upsertThemeSettings } from './actions'
 import type { ThemeSettings } from '@/lib/types'
 import { hexToHsl, hslToHex } from '@/lib/utils'
+import { Separator } from '@/components/ui/separator'
 
 const themeFormSchema = z.object({
   primary: z.string().min(1, "Bắt buộc"),
+  primaryForeground: z.string().min(1, "Bắt buộc"),
   background: z.string().min(1, "Bắt buộc"),
+  foreground: z.string().min(1, "Bắt buộc"),
   accent: z.string().min(1, "Bắt buộc"),
+  accentForeground: z.string().min(1, "Bắt buộc"),
 });
 
 type ThemeFormValues = z.infer<typeof themeFormSchema>;
@@ -54,8 +58,11 @@ export default function SettingsPage() {
     resolver: zodResolver(themeFormSchema),
     defaultValues: {
       primary: '#ff6600',
+      primaryForeground: '#111827',
       background: '#f2f5f9',
+      foreground: '#111827',
       accent: '#ff6600',
+      accentForeground: '#111827',
     },
   });
   
@@ -63,17 +70,23 @@ export default function SettingsPage() {
     if (themeSettings) {
       form.reset({
         primary: hslToHex(themeSettings.primary),
+        primaryForeground: hslToHex(themeSettings.primaryForeground),
         background: hslToHex(themeSettings.background),
+        foreground: hslToHex(themeSettings.foreground),
         accent: hslToHex(themeSettings.accent),
+        accentForeground: hslToHex(themeSettings.accentForeground),
       });
     }
   }, [themeSettings, form]);
 
   const onSubmit = async (data: ThemeFormValues) => {
-    const hslData = {
+    const hslData: ThemeSettings = {
       primary: hexToHsl(data.primary),
+      primaryForeground: hexToHsl(data.primaryForeground),
       background: hexToHsl(data.background),
+      foreground: hexToHsl(data.foreground),
       accent: hexToHsl(data.accent),
+      accentForeground: hexToHsl(data.accentForeground),
     };
     const result = await upsertThemeSettings(hslData);
     if (result.success) {
@@ -102,7 +115,7 @@ export default function SettingsPage() {
             <FormControl>
               <Input type="color" {...field} className="w-16 h-10 p-1" />
             </FormControl>
-            <span className="text-sm text-muted-foreground font-mono">{hexToHsl(field.value)}</span>
+            <span className="text-sm text-muted-foreground font-mono">{hslToHex(field.value)}</span>
           </div>
           <FormMessage />
         </FormItem>
@@ -124,11 +137,22 @@ export default function SettingsPage() {
           <CardContent className="space-y-6">
              {isLoading && <p>Đang tải cài đặt...</p>}
             {!isLoading && (
-              <>
-                <ColorField name="primary" label="Màu chủ đạo (Primary)" />
-                <ColorField name="background" label="Màu nền (Background)" />
-                <ColorField name="accent" label="Màu nhấn (Accent/Hover)" />
-              </>
+              <div className='space-y-8'>
+                <div className='grid md:grid-cols-2 gap-8'>
+                    <ColorField name="background" label="Màu nền (Background)" />
+                    <ColorField name="foreground" label="Màu chữ (Foreground)" />
+                </div>
+                <Separator />
+                 <div className='grid md:grid-cols-2 gap-8'>
+                    <ColorField name="primary" label="Màu chủ đạo (Primary)" />
+                    <ColorField name="primaryForeground" label="Chữ trên màu chủ đạo" />
+                </div>
+                <Separator />
+                 <div className='grid md:grid-cols-2 gap-8'>
+                    <ColorField name="accent" label="Màu nhấn (Accent/Hover)" />
+                    <ColorField name="accentForeground" label="Chữ trên màu nhấn" />
+                </div>
+              </div>
             )}
           </CardContent>
           <CardFooter className="border-t px-6 py-4">

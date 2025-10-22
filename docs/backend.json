@@ -269,19 +269,34 @@
           "type": "string",
           "description": "The primary color for the theme, as an HSL string (e.g., '24 95% 53%')."
         },
+        "primaryForeground": {
+          "type": "string",
+          "description": "The foreground color for primary elements, as an HSL string."
+        },
         "background": {
           "type": "string",
           "description": "The background color for the theme, as an HSL string (e.g., '220 17% 95%')."
         },
+        "foreground": {
+          "type": "string",
+          "description": "The foreground color for text, as an HSL string."
+        },
         "accent": {
           "type": "string",
           "description": "The accent color for the theme, used for hover and focus states, as an HSL string."
+        },
+        "accentForeground": {
+          "type": "string",
+          "description": "The foreground color for accent elements, as an HSL string."
         }
       },
       "required": [
         "primary",
+        "primaryForeground",
         "background",
-        "accent"
+        "foreground",
+        "accent",
+        "accentForeground"
       ]
     }
   },

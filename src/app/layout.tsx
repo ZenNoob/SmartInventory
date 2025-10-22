@@ -33,8 +33,11 @@ export default async function RootLayout({
 
   const themeStyle = themeSettings ? {
     '--background': themeSettings.background,
+    '--foreground': themeSettings.foreground,
     '--primary': themeSettings.primary,
+    '--primary-foreground': themeSettings.primaryForeground,
     '--accent': themeSettings.accent,
+    '--accent-foreground': themeSettings.accentForeground,
   } as React.CSSProperties : {};
 
   return (

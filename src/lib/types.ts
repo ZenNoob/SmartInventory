@@ -57,6 +57,9 @@ export type AppUser = {
 
 export type ThemeSettings = {
   primary: string;
+  primaryForeground: string;
   background: string;
+  foreground: string;
   accent: string;
+  accentForeground: string;
 }
