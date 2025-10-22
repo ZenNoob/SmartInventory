@@ -7,16 +7,18 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 
 function getServiceAccount() {
-  const serviceAccountString = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (!serviceAccountString) {
-    console.error('FIREBASE_SERVICE_ACCOUNT environment variable is not set. This is required for admin actions.');
+  const serviceAccountB64 = process.env.FIREBASE_SERVICE_ACCOUNT_B64;
+  if (!serviceAccountB64) {
+    console.error('FIREBASE_SERVICE_ACCOUNT_B64 environment variable is not set. This is required for admin actions.');
     throw new Error('Server configuration error: Missing service account credentials.');
   }
   try {
-    // Directly parse the string which should be a valid JSON object.
-    return JSON.parse(serviceAccountString);
+    // Decode the Base64 string to get the original JSON string
+    const serviceAccountJson = Buffer.from(serviceAccountB64, 'base64').toString('utf-8');
+    // Parse the decoded JSON string
+    return JSON.parse(serviceAccountJson);
   } catch (e) {
-    console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT JSON.', e);
+    console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_B64 JSON.', e);
     throw new Error('Server configuration error: Invalid service account credentials format.');
   }
 }
