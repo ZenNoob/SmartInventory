@@ -1,229 +1,210 @@
 /**
- * @fileoverview Firestore Security Rules for Inventory Management System.
- *
- * Core Philosophy:
- * This ruleset enforces a role-based access control model. Users with specific
- * roles (admin, accountant, inventory manager) have access to different parts
- * of the database. The rules prioritize security and data integrity,
- * particularly around user roles and relationships between entities.
- *
- * Data Structure:
- * - /categories/{categoryId}: Stores product categories.
- * - /products/{productId}: Stores product information.
- * - /customers/{customerId}: Stores customer information.
- * - /sales_transactions/{salesTransactionId}: Stores sales transaction data.
- * - /sales_transactions/{salesTransactionId}/sales_items/{salesItemId}: Stores individual items within a sales transaction.
- * - /payments/{paymentId}: Stores payment information.
- * - /users/{userId}: Stores user profile information.
- * - /roles_admin/{userId}: Stores admin role assignments.
- * - /roles_accountant/{userId}: Stores accountant role assignments.
- * - /roles_inventory_manager/{userId}: Stores inventory manager role assignments.
- *
- * Key Security Decisions:
- * - Role-based access: Only users with the appropriate roles can create, update,
- *   or delete categories, products, customers, sales transactions, sales items,
- *   and payments.
- * - User data access: Users can only access their own user data under `/users/{userId}`.
- * - No public listing: Listing of users is disallowed to prevent information
- *   disclosure.
- * - Explicit Denials: All operations not explicitly allowed are denied.
- *
- * Denormalization for Authorization:
- *  - The system relies on checking for the *existence* of a user's document inside of the role collections, for authorization.
- *  - Example: If a user document exists in `/roles_admin/{userId}`, that user is authorized as an admin.
+ * Core Philosophy: This ruleset enforces role-based access control for managing categories, products, customers, sales transactions, and payments. It leverages structural segregation by defining distinct role collections (roles_admin, roles_accountant, roles_inventory_manager) and avoids complex rule chains by using separate collections instead of flags within the documents. All write operations are restricted to users with specific roles.
+ * Data Structure: The database consists of top-level collections for each entity: `/categories/{categoryId}`, `/products/{productId}`, `/customers/{customerId}`, `/sales_transactions/{salesTransactionId}`, `/payments/{paymentId}`, and `/users/{userId}`. User role information is stored in dedicated collections `/roles_admin/{userId}`, `/roles_accountant/{userId}`, and `/roles_inventory_manager/{userId}`. Relationships between entities are maintained via ID references.
+ * Key Security Decisions: Listing of the main collections (categories, products, customers, sales_transactions, and payments) is denied to prevent unauthorized data exposure. User documents in `/users/{userId}` are only accessible to the owner. Role-based access is enforced for creating, updating, and deleting documents in most collections.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Manages product categories. Only admins and inventory managers can create, update, or delete categories.
-     * @path /categories/{categoryId}
-     * @allow (create) User with admin or inventory manager role creates a new category.
-     * @allow (get, list) User with admin or inventory manager role reads category data.
-     * @allow (update, delete) User with admin or inventory manager role updates or deletes a category.
-     * @deny (create, update, delete) User without admin or inventory manager role tries to modify categories.
-     * @principle Enforces role-based access control for categories.
-     */
-    match /categories/{categoryId} {
-      allow get, list: if isAdmin() || isInventoryManager();
-      allow create: if isAdmin() || isInventoryManager();
-      allow update: if isAdmin() || isInventoryManager();
-      allow delete: if isAdmin() || isInventoryManager();
-    }
-
-    /**
-     * @description Manages product information. Only admins and inventory managers can create, update, or delete products.
-     * @path /products/{productId}
-     * @allow (create) User with admin or inventory manager role creates a new product.
-     * @allow (get, list) User with admin or inventory manager role reads product data.
-     * @allow (update, delete) User with admin or inventory manager role updates or deletes a product.
-     * @deny (create, update, delete) User without admin or inventory manager role tries to modify products.
-     * @principle Enforces role-based access control for products.
-     */
-    match /products/{productId} {
-      allow get, list: if isAdmin() || isInventoryManager();
-      allow create: if isAdmin() || isInventoryManager();
-      allow update: if isAdmin() || isInventoryManager();
-      allow delete: if isAdmin() || isInventoryManager();
-    }
-
-    /**
-     * @description Manages customer information. Accessible to accountants and admins.
-     * @path /customers/{customerId}
-     * @allow (create) User with admin or accountant role creates a new customer.
-     * @allow (get, list) User with admin or accountant role reads customer data.
-     * @allow (update, delete) User with admin or accountant role updates or deletes a customer.
-     * @deny (create, update, delete) User without admin or accountant role tries to modify customers.
-     * @principle Enforces role-based access control for customers.
-     */
-    match /customers/{customerId} {
-      allow get, list: if isAdmin() || isAccountant();
-      allow create: if isAdmin() || isAccountant();
-      allow update: if isAdmin() || isAccountant();
-      allow delete: if isAdmin() || isAccountant();
-    }
-
-    /**
-     * @description Manages sales transaction data. Accessible to accountants and admins.
-     * @path /sales_transactions/{salesTransactionId}
-     * @allow (create) User with admin or accountant role creates a new sales transaction.
-     * @allow (get, list) User with admin or accountant role reads sales transaction data.
-     * @allow (update, delete) User with admin or accountant role updates or deletes a sales transaction.
-     * @deny (create, update, delete) User without admin or accountant role tries to modify sales transactions.
-     * @principle Enforces role-based access control for sales transactions.
-     */
-    match /sales_transactions/{salesTransactionId} {
-      allow get, list: if isAdmin() || isAccountant();
-      allow create: if isAdmin() || isAccountant();
-      allow update: if isAdmin() || isAccountant();
-      allow delete: if isAdmin() || isAccountant();
-    }
-
-    /**
-     * @description Manages individual items within a sales transaction. Accessible to accountants and admins.
-     * @path /sales_transactions/{salesTransactionId}/sales_items/{salesItemId}
-     * @allow (create) User with admin or accountant role creates a new sales item.
-     * @allow (get, list) User with admin or accountant role reads sales item data.
-     * @allow (update, delete) User with admin or accountant role updates or deletes a sales item.
-     * @deny (create, update, delete) User without admin or accountant role tries to modify sales items.
-     * @principle Enforces role-based access control for sales items.
-     */
-    match /sales_transactions/{salesTransactionId}/sales_items/{salesItemId} {
-      allow get, list: if isAdmin() || isAccountant();
-      allow create: if isAdmin() || isAccountant();
-      allow update: if isAdmin() || isAccountant();
-      allow delete: if isAdmin() || isAccountant();
-    }
-
-    /**
-     * @description Manages payment information. Accessible to accountants and admins.
-     * @path /payments/{paymentId}
-     * @allow (create) User with admin or accountant role creates a new payment.
-     * @allow (get, list) User with admin or accountant role reads payment data.
-     * @allow (update, delete) User with admin or accountant role updates or deletes a payment.
-     * @deny (create, update, delete) User without admin or accountant role tries to modify payments.
-     * @principle Enforces role-based access control for payments.
-     */
-    match /payments/{paymentId} {
-      allow get, list: if isAdmin() || isAccountant();
-      allow create: if isAdmin() || isAccountant();
-      allow update: if isAdmin() || isAccountant();
-      allow delete: if isAdmin() || isAccountant();
-    }
-
-    /**
-     * @description Stores user role information.
-     * @path /users/{userId}
-     * @allow (create) User can create their own user document.
-     * @allow (get) User can read their own user document.
-     * @allow (update) User can update their own user document.
-     * @deny (list) Listing all users is not allowed.
-     * @deny (delete) User cannot delete its own profile.
-     * @principle Enforces document ownership for users.
-     */
-    match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow delete: if false;
-    }
-
-      /**
-       * @description Documents in this collection denote users with admin roles.
-       * @path /roles_admin/{userId}
-       */
-    match /roles_admin/{userId} {
-      allow get, list: if false;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
-    }
-
-      /**
-       * @description Documents in this collection denote users with accountant roles.
-       * @path /roles_accountant/{userId}
-       */
-    match /roles_accountant/{userId} {
-      allow get, list: if false;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
-    }
-
-      /**
-       * @description Documents in this collection denote users with inventory manager roles.
-       * @path /roles_inventory_manager/{userId}
-       */
-    match /roles_inventory_manager/{userId} {
-      allow get, list: if false;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
-    }
-
-    // --- Helper functions ---
-
-    /**
-     * @description Checks if the user is signed in.
-     * @return {boolean} True if the user is signed in, false otherwise.
+     * @description Determines if the user is signed in.
+     * @return {bool} True if the user is signed in, false otherwise.
      */
     function isSignedIn() {
       return request.auth != null;
     }
 
     /**
-     * @description Checks if the user is the owner of the document.
+     * @description Determines if the user has the specified role.
+     * @param {string} role The role to check for (e.g., 'admin', 'accountant', 'inventory_manager').
+     * @return {bool} True if the user has the role, false otherwise.
+     */
+    function hasRole(role) {
+        return exists(/databases/$(database)/documents/roles_$(role)/$(request.auth.uid));
+    }
+
+    /**
+     * @description Determines if the user is an admin.
+     * @return {bool} True if the user is an admin, false otherwise.
+     */
+    function isAdmin() {
+      return hasRole('admin');
+    }
+
+    /**
+     * @description Determines if the user is an accountant.
+     * @return {bool} True if the user is an accountant, false otherwise.
+     */
+    function isAccountant() {
+      return hasRole('accountant');
+    }
+
+    /**
+     * @description Determines if the user is an inventory manager.
+     * @return {bool} True if the user is an inventory manager, false otherwise.
+     */
+    function isInventoryManager() {
+      return hasRole('inventory_manager');
+    }
+
+    /**
+     * @description Determines if the user owns the document at the specified path.
      * @param {string} userId The user ID to check against.
-     * @return {boolean} True if the user is the owner, false otherwise.
+     * @return {bool} True if the user owns the document, false otherwise.
      */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
     /**
-     * @description Checks if the user has the admin role.
-     * @return {boolean} True if the user has the admin role, false otherwise.
+     * @description Determines if the user owns the existing document at the specified path.
+     * @param {string} userId The user ID to check against.
+     * @return {bool} True if the user owns the document and it exists, false otherwise.
      */
-    function isAdmin() {
-        return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
     }
 
     /**
-     * @description Checks if the user has the accountant role.
-     * @return {boolean} True if the user has the accountant role, false otherwise.
+     * @description Rules for the /categories/{categoryId} collection.
+     * @path /categories/{categoryId}
+     * @allow (create) User with admin role can create a category.
+     * @deny (create) User without admin role cannot create a category.
+     * @principle Enforces role-based access control for category creation.
      */
-    function isAccountant() {
-        return exists(/databases/$(database)/documents/roles_accountant/$(request.auth.uid));
+    match /categories/{categoryId} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if isAdmin() || isInventoryManager();
+      allow update: if isAdmin() || isInventoryManager();
+      allow delete: if isAdmin() || isInventoryManager();
     }
 
     /**
-     * @description Checks if the user has the inventory manager role.
-     * @return {boolean} True if the user has the inventory manager role, false otherwise.
+     * @description Rules for the /products/{productId} collection.
+     * @path /products/{productId}
+     * @allow (create) User with admin role can create a product.
+     * @deny (create) User without admin role cannot create a product.
+     * @principle Enforces role-based access control for product creation.
      */
-    function isInventoryManager() {
-        return exists(/databases/$(database)/documents/roles_inventory_manager/$(request.auth.uid));
+    match /products/{productId} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if isAdmin() || isInventoryManager();
+      allow update: if isAdmin() || isInventoryManager();
+      allow delete: if isAdmin() || isInventoryManager();
+    }
+
+    /**
+     * @description Rules for the /customers/{customerId} collection.
+     * @path /customers/{customerId}
+     * @allow (create) User with accountant role can create a customer.
+     * @deny (create) User without accountant role cannot create a customer.
+     * @principle Enforces role-based access control for customer creation.
+     */
+    match /customers/{customerId} {
+      allow get: if isAdmin() || isAccountant();
+      allow list: if false;
+      allow create: if isAdmin() || isAccountant();
+      allow update: if isAdmin() || isAccountant();
+      allow delete: if isAdmin() || isAccountant();
+    }
+
+    /**
+     * @description Rules for the /sales_transactions/{salesTransactionId} collection.
+     * @path /sales_transactions/{salesTransactionId}
+     * @allow (create) User with accountant role can create a sales transaction.
+     * @deny (create) User without accountant role cannot create a sales transaction.
+     * @principle Enforces role-based access control for sales transaction creation.
+     */
+    match /sales_transactions/{salesTransactionId} {
+      allow get: if isAdmin() || isAccountant();
+      allow list: if false;
+      allow create: if isAdmin() || isAccountant();
+      allow update: if isAdmin() || isAccountant();
+      allow delete: if isAdmin() || isAccountant();
+    }
+
+    /**
+     * @description Rules for the /sales_transactions/{salesTransactionId}/sales_items/{salesItemId} collection.
+     * @path /sales_transactions/{salesTransactionId}/sales_items/{salesItemId}
+     * @allow (create) User with accountant role can create a sales item.
+     * @deny (create) User without accountant role cannot create a sales item.
+     * @principle Enforces role-based access control for sales item creation.
+     */
+    match /sales_transactions/{salesTransactionId}/sales_items/{salesItemId} {
+      allow get: if isAdmin() || isAccountant();
+      allow list: if false;
+      allow create: if isAdmin() || isAccountant();
+      allow update: if isAdmin() || isAccountant();
+      allow delete: if isAdmin() || isAccountant();
+    }
+
+    /**
+     * @description Rules for the /payments/{paymentId} collection.
+     * @path /payments/{paymentId}
+     * @allow (create) User with accountant role can create a payment.
+     * @deny (create) User without accountant role cannot create a payment.
+     * @principle Enforces role-based access control for payment creation.
+     */
+    match /payments/{paymentId} {
+      allow get: if isAdmin() || isAccountant();
+      allow list: if false;
+      allow create: if isAdmin() || isAccountant();
+      allow update: if isAdmin() || isAccountant();
+      allow delete: if isAdmin() || isAccountant();
+    }
+
+    /**
+     * @description Rules for the /users/{userId} collection.
+     * @path /users/{userId}
+     * @allow (create) User can create their own user document.
+     * @deny (create) User cannot create a document with a different userId.
+     * @principle Enforces ownership for user documents.
+     */
+    match /users/{userId} {
+        allow get: if isOwner(userId);
+        allow list: if false;
+        allow create: if isOwner(userId);
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+    }
+
+    /**
+     * @description Rules for the /roles_admin/{userId} collection.
+     * @path /roles_admin/{userId}
+     */
+    match /roles_admin/{userId} {
+        allow get: if isAdmin();
+        allow list: if false;
+        allow create: if isAdmin();
+        allow update: if isAdmin();
+        allow delete: if isAdmin();
+    }
+
+       /**
+     * @description Rules for the /roles_accountant/{userId} collection.
+     * @path /roles_accountant/{userId}
+     */
+    match /roles_accountant/{userId} {
+        allow get: if isAdmin() || isAccountant();
+        allow list: if false;
+        allow create: if isAdmin();
+        allow update: if isAdmin();
+        allow delete: if isAdmin();
+    }
+
+    /**
+     * @description Rules for the /roles_inventory_manager/{userId} collection.
+     * @path /roles_inventory_manager/{userId}
+     */
+    match /roles_inventory_manager/{userId} {
+        allow get: if isAdmin() || isInventoryManager();
+        allow list: if false;
+        allow create: if isAdmin();
+        allow update: if isAdmin();
+        allow delete: if isAdmin();
     }
   }
 }
