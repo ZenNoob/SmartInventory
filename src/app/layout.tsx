@@ -17,7 +17,7 @@ const ptSans = PT_Sans({
 })
 
 export const metadata: Metadata = {
-  title: 'Hàng tồn kho thông minh',
+  title: 'Quản lý bán hàng',
   description: 'Quản lý hàng tồn kho, bán hàng và công nợ khách hàng của bạn với thông tin chi tiết do AI hỗ trợ.',
 }
 

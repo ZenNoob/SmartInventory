@@ -20,6 +20,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarFooter,
+  useSidebar,
 } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
 import { Logo } from '@/components/icons'
@@ -30,6 +31,7 @@ export function MainNav() {
   const pathname = usePathname()
   const { user, isUserLoading } = useUser();
   const { role } = useUserRole();
+  const { state } = useSidebar();
 
   const isActive = (path: string) => {
     return pathname === path
@@ -51,7 +53,7 @@ export function MainNav() {
       <SidebarHeader>
         <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
           <Logo className="h-6 w-6 text-primary" />
-          <span className="">Hàng tồn kho thông minh</span>
+          {state === 'expanded' && <span className="">Quản lý bán hàng</span>}
         </Link>
       </SidebarHeader>
       <SidebarContent className="flex-grow">
