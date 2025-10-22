@@ -8,14 +8,14 @@ export const categories: Category[] = [
 ]
 
 export const products: Product[] = [
-  { id: 'prod-1', name: 'Laptop Pro', categoryId: 'cat-1', cost: 1200, stock: 50 },
-  { id: 'prod-2', name: 'Wireless Mouse', categoryId: 'cat-1', cost: 25, stock: 200 },
-  { id: 'prod-3', name: 'Men\'s T-Shirt', categoryId: 'cat-2', cost: 15, stock: 300 },
-  { id: 'prod-4', name: 'Organic Apples', categoryId: 'cat-3', cost: 3, stock: 150 },
-  { id: 'prod-5', name: 'Wooden Desk', categoryId: 'cat-4', cost: 250, stock: 20 },
-  { id: 'prod-6', name: '4K Monitor', categoryId: 'cat-1', cost: 400, stock: 75 },
-  { id: 'prod-7', name: 'Jeans', categoryId: 'cat-2', cost: 50, stock: 120 },
-  { id: 'prod-8', name: 'Milk (1 Gallon)', categoryId: 'cat-3', cost: 4, stock: 80 },
+  { id: 'prod-1', name: 'Laptop Pro', categoryId: 'cat-1', purchaseLots: [], status: 'active' },
+  { id: 'prod-2', name: 'Wireless Mouse', categoryId: 'cat-1', purchaseLots: [], status: 'active' },
+  { id: 'prod-3', name: 'Men\'s T-Shirt', categoryId: 'cat-2', purchaseLots: [], status: 'active' },
+  { id: 'prod-4', name: 'Organic Apples', categoryId: 'cat-3', purchaseLots: [], status: 'active' },
+  { id: 'prod-5', name: 'Wooden Desk', categoryId: 'cat-4', purchaseLots: [], status: 'active' },
+  { id: 'prod-6', name: '4K Monitor', categoryId: 'cat-1', purchaseLots: [], status: 'active' },
+  { id: 'prod-7', name: 'Jeans', categoryId: 'cat-2', purchaseLots: [], status: 'active' },
+  { id: 'prod-8', name: 'Milk (1 Gallon)', categoryId: 'cat-3', purchaseLots: [], status: 'active' },
 ]
 
 export const customers: Customer[] = [
