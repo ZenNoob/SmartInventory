@@ -84,7 +84,7 @@ import { ImportProducts } from "./components/import-products"
 
 
 type ProductStatus = 'active' | 'draft' | 'archived' | 'all';
-type SortKey = 'name' | 'status' | 'category' | 'avgCost' | 'stock';
+type SortKey = 'name' | 'status' | 'category' | 'avgCost' | 'stock' | 'totalValue';
 
 export default function ProductsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -344,7 +344,7 @@ export default function ProductsPage() {
 
     if (sortableProducts && sortKey) {
       sortableProducts.sort((a, b) => {
-        let valA, valB;
+        let valA: string | number, valB: string | number;
 
         switch (sortKey) {
           case 'name':
@@ -369,6 +369,10 @@ export default function ProductsPage() {
             valA = getStockInfo(a).stock;
             valB = getStockInfo(b).stock;
             break;
+          case 'totalValue':
+              valA = getStockInfo(a).stockInBaseUnit * getAverageCost(a).avgCost;
+              valB = getStockInfo(b).stockInBaseUnit * getAverageCost(b).avgCost;
+              break;
           default:
             return 0;
         }
@@ -383,8 +387,8 @@ export default function ProductsPage() {
   }, [products, statusFilter, categoryFilter, showLowStockOnly, searchTerm, sortKey, sortDirection, categories, getStockInfo, getAverageCost, settings]);
 
 
-  const SortableHeader = ({ sortKey: key, children }: { sortKey: SortKey, children: React.ReactNode }) => (
-    <TableHead>
+  const SortableHeader = ({ sortKey: key, children, className }: { sortKey: SortKey, children: React.ReactNode, className?: string }) => (
+    <TableHead className={className}>
       <Button variant="ghost" onClick={() => handleSort(key)} className="px-2 py-1 h-auto">
         {children}
         {sortKey === key && (
@@ -546,25 +550,27 @@ export default function ProductsPage() {
                     <SortableHeader sortKey="name">Tên</SortableHeader>
                     <SortableHeader sortKey="status">Trạng thái</SortableHeader>
                     <SortableHeader sortKey="category">Loại</SortableHeader>
-                    <SortableHeader sortKey="avgCost">Giá nhập TB</SortableHeader>
+                    <SortableHeader sortKey="avgCost" className="hidden md:table-cell">Giá nhập TB</SortableHeader>
                     <TableHead className="hidden md:table-cell">
                       Bán / Nhập
                     </TableHead>
                     <SortableHeader sortKey="stock">Tồn kho</SortableHeader>
+                    <SortableHeader sortKey="totalValue">Thành tiền</SortableHeader>
                     <TableHead>
                       <span className="sr-only">Hành động</span>
                     </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isLoading && <TableRow><TableCell colSpan={8} className="text-center">Đang tải...</TableCell></TableRow>}
+                  {isLoading && <TableRow><TableCell colSpan={9} className="text-center">Đang tải...</TableCell></TableRow>}
                   {!isLoading && sortedProducts?.map((product, index) => {
                     const category = categories?.find(c => c.id === product.categoryId);
-                    const { stock, sold, baseUnit, importedInBaseUnit, mainUnit } = getStockInfo(product);
+                    const { stock, sold, stockInBaseUnit, baseUnit, importedInBaseUnit, mainUnit } = getStockInfo(product);
                     const { avgCost, baseUnit: costBaseUnit } = getAverageCost(product);
                     const lowStockThreshold = product.lowStockThreshold ?? settings?.lowStockThreshold ?? 0;
                     const hasPurchaseHistory = product.purchaseLots && product.purchaseLots.length > 0;
                     const mainUnitTotalImport = importedInBaseUnit / (mainUnit?.conversionFactor || 1);
+                    const totalValue = stockInBaseUnit * avgCost;
 
                     return (
                       <TableRow key={product.id}>
@@ -607,6 +613,7 @@ export default function ProductsPage() {
                             </button>
                         </TableCell>
                         <TableCell className="font-medium">{formatStockDisplay(stock, mainUnit, baseUnit)}</TableCell>
+                        <TableCell className="font-medium">{formatCurrency(totalValue)}</TableCell>
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -658,7 +665,7 @@ export default function ProductsPage() {
                   })}
                    {!isLoading && sortedProducts?.length === 0 && (
                     <TableRow>
-                        <TableCell colSpan={8} className="text-center h-24">
+                        <TableCell colSpan={9} className="text-center h-24">
                             Không tìm thấy sản phẩm nào.
                         </TableCell>
                     </TableRow>
