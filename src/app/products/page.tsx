@@ -231,7 +231,7 @@ export default function ProductsPage() {
 
 
   const getStockInfo = useCallback((product: Product) => {
-    if (!product.unitName) return { stock: 0, imported: 0, sold: 0, stockInBaseUnit: 0, baseUnit: undefined };
+    if (!product.unitName) return { stock: 0, imported: 0, sold: 0, stockInBaseUnit: 0, importedInBaseUnit: 0, baseUnit: undefined };
 
     const { baseUnit: mainBaseUnit, conversionFactor: mainConversionFactor } = getUnitInfo(product.unitName);
     
@@ -251,7 +251,7 @@ export default function ProductsPage() {
     
     const stockInMainUnit = stockInBaseUnit / mainConversionFactor;
 
-    return { stock: stockInMainUnit, imported: totalImported, sold: totalSoldInBaseUnit, stockInBaseUnit, baseUnit: mainBaseUnit || unitsByName.get(product.unitName) };
+    return { stock: stockInMainUnit, imported: totalImported, sold: totalSoldInBaseUnit, stockInBaseUnit, importedInBaseUnit: totalImportedInBaseUnit, baseUnit: mainBaseUnit || unitsByName.get(product.unitName) };
   }, [allSalesItems, getUnitInfo, unitsByName]);
 
  const getAverageCost = (product: Product) => {
@@ -502,7 +502,7 @@ export default function ProductsPage() {
                   {isLoading && <TableRow><TableCell colSpan={8} className="text-center">Đang tải...</TableCell></TableRow>}
                   {!isLoading && filteredProducts?.map((product, index) => {
                     const category = categories?.find(c => c.id === product.categoryId);
-                    const { stock, imported, sold, baseUnit } = getStockInfo(product);
+                    const { stock, imported, sold, baseUnit, importedInBaseUnit } = getStockInfo(product);
                     const { avgCost, baseUnit: costBaseUnit } = getAverageCost(product);
                     const lowStockThreshold = product.lowStockThreshold ?? settings?.lowStockThreshold ?? 0;
                     const hasStock = stock > 0;
@@ -540,7 +540,7 @@ export default function ProductsPage() {
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
                             <button className="underline cursor-pointer" onClick={() => setViewingLotsFor(product)}>
-                              {sold.toLocaleString()} {baseUnit?.name || ''} / {imported.toLocaleString()} {product.unitName || ''}
+                              {sold.toLocaleString()} {baseUnit?.name || ''} / {importedInBaseUnit.toLocaleString()} {baseUnit?.name || ''}
                             </button>
                         </TableCell>
                         <TableCell className="font-medium">{formatStockDisplay(stock, product.unitName, baseUnit)}</TableCell>
