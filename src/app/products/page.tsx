@@ -8,6 +8,7 @@ import {
   PlusCircle,
   Search,
   AlertTriangle,
+  Upload,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -75,9 +76,10 @@ import { ProductForm } from "./components/product-form"
 import { Category, Product, SalesItem, ThemeSettings, Unit } from "@/lib/types"
 import { collection, query, getDocs, doc } from "firebase/firestore"
 import { Input } from "@/components/ui/input"
-import { updateProductStatus, deleteProduct } from "./actions"
+import { updateProductStatus, deleteProduct, generateProductTemplate } from "./actions"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
+import { ImportProducts } from "./components/import-products"
 
 type ProductStatus = 'active' | 'draft' | 'archived' | 'all';
 
@@ -93,6 +95,7 @@ export default function ProductsPage() {
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
   const [isUpdating, startTransition] = useTransition();
   const [viewingLotsFor, setViewingLotsFor] = useState<Product | null>(null);
+  const [isExporting, startExportingTransition] = useTransition();
   
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -211,6 +214,23 @@ export default function ProductsPage() {
           title: "Ôi! Đã có lỗi xảy ra.",
           description: result.error,
         });
+      }
+    });
+  }
+
+  const handleExportTemplate = () => {
+    startExportingTransition(async () => {
+      const result = await generateProductTemplate();
+      if (result.success && result.data) {
+        const link = document.createElement("a");
+        link.href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${result.data}`;
+        link.download = "product_template.xlsx";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast({ title: "Thành công", description: "Đã tải xuống file mẫu." });
+      } else {
+        toast({ variant: "destructive", title: "Lỗi", description: result.error });
       }
     });
   }
@@ -445,12 +465,13 @@ export default function ProductsPage() {
                 </DropdownMenuCheckboxItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button size="sm" variant="outline" className="h-8 gap-1">
+            <Button size="sm" variant="outline" className="h-8 gap-1" onClick={handleExportTemplate} disabled={isExporting}>
               <File className="h-3.5 w-3.5" />
-              <span className="sr-only sm:not-sr-only sm:whitespace-rap">
-                Xuất
+              <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                 {isExporting ? 'Đang xuất...' : 'Xuất Template'}
               </span>
             </Button>
+            <ImportProducts />
             <PredictShortageForm />
             <Button size="sm" className="h-8 gap-1" onClick={handleAddProduct}>
               <PlusCircle className="h-3.5 w-3.5" />
