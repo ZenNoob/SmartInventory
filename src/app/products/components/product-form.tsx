@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -68,13 +68,40 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
   const { toast } = useToast();
   const router = useRouter();
 
+  const unitsMap = useMemo(() => {
+    const map = new Map<string, Unit>();
+    units?.forEach(u => map.set(u.id, u));
+    return map;
+  }, [units]);
+
+  const unitsByName = useMemo(() => {
+    const map = new Map<string, Unit>();
+    units?.forEach(u => map.set(u.name, u));
+    return map;
+  }, [units]);
+
+  const getBaseUnitInfo = (unitName: string): { baseUnit?: Unit; conversionFactor: number } => {
+    const unit = unitsByName.get(unitName);
+    if (!unit) return { conversionFactor: 1 };
+    
+    if (unit.baseUnitId && unit.conversionFactor) {
+      const baseUnit = unitsMap.get(unit.baseUnitId);
+      return { baseUnit, conversionFactor: unit.conversionFactor };
+    }
+    
+    return { baseUnit: unit, conversionFactor: 1 };
+  };
+
   const defaultValues: Partial<ProductFormValues> = product
     ? { 
         name: product.name, 
         categoryId: product.categoryId,
         status: product.status,
         lowStockThreshold: product.lowStockThreshold,
-        purchaseLots: product.purchaseLots || []
+        purchaseLots: product.purchaseLots.map(lot => ({
+          ...lot,
+          cost: lot.cost, // Assuming saved cost is already per base unit
+        })) || []
       }
     : { 
         name: '', 
@@ -118,7 +145,20 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
 
 
   const onSubmit = async (data: ProductFormValues) => {
-    const result = await upsertProduct({ ...data, id: product?.id });
+     const dataToSubmit = {
+      ...data,
+      id: product?.id,
+      purchaseLots: data.purchaseLots?.map(lot => {
+         const { conversionFactor } = getBaseUnitInfo(lot.unit);
+         return {
+            ...lot,
+            // The cost is already per base unit from the form
+            // So we don't need to adjust it here before saving
+         };
+      })
+    };
+
+    const result = await upsertProduct(dataToSubmit);
     if (result.success) {
       toast({
         title: "Thành công!",
@@ -244,80 +284,90 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
               </div>
             
               <div className="space-y-4">
-                  {fields.map((field, index) => (
-                    <div key={field.id} className="grid grid-cols-1 md:grid-cols-5 gap-3 p-3 border rounded-md relative">
-                       <FormField
-                          control={form.control}
-                          name={`purchaseLots.${index}.importDate`}
-                          render={({ field }) => (
-                            <FormItem className="md:col-span-2">
-                              <FormLabel>Ngày nhập</FormLabel>
-                              <FormControl>
-                                <Input type="date" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name={`purchaseLots.${index}.quantity`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Số lượng (theo {purchaseLotsValues?.[index]?.unit || 'ĐVT'})</FormLabel>
-                              <FormControl>
-                                <Input type="number" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                         <FormField
-                          control={form.control}
-                          name={`purchaseLots.${index}.cost`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Giá nhập (trên 1 {purchaseLotsValues?.[index]?.unit || 'ĐVT'})</FormLabel>
-                              <FormControl>
-                                <Input type="number" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                         <FormField
-                          control={form.control}
-                          name={`purchaseLots.${index}.unit`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Đơn vị</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Chọn đơn vị" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  {units.map(unit => (
-                                    <SelectItem key={unit.id} value={unit.name}>{unit.name}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="absolute top-1 right-1 h-6 w-6"
-                            onClick={() => remove(index)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                    </div>
-                  ))}
+                  {fields.map((field, index) => {
+                    const lot = purchaseLotsValues?.[index];
+                    const { baseUnit, conversionFactor } = lot ? getBaseUnitInfo(lot.unit) : { conversionFactor: 1 };
+                    const convertedQuantity = lot ? lot.quantity * conversionFactor : 0;
+                    return (
+                        <div key={field.id} className="grid grid-cols-1 md:grid-cols-5 gap-3 p-3 border rounded-md relative">
+                           <FormField
+                              control={form.control}
+                              name={`purchaseLots.${index}.importDate`}
+                              render={({ field }) => (
+                                <FormItem className="md:col-span-2">
+                                  <FormLabel>Ngày nhập</FormLabel>
+                                  <FormControl>
+                                    <Input type="date" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`purchaseLots.${index}.quantity`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Số lượng (theo {lot?.unit || 'ĐVT'})</FormLabel>
+                                  <FormControl>
+                                    <Input type="number" {...field} />
+                                  </FormControl>
+                                  {baseUnit && baseUnit.name !== lot?.unit && (
+                                      <FormDescription>
+                                          Tương đương: {convertedQuantity} {baseUnit.name}
+                                      </FormDescription>
+                                  )}
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                             <FormField
+                              control={form.control}
+                              name={`purchaseLots.${index}.cost`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Giá nhập (trên 1 {baseUnit?.name || 'ĐVT'})</FormLabel>
+                                  <FormControl>
+                                    <Input type="number" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                             <FormField
+                              control={form.control}
+                              name={`purchaseLots.${index}.unit`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Đơn vị</FormLabel>
+                                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Chọn đơn vị" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {units.map(unit => (
+                                        <SelectItem key={unit.id} value={unit.name}>{unit.name}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="absolute top-1 right-1 h-6 w-6"
+                                onClick={() => remove(index)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                        </div>
+                    )
+                  })}
               </div>
             </div>
 

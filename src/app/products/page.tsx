@@ -220,30 +220,26 @@ export default function ProductsPage() {
     return { stock, baseUnit, imported: totalImportedInBase, sold: totalSold };
   }, [allSalesItems, convertToBaseUnit]);
 
-  const getAverageCost = (product: Product) => {
-    if (!product.purchaseLots || product.purchaseLots.length === 0) return 0;
+ const getAverageCost = (product: Product) => {
+    if (!product.purchaseLots || product.purchaseLots.length === 0) return { avgCost: 0, baseUnit: undefined};
     
     let totalCost = 0;
     let totalQuantityInBase = 0;
+    let baseUnit: Unit | undefined = undefined;
 
     product.purchaseLots.forEach(lot => {
-        const { quantity: quantityInBase } = convertToBaseUnit(lot.quantity, lot.unit);
-        totalCost += lot.cost * lot.quantity; // Cost is per purchase unit
+        const { quantity: quantityInBase, baseUnit: lotBaseUnit } = convertToBaseUnit(lot.quantity, lot.unit);
+        if(lotBaseUnit && !baseUnit) {
+            baseUnit = lotBaseUnit;
+        }
+        // Cost is per base unit, so we multiply by the quantity in base unit
+        totalCost += lot.cost * quantityInBase;
         totalQuantityInBase += quantityInBase;
     });
 
-    // Calculate average cost per base unit
-    if (totalQuantityInBase === 0) return 0;
-    const avgCostPerBase = totalCost / totalQuantityInBase;
+    if (totalQuantityInBase === 0) return { avgCost: 0, baseUnit: baseUnit };
     
-    // Find the primary purchase unit to display cost
-    const mainPurchaseUnit = product.purchaseLots[0]?.unit;
-    const mainUnitInfo = unitsByName.get(mainPurchaseUnit);
-    if(mainUnitInfo?.conversionFactor) {
-      return avgCostPerBase * mainUnitInfo.conversionFactor;
-    }
-
-    return avgCostPerBase;
+    return { avgCost: totalCost / totalQuantityInBase, baseUnit: baseUnit };
   }
   
   const formatStockDisplay = (stock: number, baseUnit?: Unit): string => {
@@ -267,7 +263,7 @@ export default function ProductsPage() {
     }
 
     if (remainingStock > 0 || displayParts.length === 0) {
-      displayParts.push(`${remainingStock} ${baseUnit.name}`);
+      displayParts.push(`${remainingStock.toFixed(2).replace(/\.00$/, '')} ${baseUnit.name}`);
     }
 
     return displayParts.join(', ');
@@ -300,13 +296,13 @@ export default function ProductsPage() {
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       const category = categories?.find(c => c.id === product.categoryId);
-      const averageCost = getAverageCost(product);
+      const { avgCost } = getAverageCost(product);
       
       const matchesSearchTerm = (
         product.name.toLowerCase().includes(term) ||
         (category && category.name.toLowerCase().includes(term)) ||
-        averageCost.toString().includes(term) ||
-        formatCurrency(averageCost).toLowerCase().includes(term)
+        avgCost.toString().includes(term) ||
+        formatCurrency(avgCost).toLowerCase().includes(term)
       );
 
       return matchesSearchTerm;
@@ -338,8 +334,8 @@ export default function ProductsPage() {
               <TableRow>
                 <TableHead>Ngày nhập</TableHead>
                 <TableHead className="text-right">Số lượng</TableHead>
-                <TableHead className="text-right">Giá</TableHead>
                 <TableHead>Đơn vị</TableHead>
+                <TableHead className="text-right">Giá / ĐV cơ sở</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -348,8 +344,8 @@ export default function ProductsPage() {
                   <TableRow key={index}>
                     <TableCell>{new Date(lot.importDate).toLocaleDateString()}</TableCell>
                     <TableCell className="text-right">{lot.quantity}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(lot.cost)}</TableCell>
                     <TableCell>{lot.unit}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(lot.cost)}</TableCell>
                   </TableRow>
                 ))
               ) : (
@@ -405,7 +401,7 @@ export default function ProductsPage() {
             </DropdownMenu>
             <Button size="sm" variant="outline" className="h-8 gap-1">
               <File className="h-3.5 w-3.5" />
-              <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+              <span className="sr-only sm:not-sr-only sm:whitespace-rap">
                 Xuất
               </span>
             </Button>
@@ -461,7 +457,7 @@ export default function ProductsPage() {
                   {!isLoading && filteredProducts?.map((product, index) => {
                     const category = categories?.find(c => c.id === product.categoryId);
                     const { stock, baseUnit, imported, sold } = getStockInfo(product);
-                    const averageCost = getAverageCost(product);
+                    const { avgCost, baseUnit: costBaseUnit } = getAverageCost(product);
                     const lowStockThreshold = product.lowStockThreshold ?? settings?.lowStockThreshold ?? 0;
 
                     return (
@@ -493,7 +489,7 @@ export default function ProductsPage() {
                           <Badge variant="outline">{category?.name || 'N/A'}</Badge>
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
-                          {formatCurrency(averageCost)}
+                          {formatCurrency(avgCost)} / {costBaseUnit?.name || ''}
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
                             <button className="underline cursor-pointer" onClick={() => setViewingLotsFor(product)}>
