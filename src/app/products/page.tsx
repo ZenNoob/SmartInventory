@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useMemo, useEffect, useCallback } from "react"
+import { useState, useTransition, useMemo, useCallback } from "react"
 import {
   File,
   ListFilter,
@@ -493,7 +493,7 @@ export default function ProductsPage() {
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
                             <button className="underline cursor-pointer" onClick={() => setViewingLotsFor(product)}>
-                              {sold} / {imported}
+                              {sold.toLocaleString()} {baseUnit?.name || ''} / {imported.toLocaleString()} {baseUnit?.name || ''}
                             </button>
                         </TableCell>
                         <TableCell className="font-medium">{formatStockDisplay(stock, baseUnit)}</TableCell>
