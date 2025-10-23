@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -243,11 +242,16 @@ const SidebarHeader = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div">
 >(({ className, ...props }, ref) => {
+  const { state } = useSidebar()
   return (
     <div
       ref={ref}
       data-sidebar="header"
-      className={cn("flex h-14 items-center justify-between p-3 border-b shrink-0", className)}
+      className={cn(
+        "flex h-14 items-center shrink-0 border-b",
+        state === "expanded" ? "justify-between p-3" : "justify-center p-2",
+        className
+      )}
       {...props}
     />
   )
