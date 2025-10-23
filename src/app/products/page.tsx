@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useMemo, useCallback, useEffect } from "react"
+import { useState, useTransition, useMemo, useCallback } from "react"
 import {
   File,
   ListFilter,
@@ -8,7 +8,8 @@ import {
   PlusCircle,
   Search,
   AlertTriangle,
-  Upload,
+  ArrowDown,
+  ArrowUp,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -80,9 +81,11 @@ import { updateProductStatus, deleteProduct, generateProductTemplate } from "./a
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { ImportProducts } from "./components/import-products"
+import React, { useEffect } from 'react'
+
 
 type ProductStatus = 'active' | 'draft' | 'archived' | 'all';
-
+type SortKey = 'name' | 'status' | 'category' | 'avgCost' | 'stock';
 
 export default function ProductsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -96,6 +99,8 @@ export default function ProductsPage() {
   const [isUpdating, startTransition] = useTransition();
   const [viewingLotsFor, setViewingLotsFor] = useState<Product | null>(null);
   const [isExporting, startExportingTransition] = useTransition();
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -310,46 +315,85 @@ export default function ProductsPage() {
     return `${stock.toFixed(2).replace(/\.00$/, '')} ${mainUnit.name}`;
   };
 
-
-  const filteredProducts = products?.filter(product => {
-    // Status Filter
-    if (statusFilter !== 'all' && product.status !== statusFilter) {
-      return false;
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDirection('asc');
     }
-    
-    // Category Filter
-    if (categoryFilter !== 'all' && product.categoryId !== categoryFilter) {
-      return false;
-    }
-    
-    const { stock } = getStockInfo(product);
+  };
 
-    // Low Stock Filter
-    if (showLowStockOnly) {
-        const lowStockThreshold = product.lowStockThreshold ?? settings?.lowStockThreshold ?? 0;
-        if (stock > lowStockThreshold) {
-            return false;
-        }
-    }
-
-    // Search Term Filter
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      const category = categories?.find(c => c.id === product.categoryId);
-      const { avgCost } = getAverageCost(product);
+  const sortedProducts = useMemo(() => {
+    let sortableProducts = products?.filter(product => {
+      if (statusFilter !== 'all' && product.status !== statusFilter) return false;
+      if (categoryFilter !== 'all' && product.categoryId !== categoryFilter) return false;
       
-      const matchesSearchTerm = (
-        product.name.toLowerCase().includes(term) ||
-        (category && category.name.toLowerCase().includes(term)) ||
-        avgCost.toString().includes(term) ||
-        formatCurrency(avgCost).toLowerCase().includes(term)
-      );
+      const { stock } = getStockInfo(product);
+      if (showLowStockOnly) {
+        const lowStockThreshold = product.lowStockThreshold ?? settings?.lowStockThreshold ?? 0;
+        if (stock <= lowStockThreshold) return false;
+      }
 
-      return matchesSearchTerm;
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        const category = categories?.find(c => c.id === product.categoryId);
+        return product.name.toLowerCase().includes(term) || (category && category.name.toLowerCase().includes(term));
+      }
+      return true;
+    });
+
+    if (sortableProducts && sortKey) {
+      sortableProducts.sort((a, b) => {
+        let valA, valB;
+
+        switch (sortKey) {
+          case 'name':
+            valA = a.name.toLowerCase();
+            valB = b.name.toLowerCase();
+            break;
+          case 'status':
+            valA = a.status;
+            valB = b.status;
+            break;
+          case 'category':
+            const categoryA = categories?.find(c => c.id === a.categoryId)?.name || '';
+            const categoryB = categories?.find(c => c.id === b.categoryId)?.name || '';
+            valA = categoryA.toLowerCase();
+            valB = categoryB.toLowerCase();
+            break;
+          case 'avgCost':
+            valA = getAverageCost(a).avgCost;
+            valB = getAverageCost(b).avgCost;
+            break;
+          case 'stock':
+            valA = getStockInfo(a).stock;
+            valB = getStockInfo(b).stock;
+            break;
+          default:
+            return 0;
+        }
+
+        if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+        if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
     }
-    
-    return true; // if no search term, return all products matching other filters
-  })
+
+    return sortableProducts;
+  }, [products, statusFilter, categoryFilter, showLowStockOnly, searchTerm, sortKey, sortDirection, categories, getStockInfo, getAverageCost, settings]);
+
+
+  const SortableHeader = ({ sortKey: key, children }: { sortKey: SortKey, children: React.ReactNode }) => (
+    <TableHead>
+      <Button variant="ghost" onClick={() => handleSort(key)} className="px-2 py-1 h-auto">
+        {children}
+        {sortKey === key && (
+          sortDirection === 'asc' ? <ArrowUp className="h-4 w-4 ml-2" /> : <ArrowDown className="h-4 w-4 ml-2" />
+        )}
+      </Button>
+    </TableHead>
+  );
 
 
   return (
@@ -485,7 +529,7 @@ export default function ProductsPage() {
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                     type="search"
-                    placeholder="Tìm kiếm theo tên, loại, giá..."
+                    placeholder="Tìm kiếm theo tên, loại..."
                     className="w-full rounded-lg bg-background pl-8 md:w-1/3"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -497,16 +541,14 @@ export default function ProductsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-16">STT</TableHead>
-                    <TableHead>Tên</TableHead>
-                    <TableHead>Trạng thái</TableHead>
-                    <TableHead>Loại</TableHead>
-                    <TableHead className="hidden md:table-cell">
-                      Giá nhập TB
-                    </TableHead>
+                    <SortableHeader sortKey="name">Tên</SortableHeader>
+                    <SortableHeader sortKey="status">Trạng thái</SortableHeader>
+                    <SortableHeader sortKey="category">Loại</SortableHeader>
+                    <SortableHeader sortKey="avgCost">Giá nhập TB</SortableHeader>
                     <TableHead className="hidden md:table-cell">
                       Bán / Nhập
                     </TableHead>
-                    <TableHead>Tồn kho</TableHead>
+                    <SortableHeader sortKey="stock">Tồn kho</SortableHeader>
                     <TableHead>
                       <span className="sr-only">Hành động</span>
                     </TableHead>
@@ -514,7 +556,7 @@ export default function ProductsPage() {
                 </TableHeader>
                 <TableBody>
                   {isLoading && <TableRow><TableCell colSpan={8} className="text-center">Đang tải...</TableCell></TableRow>}
-                  {!isLoading && filteredProducts?.map((product, index) => {
+                  {!isLoading && sortedProducts?.map((product, index) => {
                     const category = categories?.find(c => c.id === product.categoryId);
                     const { stock, sold, baseUnit, importedInBaseUnit, mainUnit } = getStockInfo(product);
                     const { avgCost, baseUnit: costBaseUnit } = getAverageCost(product);
@@ -556,7 +598,10 @@ export default function ProductsPage() {
                         <TableCell className="hidden md:table-cell">
                             <button className="underline cursor-pointer text-left text-xs" onClick={() => setViewingLotsFor(product)}>
                               <div>Đã bán: {sold.toLocaleString()} {baseUnit?.name}</div>
-                              <div>Đã nhập: {mainUnitTotalImport.toLocaleString()} {mainUnit?.name} (~{importedInBaseUnit.toLocaleString()} {baseUnit?.name})</div>
+                               <div>
+                                Đã nhập: {mainUnitTotalImport.toLocaleString()} {mainUnit?.name}
+                                {mainUnit?.id !== baseUnit?.id && ` (~${importedInBaseUnit.toLocaleString()} ${baseUnit?.name})`}
+                              </div>
                             </button>
                         </TableCell>
                         <TableCell className="font-medium">{formatStockDisplay(stock, mainUnit, baseUnit)}</TableCell>
@@ -609,7 +654,7 @@ export default function ProductsPage() {
                       </TableRow>
                     )
                   })}
-                   {!isLoading && filteredProducts?.length === 0 && (
+                   {!isLoading && sortedProducts?.length === 0 && (
                     <TableRow>
                         <TableCell colSpan={8} className="text-center h-24">
                             Không tìm thấy sản phẩm nào.
@@ -621,7 +666,7 @@ export default function ProductsPage() {
             </CardContent>
             <CardFooter>
               <div className="text-xs text-muted-foreground">
-                Hiển thị <strong>{filteredProducts?.length || 0}</strong> trên <strong>{products?.length || 0}</strong>{" "}
+                Hiển thị <strong>{sortedProducts?.length || 0}</strong> trên <strong>{products?.length || 0}</strong>{" "}
                 sản phẩm
               </div>
             </CardFooter>
