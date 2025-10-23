@@ -64,3 +64,17 @@ export async function updateProductStatus(productId: string, status: 'active' | 
     return { success: false, error: error.message || 'Không thể cập nhật trạng thái sản phẩm.' };
   }
 }
+
+export async function deleteProduct(productId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { firestore } = await getAdminServices();
+    
+    // In a real app, you should check if this product is part of any sales transactions first.
+    await firestore.collection('products').doc(productId).delete();
+    
+    return { success: true };
+  } catch (error: any) {
+      console.error("Error deleting product:", error);
+      return { success: false, error: error.message || 'Không thể xóa sản phẩm.' };
+  }
+}

@@ -43,9 +43,18 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogDescription
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   Tooltip,
   TooltipContent,
@@ -66,7 +75,7 @@ import { ProductForm } from "./components/product-form"
 import { Category, Product, SalesItem, ThemeSettings, Unit } from "@/lib/types"
 import { collection, query, getDocs, doc } from "firebase/firestore"
 import { Input } from "@/components/ui/input"
-import { updateProductStatus } from "./actions"
+import { updateProductStatus, deleteProduct } from "./actions"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 
@@ -76,6 +85,8 @@ type ProductStatus = 'active' | 'draft' | 'archived' | 'all';
 export default function ProductsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | undefined>(undefined);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<ProductStatus>('all');
@@ -163,6 +174,27 @@ export default function ProductsPage() {
     setSelectedProduct(product);
     setIsFormOpen(true);
   }
+
+  const handleDeleteProduct = async () => {
+    if (!productToDelete) return;
+    setIsDeleting(true);
+    const result = await deleteProduct(productToDelete.id);
+    if (result.success) {
+      toast({
+        title: "Thành công!",
+        description: `Đã xóa sản phẩm "${productToDelete.name}".`,
+      });
+      router.refresh();
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Ôi! Đã có lỗi xảy ra.",
+        description: result.error,
+      });
+    }
+    setIsDeleting(false);
+    setProductToDelete(null);
+  };
 
   const handleStatusChange = (productId: string, status: Product['status']) => {
     startTransition(async () => {
@@ -356,6 +388,23 @@ export default function ProductsPage() {
           </Table>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={!!productToDelete} onOpenChange={(open) => !open && setProductToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Bạn có chắc chắn không?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Hành động này không thể được hoàn tác. Thao tác này sẽ xóa vĩnh viễn sản phẩm{' '}
+              <strong>{productToDelete?.name}</strong>.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Hủy</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteProduct} disabled={isDeleting}>
+              {isDeleting ? "Đang xóa..." : "Xóa"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <Tabs defaultValue="all" onValueChange={(value) => setStatusFilter(value as ProductStatus)}>
         <div className="flex items-center">
           <TabsList>
@@ -456,6 +505,7 @@ export default function ProductsPage() {
                     const { stock, imported, sold, baseUnit } = getStockInfo(product);
                     const { avgCost, baseUnit: costBaseUnit } = getAverageCost(product);
                     const lowStockThreshold = product.lowStockThreshold ?? settings?.lowStockThreshold ?? 0;
+                    const hasStock = stock > 0;
 
                     return (
                       <TableRow key={product.id}>
@@ -510,7 +560,13 @@ export default function ProductsPage() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Hành động</DropdownMenuLabel>
                               <DropdownMenuItem onClick={() => handleEditProduct(product)} disabled={isUpdating}>Sửa</DropdownMenuItem>
-                              <DropdownMenuItem disabled={isUpdating}>Xóa</DropdownMenuItem>
+                              <DropdownMenuItem 
+                                className="text-destructive" 
+                                onClick={() => setProductToDelete(product)} 
+                                disabled={isUpdating || hasStock}
+                              >
+                                Xóa
+                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuLabel>Thay đổi trạng thái</DropdownMenuLabel>
                                <DropdownMenuItem 
