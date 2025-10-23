@@ -7,6 +7,7 @@ export type Category = {
 export type Unit = {
   id: string
   name: string
+  description?: string
 }
 
 export type PurchaseLot = {

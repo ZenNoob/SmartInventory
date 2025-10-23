@@ -70,7 +70,10 @@ export default function UnitsPage() {
 
   const filteredUnits = units?.filter(unit => {
     const term = searchTerm.toLowerCase();
-    return unit.name.toLowerCase().includes(term);
+    return (
+      unit.name.toLowerCase().includes(term) ||
+      (unit.description && unit.description.toLowerCase().includes(term))
+    );
   })
 
   const handleAddUnit = () => {
@@ -151,7 +154,7 @@ export default function UnitsPage() {
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                     type="search"
-                    placeholder="Tìm kiếm theo tên..."
+                    placeholder="Tìm kiếm theo tên hoặc mô tả..."
                     className="w-full rounded-lg bg-background pl-8 md:w-1/3"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -164,18 +167,22 @@ export default function UnitsPage() {
               <TableRow>
                 <TableHead className="w-16">STT</TableHead>
                 <TableHead>Tên</TableHead>
+                <TableHead className="hidden md:table-cell">Mô tả</TableHead>
                 <TableHead>
                   <span className="sr-only">Hành động</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && <TableRow><TableCell colSpan={3} className="text-center">Đang tải...</TableCell></TableRow>}
+              {isLoading && <TableRow><TableCell colSpan={4} className="text-center">Đang tải...</TableCell></TableRow>}
               {!isLoading && filteredUnits?.map((unit, index) => (
                   <TableRow key={unit.id}>
                     <TableCell className="font-medium">{index + 1}</TableCell>
                     <TableCell className="font-medium">
                       {unit.name}
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      {unit.description}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -200,7 +207,7 @@ export default function UnitsPage() {
                 ))}
                 {!isLoading && filteredUnits?.length === 0 && (
                     <TableRow>
-                        <TableCell colSpan={3} className="text-center h-24">
+                        <TableCell colSpan={4} className="text-center h-24">
                             Không tìm thấy đơn vị tính nào. Hãy thử một từ khóa tìm kiếm khác hoặc thêm một đơn vị mới.
                         </TableCell>
                     </TableRow>

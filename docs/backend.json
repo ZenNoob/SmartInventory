@@ -37,6 +37,10 @@
         "name": {
           "type": "string",
           "description": "Name of the unit (e.g., 'cái', 'kg', 'hộp')."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the unit."
         }
       },
       "required": [

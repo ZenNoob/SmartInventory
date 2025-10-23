@@ -22,6 +22,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Unit } from '@/lib/types'
 import { upsertUnit } from '../actions'
 import { useToast } from '@/hooks/use-toast'
@@ -29,6 +30,7 @@ import { useRouter } from 'next/navigation'
 
 const unitFormSchema = z.object({
   name: z.string().min(1, "Tên đơn vị tính không được để trống."),
+  description: z.string().optional(),
 });
 
 type UnitFormValues = z.infer<typeof unitFormSchema>;
@@ -45,15 +47,15 @@ export function UnitForm({ isOpen, onOpenChange, unit }: UnitFormProps) {
 
   const form = useForm<UnitFormValues>({
     resolver: zodResolver(unitFormSchema),
-    defaultValues: unit ? { name: unit.name } : { name: '' },
+    defaultValues: unit ? { name: unit.name, description: unit.description || '' } : { name: '', description: '' },
   });
 
   useEffect(() => {
     if (isOpen) {
       form.reset(
         unit 
-        ? { name: unit.name } 
-        : { name: '' }
+        ? { name: unit.name, description: unit.description || '' } 
+        : { name: '', description: '' }
       );
     }
   }, [unit, isOpen, form]);
@@ -95,6 +97,19 @@ export function UnitForm({ isOpen, onOpenChange, unit }: UnitFormProps) {
                   <FormLabel>Tên đơn vị tính</FormLabel>
                   <FormControl>
                     <Input placeholder="Ví dụ: Cái, Hộp, Kg" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Mô tả</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Mô tả ngắn về đơn vị tính này." {...field} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
