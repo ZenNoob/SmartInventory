@@ -264,7 +264,7 @@ export default function ProductsPage() {
 
     const stockInBaseUnit = totalImportedInBaseUnit - totalSoldInBaseUnit;
     
-    const stockInMainUnit = stockInBaseUnit / mainConversionFactor;
+    const stockInMainUnit = stockInBaseUnit / (mainConversionFactor || 1);
 
     return { stock: stockInMainUnit, sold: totalSoldInBaseUnit, stockInBaseUnit, importedInBaseUnit: totalImportedInBaseUnit, baseUnit: mainBaseUnit || mainUnit, mainUnit };
   }, [allSalesItems, getUnitInfo, unitsMap]);
@@ -361,7 +361,24 @@ export default function ProductsPage() {
         categories={categories || []}
         units={units || []}
       />
-      <Dialog open={!!viewingLotsFor} onOpenChange={(open) => !open && setViewingLotsFor(null)}>
+      <AlertDialog open={!!productToDelete} onOpenChange={(open) => !open && setProductToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Bạn có chắc chắn không?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Hành động này không thể được hoàn tác. Thao tác này sẽ xóa vĩnh viễn sản phẩm{' '}
+              <strong>{productToDelete?.name}</strong>.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Hủy</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteProduct} disabled={isDeleting}>
+              {isDeleting ? "Đang xóa..." : "Xóa"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+       <Dialog open={!!viewingLotsFor} onOpenChange={(open) => !open && setViewingLotsFor(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Lịch sử nhập hàng cho: {viewingLotsFor?.name}</DialogTitle>
@@ -401,23 +418,6 @@ export default function ProductsPage() {
           </Table>
         </DialogContent>
       </Dialog>
-      <AlertDialog open={!!productToDelete} onOpenChange={(open) => !open && setProductToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Bạn có chắc chắn không?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Hành động này không thể được hoàn tác. Thao tác này sẽ xóa vĩnh viễn sản phẩm{' '}
-              <strong>{productToDelete?.name}</strong>.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Hủy</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteProduct} disabled={isDeleting}>
-              {isDeleting ? "Đang xóa..." : "Xóa"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
       <Tabs defaultValue="all" onValueChange={(value) => setStatusFilter(value as ProductStatus)}>
         <div className="flex items-center">
           <TabsList>
@@ -556,7 +556,7 @@ export default function ProductsPage() {
                         <TableCell className="hidden md:table-cell">
                             <button className="underline cursor-pointer text-left text-xs" onClick={() => setViewingLotsFor(product)}>
                               <div>Đã bán: {sold.toLocaleString()} {baseUnit?.name || ''}</div>
-                              <div>Đã nhập: {mainUnitTotalImport.toLocaleString()} {mainUnit?.name} (~ {importedInBaseUnit.toLocaleString()} {baseUnit?.name || ''})</div>
+                              <div>Đã nhập: {mainUnitTotalImport.toLocaleString()} {mainUnit?.name} (~{importedInBaseUnit.toLocaleString()} {baseUnit?.name})</div>
                             </button>
                         </TableCell>
                         <TableCell className="font-medium">{formatStockDisplay(stock, mainUnit, baseUnit)}</TableCell>
@@ -575,7 +575,7 @@ export default function ProductsPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Hành động</DropdownMenuLabel>
-                              <DropdownMenuItem onClick={() => handleEditProduct(product)} disabled={isUpdating}>Sửa</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleEditProduct(product)} disabled={isUpdating}>Nhập thêm sản phẩm</DropdownMenuItem>
                               <DropdownMenuItem 
                                 className="text-destructive" 
                                 onClick={() => setProductToDelete(product)} 
