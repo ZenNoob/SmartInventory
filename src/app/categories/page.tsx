@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import {
   MoreHorizontal,
   PlusCircle,
   Search,
+  ArrowUp,
+  ArrowDown
 } from "lucide-react"
 
 import {
@@ -50,12 +52,16 @@ import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
 
+type SortKey = 'name' | 'description';
+
 export default function CategoriesPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | undefined>(undefined);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -75,6 +81,41 @@ export default function CategoriesPage() {
       (category.description && category.description.toLowerCase().includes(term))
     );
   })
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDirection('asc');
+    }
+  };
+
+  const sortedCategories = useMemo(() => {
+    let sortableItems = [...(filteredCategories || [])];
+    if (sortKey) {
+      sortableItems.sort((a, b) => {
+        const valA = (a[sortKey] || '').toLowerCase();
+        const valB = (b[sortKey] || '').toLowerCase();
+
+        if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+        if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [filteredCategories, sortKey, sortDirection]);
+
+  const SortableHeader = ({ sortKey: key, children }: { sortKey: SortKey; children: React.ReactNode }) => (
+    <TableHead>
+      <Button variant="ghost" onClick={() => handleSort(key)} className="px-2 py-1 h-auto">
+        {children}
+        {sortKey === key && (
+          sortDirection === 'asc' ? <ArrowUp className="h-4 w-4 ml-2" /> : <ArrowDown className="h-4 w-4 ml-2" />
+        )}
+      </Button>
+    </TableHead>
+  );
 
   const handleAddCategory = () => {
     setSelectedCategory(undefined);
@@ -166,8 +207,8 @@ export default function CategoriesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-16">STT</TableHead>
-                <TableHead>Tên</TableHead>
-                <TableHead className="hidden md:table-cell">Mô tả</TableHead>
+                <SortableHeader sortKey="name">Tên</SortableHeader>
+                <SortableHeader sortKey="description">Mô tả</SortableHeader>
                 <TableHead>
                   <span className="sr-only">Hành động</span>
                 </TableHead>
@@ -175,7 +216,7 @@ export default function CategoriesPage() {
             </TableHeader>
             <TableBody>
               {isLoading && <TableRow><TableCell colSpan={4} className="text-center">Đang tải...</TableCell></TableRow>}
-              {!isLoading && filteredCategories?.map((category, index) => (
+              {!isLoading && sortedCategories?.map((category, index) => (
                   <TableRow key={category.id}>
                     <TableCell className="font-medium">{index + 1}</TableCell>
                     <TableCell className="font-medium">
@@ -205,7 +246,7 @@ export default function CategoriesPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {!isLoading && filteredCategories?.length === 0 && (
+                {!isLoading && sortedCategories?.length === 0 && (
                     <TableRow>
                         <TableCell colSpan={4} className="text-center h-24">
                             Không tìm thấy danh mục nào. Hãy thử một từ khóa tìm kiếm khác hoặc thêm một danh mục mới.
@@ -217,7 +258,7 @@ export default function CategoriesPage() {
         </CardContent>
         <CardFooter>
           <div className="text-xs text-muted-foreground">
-            Hiển thị <strong>{filteredCategories?.length || 0}</strong> trên <strong>{categories?.length || 0}</strong> danh mục
+            Hiển thị <strong>{sortedCategories?.length || 0}</strong> trên <strong>{categories?.length || 0}</strong> danh mục
           </div>
         </CardFooter>
       </Card>
