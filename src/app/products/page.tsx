@@ -519,7 +519,7 @@ export default function ProductsPage() {
                     const { stock, sold, baseUnit, importedInBaseUnit, mainUnit } = getStockInfo(product);
                     const { avgCost, baseUnit: costBaseUnit } = getAverageCost(product);
                     const lowStockThreshold = product.lowStockThreshold ?? settings?.lowStockThreshold ?? 0;
-                    const hasStock = stock > 0;
+                    const hasPurchaseHistory = product.purchaseLots && product.purchaseLots.length > 0;
                     const mainUnitTotalImport = importedInBaseUnit / (mainUnit?.conversionFactor || 1);
 
                     return (
@@ -555,7 +555,7 @@ export default function ProductsPage() {
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
                             <button className="underline cursor-pointer text-left text-xs" onClick={() => setViewingLotsFor(product)}>
-                              <div>Đã bán: {sold.toLocaleString()} {baseUnit?.name || ''}</div>
+                              <div>Đã bán: {sold.toLocaleString()} {baseUnit?.name}</div>
                               <div>Đã nhập: {mainUnitTotalImport.toLocaleString()} {mainUnit?.name} (~{importedInBaseUnit.toLocaleString()} {baseUnit?.name})</div>
                             </button>
                         </TableCell>
@@ -579,7 +579,7 @@ export default function ProductsPage() {
                               <DropdownMenuItem 
                                 className="text-destructive" 
                                 onClick={() => setProductToDelete(product)} 
-                                disabled={isUpdating || hasStock}
+                                disabled={isUpdating || hasPurchaseHistory}
                               >
                                 Xóa
                               </DropdownMenuItem>
