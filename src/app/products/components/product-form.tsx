@@ -289,16 +289,44 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
                     const { baseUnit, conversionFactor } = lot ? getBaseUnitInfo(lot.unit) : { conversionFactor: 1 };
                     const convertedQuantity = lot ? lot.quantity * conversionFactor : 0;
                     return (
-                        <div key={field.id} className="grid grid-cols-1 md:grid-cols-5 gap-3 p-3 border rounded-md relative">
+                        <div key={field.id} className="grid grid-cols-1 md:grid-cols-4 gap-3 p-3 border rounded-md relative">
                            <FormField
                               control={form.control}
                               name={`purchaseLots.${index}.importDate`}
                               render={({ field }) => (
-                                <FormItem className="md:col-span-2">
+                                <FormItem>
                                   <FormLabel>Ngày nhập</FormLabel>
                                   <FormControl>
                                     <Input type="date" {...field} />
                                   </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`purchaseLots.${index}.unit`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Đơn vị</FormLabel>
+                                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Chọn đơn vị" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {units.map(unit => {
+                                        const baseUnit = unit.baseUnitId ? unitsMap.get(unit.baseUnitId) : null;
+                                        const displayValue = baseUnit 
+                                          ? `${unit.name} (${unit.conversionFactor} ${baseUnit.name})` 
+                                          : unit.name;
+                                        return (
+                                          <SelectItem key={unit.id} value={unit.name}>{displayValue}</SelectItem>
+                                        )
+                                      })}
+                                    </SelectContent>
+                                  </Select>
                                   <FormMessage />
                                 </FormItem>
                               )}
@@ -314,7 +342,7 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
                                   </FormControl>
                                   {baseUnit && baseUnit.name !== lot?.unit && (
                                       <FormDescription>
-                                          Tương đương: {convertedQuantity} {baseUnit.name}
+                                          ~ {convertedQuantity.toLocaleString()} {baseUnit.name}
                                       </FormDescription>
                                   )}
                                   <FormMessage />
@@ -330,28 +358,6 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
                                   <FormControl>
                                     <Input type="number" {...field} />
                                   </FormControl>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                             <FormField
-                              control={form.control}
-                              name={`purchaseLots.${index}.unit`}
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Đơn vị</FormLabel>
-                                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                    <FormControl>
-                                      <SelectTrigger>
-                                        <SelectValue placeholder="Chọn đơn vị" />
-                                      </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                      {units.map(unit => (
-                                        <SelectItem key={unit.id} value={unit.name}>{unit.name}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
                                   <FormMessage />
                                 </FormItem>
                               )}
