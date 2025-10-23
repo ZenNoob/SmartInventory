@@ -335,7 +335,7 @@ export default function CustomersPage() {
                 <TableHead>Giới tính</TableHead>
                 <TableHead className="hidden md:table-cell">Email</TableHead>
                 <TableHead className="hidden md:table-cell">Điện thoại</TableHead>
-                <TableHead className="hidden lg:table-cell">Ngày tạo</TableHead>
+                <TableHead className="hidden">Ngày tạo</TableHead>
                 <TableHead>
                   <span className="sr-only">Hành động</span>
                 </TableHead>
@@ -376,7 +376,7 @@ export default function CustomersPage() {
                     <TableCell className="hidden md:table-cell">
                       {customer.phone}
                     </TableCell>
-                    <TableCell className="hidden lg:table-cell">
+                    <TableCell className="hidden">
                       {customer.createdAt ? new Date(customer.createdAt).toLocaleDateString() : ''}
                     </TableCell>
                     <TableCell>
