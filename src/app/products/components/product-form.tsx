@@ -92,6 +92,8 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
     control: form.control,
     name: "purchaseLots",
   });
+  
+  const purchaseLotsValues = form.watch('purchaseLots');
 
   useEffect(() => {
     if (isOpen) {
@@ -262,7 +264,7 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
                           name={`purchaseLots.${index}.quantity`}
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Số lượng</FormLabel>
+                              <FormLabel>Số lượng (theo {purchaseLotsValues?.[index]?.unit || 'ĐVT'})</FormLabel>
                               <FormControl>
                                 <Input type="number" {...field} />
                               </FormControl>
@@ -275,7 +277,7 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
                           name={`purchaseLots.${index}.cost`}
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Giá</FormLabel>
+                              <FormLabel>Giá nhập (trên 1 {purchaseLotsValues?.[index]?.unit || 'ĐVT'})</FormLabel>
                               <FormControl>
                                 <Input type="number" {...field} />
                               </FormControl>
