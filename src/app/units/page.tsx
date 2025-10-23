@@ -5,6 +5,8 @@ import {
   MoreHorizontal,
   PlusCircle,
   Search,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react"
 
 import {
@@ -51,12 +53,16 @@ import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 
+type SortKey = 'name' | 'description' | 'quyDoi';
+
 export default function UnitsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState<Unit | undefined>(undefined);
   const [unitToDelete, setUnitToDelete] = useState<Unit | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -118,6 +124,58 @@ export default function UnitsPage() {
     setUnitToDelete(null);
   }
 
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDirection('asc');
+    }
+  };
+
+  const sortedUnits = useMemo(() => {
+    let sortableItems = [...(filteredUnits || [])];
+    if (sortKey) {
+      sortableItems.sort((a, b) => {
+        let valA: string | number | undefined, valB: string | number | undefined;
+        
+        switch (sortKey) {
+          case 'name':
+            valA = a.name.toLowerCase();
+            valB = b.name.toLowerCase();
+            break;
+          case 'description':
+            valA = a.description?.toLowerCase() || '';
+            valB = b.description?.toLowerCase() || '';
+            break;
+          case 'quyDoi':
+            valA = a.conversionFactor || 0;
+            valB = b.conversionFactor || 0;
+            break;
+          default:
+            return 0;
+        }
+
+        if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+        if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [filteredUnits, sortKey, sortDirection]);
+
+  const SortableHeader = ({ sortKey: key, children }: { sortKey: SortKey; children: React.ReactNode }) => (
+    <TableHead>
+      <Button variant="ghost" onClick={() => handleSort(key)} className="px-2 py-1 h-auto">
+        {children}
+        {sortKey === key && (
+          sortDirection === 'asc' ? <ArrowUp className="h-4 w-4 ml-2" /> : <ArrowDown className="h-4 w-4 ml-2" />
+        )}
+      </Button>
+    </TableHead>
+  );
+
+
   return (
     <>
       <UnitForm 
@@ -178,9 +236,9 @@ export default function UnitsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-16">STT</TableHead>
-                <TableHead>Tên</TableHead>
-                <TableHead>Mô tả</TableHead>
-                <TableHead>Quy đổi</TableHead>
+                <SortableHeader sortKey="name">Tên</SortableHeader>
+                <SortableHeader sortKey="description">Mô tả</SortableHeader>
+                <SortableHeader sortKey="quyDoi">Quy đổi</SortableHeader>
                 <TableHead>
                   <span className="sr-only">Hành động</span>
                 </TableHead>
@@ -188,7 +246,7 @@ export default function UnitsPage() {
             </TableHeader>
             <TableBody>
               {isLoading && <TableRow><TableCell colSpan={5} className="text-center">Đang tải...</TableCell></TableRow>}
-              {!isLoading && filteredUnits?.map((unit, index) => (
+              {!isLoading && sortedUnits?.map((unit, index) => (
                   <TableRow key={unit.id}>
                     <TableCell className="font-medium">{index + 1}</TableCell>
                     <TableCell className="font-medium">
@@ -225,7 +283,7 @@ export default function UnitsPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {!isLoading && filteredUnits?.length === 0 && (
+                {!isLoading && sortedUnits?.length === 0 && (
                     <TableRow>
                         <TableCell colSpan={5} className="text-center h-24">
                             Không tìm thấy đơn vị tính nào. Hãy thử một từ khóa tìm kiếm khác hoặc thêm một đơn vị mới.
@@ -237,7 +295,7 @@ export default function UnitsPage() {
         </CardContent>
         <CardFooter>
           <div className="text-xs text-muted-foreground">
-            Hiển thị <strong>{filteredUnits?.length || 0}</strong> trên <strong>{units?.length || 0}</strong> đơn vị tính
+            Hiển thị <strong>{sortedUnits?.length || 0}</strong> trên <strong>{units?.length || 0}</strong> đơn vị tính
           </div>
         </CardFooter>
       </Card>
