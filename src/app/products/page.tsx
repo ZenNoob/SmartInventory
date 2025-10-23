@@ -117,6 +117,18 @@ export default function ProductsPage() {
   const [allSalesItems, setAllSalesItems] = useState<SalesItem[]>([]);
   const [salesItemsLoading, setSalesItemsLoading] = useState(true);
 
+  const unitsMap = useMemo(() => {
+    const map = new Map<string, Unit>();
+    units?.forEach(u => map.set(u.id, u));
+    return map;
+  }, [units]);
+
+  const unitsByName = useMemo(() => {
+    const map = new Map<string, Unit>();
+    units?.forEach(u => map.set(u.name, u));
+    return map;
+  }, [units]);
+
   useEffect(() => {
     async function fetchAllSalesItems() {
       if (!firestore || !sales) return;
@@ -167,24 +179,94 @@ export default function ProductsPage() {
 
   const isLoading = productsLoading || categoriesLoading || unitsLoading || salesLoading || salesItemsLoading || settingsLoading;
   
-  const getImportedStock = (product: Product) => {
-    return product.purchaseLots?.reduce((acc, lot) => acc + lot.quantity, 0) || 0
-  }
-  
-  const getSoldQuantity = useMemo(() => {
-    return (productId: string) => {
-      return allSalesItems
-        .filter(item => item.productId === productId)
-        .reduce((acc, item) => acc + item.quantity, 0);
-    };
-  }, [allSalesItems]);
+  const convertToBaseUnit = useCallback((quantity: number, unitName: string): { quantity: number, baseUnit?: Unit } => {
+    const unit = unitsByName.get(unitName);
+    if (!unit) return { quantity, baseUnit: undefined };
+
+    if (unit.baseUnitId && unit.conversionFactor) {
+      const baseUnit = unitsMap.get(unit.baseUnitId);
+      if (baseUnit) {
+        // Recursively convert to the ultimate base unit
+        const result = convertToBaseUnit(quantity * unit.conversionFactor, baseUnit.name);
+        return { quantity: result.quantity, baseUnit: result.baseUnit || baseUnit };
+      }
+    }
+    return { quantity, baseUnit: unit };
+  }, [unitsMap, unitsByName]);
+
+  const getStockInfo = useCallback((product: Product) => {
+    let totalImportedInBase = 0;
+    let baseUnit: Unit | undefined = undefined;
+
+    product.purchaseLots?.forEach(lot => {
+      const { quantity, baseUnit: lotBaseUnit } = convertToBaseUnit(lot.quantity, lot.unit);
+      totalImportedInBase += quantity;
+      if (lotBaseUnit && !baseUnit) {
+        baseUnit = lotBaseUnit;
+      }
+    });
+
+    const totalSold = allSalesItems
+      .filter(item => item.productId === product.id)
+      .reduce((acc, item) => acc + item.quantity, 0);
+
+    const stock = totalImportedInBase - totalSold;
+    return { stock, baseUnit, imported: totalImportedInBase, sold: totalSold };
+  }, [allSalesItems, convertToBaseUnit]);
 
   const getAverageCost = (product: Product) => {
     if (!product.purchaseLots || product.purchaseLots.length === 0) return 0;
-    const totalCost = product.purchaseLots.reduce((acc, lot) => acc + lot.cost * lot.quantity, 0);
-    const totalQuantity = product.purchaseLots.reduce((acc, lot) => acc + lot.quantity, 0);
-    return totalQuantity > 0 ? totalCost / totalQuantity : 0;
+    
+    let totalCost = 0;
+    let totalQuantityInBase = 0;
+
+    product.purchaseLots.forEach(lot => {
+        const { quantity: quantityInBase } = convertToBaseUnit(lot.quantity, lot.unit);
+        totalCost += lot.cost * lot.quantity; // Cost is per purchase unit
+        totalQuantityInBase += quantityInBase;
+    });
+
+    // Calculate average cost per base unit
+    if (totalQuantityInBase === 0) return 0;
+    const avgCostPerBase = totalCost / totalQuantityInBase;
+    
+    // Find the primary purchase unit to display cost
+    const mainPurchaseUnit = product.purchaseLots[0]?.unit;
+    const mainUnitInfo = unitsByName.get(mainPurchaseUnit);
+    if(mainUnitInfo?.conversionFactor) {
+      return avgCostPerBase * mainUnitInfo.conversionFactor;
+    }
+
+    return avgCostPerBase;
   }
+  
+  const formatStockDisplay = (stock: number, baseUnit?: Unit): string => {
+    if (!baseUnit) return stock.toString();
+
+    // Find all units that use this base unit
+    const derivedUnits = (units || [])
+      .filter(u => u.baseUnitId === baseUnit.id && u.conversionFactor)
+      .sort((a, b) => (b.conversionFactor || 0) - (a.conversionFactor || 0));
+
+    let remainingStock = stock;
+    const displayParts: string[] = [];
+
+    for (const derivedUnit of derivedUnits) {
+      const factor = derivedUnit.conversionFactor!;
+      if (remainingStock >= factor) {
+        const count = Math.floor(remainingStock / factor);
+        displayParts.push(`${count} ${derivedUnit.name}`);
+        remainingStock %= factor;
+      }
+    }
+
+    if (remainingStock > 0 || displayParts.length === 0) {
+      displayParts.push(`${remainingStock} ${baseUnit.name}`);
+    }
+
+    return displayParts.join(', ');
+  };
+
 
   const filteredProducts = products?.filter(product => {
     // Status Filter
@@ -197,11 +279,10 @@ export default function ProductsPage() {
       return false;
     }
     
+    const { stock } = getStockInfo(product);
+
     // Low Stock Filter
     if (showLowStockOnly) {
-        const imported = getImportedStock(product);
-        const sold = getSoldQuantity(product.id);
-        const stock = imported - sold;
         const lowStockThreshold = product.lowStockThreshold ?? settings?.lowStockThreshold ?? 0;
         if (stock > lowStockThreshold) {
             return false;
@@ -358,7 +439,7 @@ export default function ProductsPage() {
                     <TableHead>Trạng thái</TableHead>
                     <TableHead>Loại</TableHead>
                     <TableHead className="hidden md:table-cell">
-                      Giá nhập trung bình
+                      Giá nhập TB
                     </TableHead>
                     <TableHead className="hidden md:table-cell">
                       Bán / Nhập
@@ -373,10 +454,8 @@ export default function ProductsPage() {
                   {isLoading && <TableRow><TableCell colSpan={8} className="text-center">Đang tải...</TableCell></TableRow>}
                   {!isLoading && filteredProducts?.map((product, index) => {
                     const category = categories?.find(c => c.id === product.categoryId);
-                    const imported = getImportedStock(product);
-                    const sold = getSoldQuantity(product.id);
-                    const stock = imported - sold;
-                    const averageCost = getAverageCost(product)
+                    const { stock, baseUnit, imported, sold } = getStockInfo(product);
+                    const averageCost = getAverageCost(product);
                     const lowStockThreshold = product.lowStockThreshold ?? settings?.lowStockThreshold ?? 0;
 
                     return (
@@ -384,14 +463,23 @@ export default function ProductsPage() {
                         <TableCell className="font-medium">{index + 1}</TableCell>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
-                             {stock <= lowStockThreshold && (
-                              <AlertTriangle className="h-4 w-4 text-destructive" />
+                             {stock <= lowStockThreshold && lowStockThreshold > 0 && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger>
+                                    <AlertTriangle className="h-4 w-4 text-destructive" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Tồn kho dưới ngưỡng ({lowStockThreshold})</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
                             )}
                             {product.name}
                           </div>
                         </TableCell>
                          <TableCell>
-                          <Badge variant={product.status === 'active' ? 'default' : product.status === 'draft' ? 'secondary' : 'destructive'}>
+                          <Badge variant={product.status === 'active' ? 'default' : product.status === 'draft' ? 'secondary' : 'outline'}>
                             {product.status === 'active' ? 'Hoạt động' : product.status === 'draft' ? 'Bản nháp' : 'Lưu trữ'}
                           </Badge>
                         </TableCell>
@@ -406,7 +494,7 @@ export default function ProductsPage() {
                               {sold} / {imported}
                             </button>
                         </TableCell>
-                        <TableCell className="font-medium">{stock}</TableCell>
+                        <TableCell className="font-medium">{formatStockDisplay(stock, baseUnit)}</TableCell>
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
