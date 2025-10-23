@@ -506,6 +506,7 @@ export default function ProductsPage() {
                     const { avgCost, baseUnit: costBaseUnit } = getAverageCost(product);
                     const lowStockThreshold = product.lowStockThreshold ?? settings?.lowStockThreshold ?? 0;
                     const hasStock = stock > 0;
+                    const showConversion = product.unitName !== baseUnit?.name;
 
                     return (
                       <TableRow key={product.id}>
@@ -539,8 +540,9 @@ export default function ProductsPage() {
                           {formatCurrency(avgCost)} / {costBaseUnit?.name || ''}
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
-                            <button className="underline cursor-pointer" onClick={() => setViewingLotsFor(product)}>
-                              {sold.toLocaleString()} {baseUnit?.name || ''} / {importedInBaseUnit.toLocaleString()} {baseUnit?.name || ''}
+                            <button className="underline cursor-pointer text-left text-xs" onClick={() => setViewingLotsFor(product)}>
+                              <div>Đã bán: {sold.toLocaleString()} {baseUnit?.name || ''}</div>
+                              <div>Đã nhập: {imported.toLocaleString()} {product.unitName} {showConversion ? `(~ ${importedInBaseUnit.toLocaleString()} ${baseUnit?.name || ''})` : ''}</div>
                             </button>
                         </TableCell>
                         <TableCell className="font-medium">{formatStockDisplay(stock, product.unitName, baseUnit)}</TableCell>
