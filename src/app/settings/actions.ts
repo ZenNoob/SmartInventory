@@ -22,7 +22,16 @@ export async function getThemeSettings(): Promise<ThemeSettings | null> {
         const { firestore } = await getAdminServices();
         const doc = await firestore.collection('settings').doc('theme').get();
         if (doc.exists) {
-            return doc.data() as ThemeSettings;
+            const data = doc.data();
+            // Convert any Timestamps to plain objects if they exist
+            if (data) {
+                for (const key in data) {
+                    if (data[key] && typeof data[key].toDate === 'function') {
+                        data[key] = data[key].toDate().toISOString();
+                    }
+                }
+            }
+            return data as ThemeSettings;
         }
         return null;
     } catch (error) {
