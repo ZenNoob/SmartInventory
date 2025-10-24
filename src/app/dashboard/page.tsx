@@ -45,7 +45,7 @@ async function getDashboardData() {
       return toPlainObject({ id: doc.id, ...doc.data() }) as Customer;
     })
 
-    const salesSnapshot = await firestore.collection('sales_transactions').get();
+    const salesSnapshot = await firestore.collection('sales_transactions').orderBy('transactionDate', 'desc').limit(10).get();
     const sales = salesSnapshot.docs.map(doc => {
         return toPlainObject({ id: doc.id, ...doc.data() }) as Sale;
     });
@@ -139,7 +139,9 @@ export default async function Dashboard() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Khách hàng</TableHead>
-                  <TableHead className="text-right">Số tiền</TableHead>
+                  <TableHead className="text-right">Tổng cộng</TableHead>
+                  <TableHead className="text-right">Đã trả</TableHead>
+                  <TableHead className="text-right">Nợ lại</TableHead>
                   <TableHead className="hidden sm:table-cell text-right">Ngày</TableHead>
                 </TableRow>
               </TableHeader>
@@ -154,7 +156,9 @@ export default async function Dashboard() {
                           {customer?.email}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right">{formatCurrency(sale.totalAmount)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(sale.finalAmount)}</TableCell>
+                      <TableCell className="text-right text-green-600">{formatCurrency(sale.customerPayment || 0)}</TableCell>
+                      <TableCell className="text-right text-destructive">{formatCurrency(sale.remainingDebt || 0)}</TableCell>
                       <TableCell className="hidden sm:table-cell text-right">{new Date(sale.transactionDate).toLocaleDateString()}</TableCell>
                     </TableRow>
                    )
