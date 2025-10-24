@@ -89,7 +89,8 @@ export async function upsertSaleTransaction(
         const saleDataToCreate = { 
             ...sale, 
             id: saleRef.id, 
-            invoiceNumber 
+            invoiceNumber,
+            status: sale.status || 'unprinted',
         };
         transaction.set(saleRef, saleDataToCreate);
       }
@@ -170,4 +171,13 @@ export async function deleteSaleTransaction(saleId: string): Promise<{ success: 
   }
 }
 
-    
+export async function updateSaleStatus(saleId: string, status: Sale['status']): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { firestore } = await getAdminServices();
+    await firestore.collection('sales_transactions').doc(saleId).update({ status });
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error updating sale status:", error);
+    return { success: false, error: 'Không thể cập nhật trạng thái đơn hàng.' };
+  }
+}

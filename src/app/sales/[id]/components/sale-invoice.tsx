@@ -20,6 +20,7 @@ import {
 import { Logo } from "@/components/icons"
 import { formatCurrency } from "@/lib/utils"
 import type { Customer, Sale, SalesItem, Product, Unit, ThemeSettings } from "@/lib/types"
+import { updateSaleStatus } from '../../actions'
 
 interface SaleInvoiceProps {
     sale: Sale;
@@ -35,6 +36,20 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap, sett
   const invoiceRef = useRef<HTMLDivElement>(null);
   const invoicePrintRef = useRef<HTMLDivElement>(null);
 
+
+  const handlePrint = async () => {
+    const printContents = invoicePrintRef.current?.innerHTML;
+    const originalContents = document.body.innerHTML;
+
+    if (printContents) {
+      document.body.innerHTML = printContents;
+      window.print();
+      document.body.innerHTML = originalContents;
+      // We need to reload to re-initialize React app and its event handlers
+      location.reload(); 
+      await updateSaleStatus(sale.id, 'printed');
+    }
+  };
 
   useEffect(() => {
     if (autoPrint) {
@@ -56,10 +71,6 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap, sett
     }
     
     return { baseUnit: unit, conversionFactor: 1, name: unit.name };
-  };
-
-  const handlePrint = () => {
-    window.print();
   };
 
   const handleExportPDF = () => {
@@ -111,33 +122,25 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap, sett
 
   return (
     <div ref={invoiceRef}>
-        <style type="text/css" media="print">
-          {`
-            @page { size: auto;  margin: 0mm; }
-            body { background-color: #fff; }
-            .no-print { display: none; }
-            .invoice-card { box-shadow: none; border: none; }
-          `}
-        </style>
-        <div className="flex items-center gap-4 mb-4 no-print">
-            <Button variant="outline" size="icon" className="h-7 w-7" asChild>
-            <Link href="/sales">
-                <ChevronLeft className="h-4 w-4" />
-                <span className="sr-only">Quay lại</span>
-            </Link>
-            </Button>
-            <div className="ml-auto flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleExportPDF}>
-                <File className="mr-2 h-4 w-4" />
-                Xuất PDF
-            </Button>
-            <Button size="sm" onClick={handlePrint}>
-                <Printer className="mr-2 h-4 w-4" />
-                In hóa đơn
-            </Button>
-            </div>
+      <div className="flex items-center gap-4 mb-4">
+        <Button variant="outline" size="icon" className="h-7 w-7" asChild>
+          <Link href="/sales">
+            <ChevronLeft className="h-4 w-4" />
+            <span className="sr-only">Quay lại</span>
+          </Link>
+        </Button>
+        <div className="ml-auto flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleExportPDF}>
+            <File className="mr-2 h-4 w-4" />
+            Xuất PDF
+          </Button>
+          <Button size="sm" onClick={handlePrint}>
+            <Printer className="mr-2 h-4 w-4" />
+            In hóa đơn
+          </Button>
+        </div>
       </div>
-        <Card className="p-6 sm:p-8 shadow-none border-none sm:border-solid sm:shadow-sm invoice-card" ref={invoicePrintRef}>
+        <Card className="p-6 sm:p-8 invoice-card" ref={invoicePrintRef}>
             <header className="flex items-start justify-between mb-8">
                 <div className="flex items-center gap-4">
                     <Logo className="h-16 w-16 text-primary" />

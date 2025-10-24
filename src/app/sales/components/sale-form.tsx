@@ -41,6 +41,7 @@ import { upsertSaleTransaction } from '../actions'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Separator } from '@/components/ui/separator'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 const saleItemSchema = z.object({
   productId: z.string().min(1, "Vui lòng chọn sản phẩm."),
@@ -55,6 +56,7 @@ const saleFormSchema = z.object({
   discountType: z.enum(['percentage', 'amount']).default('amount'),
   discountValue: z.coerce.number().optional(),
   customerPayment: z.coerce.number().optional(),
+  status: z.enum(['pending', 'unprinted', 'printed']),
 });
 
 type SaleFormValues = z.infer<typeof saleFormSchema>;
@@ -220,6 +222,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
       discountType: 'amount',
       discountValue: 0,
       customerPayment: 0,
+      status: 'unprinted',
     },
     mode: "onChange"
   });
@@ -255,6 +258,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
         discountType: sale.discountType || 'amount',
         discountValue: sale.discountValue || 0,
         customerPayment: sale.customerPayment || 0,
+        status: sale.status || 'unprinted',
       });
 
     } else if (isOpen && !sale) {
@@ -265,6 +269,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
         discountType: 'amount',
         discountValue: 0,
         customerPayment: 0,
+        status: 'unprinted',
       })
       replace([]);
     }
@@ -326,6 +331,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
         customerPayment: data.customerPayment,
         previousDebt: previousDebt,
         remainingDebt: remainingDebt,
+        status: data.status,
     };
 
     const result = await upsertSaleTransaction(saleData, itemsData);
@@ -641,6 +647,33 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
                           <span>{formatCurrency(remainingDebt)}</span>
                       </div>
                   </div>
+                  {sale && (
+                    <>
+                      <Separator />
+                      <FormField
+                        control={form.control}
+                        name="status"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Trạng thái</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Chọn trạng thái" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="pending">Chờ xử lý</SelectItem>
+                                <SelectItem value="unprinted">Chưa in</SelectItem>
+                                <SelectItem value="printed">Đã in</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </>
+                  )}
               </div>
               <DialogFooter className="pt-4 border-t mt-4 flex-col gap-2">
                 <Button type="submit" disabled={form.formState.isSubmitting} className="w-full">

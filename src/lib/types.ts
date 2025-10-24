@@ -62,6 +62,7 @@ export type Sale = {
   invoiceNumber: string;
   customerId: string;
   transactionDate: string; // ISO 8601 date string
+  status: 'pending' | 'unprinted' | 'printed';
   totalAmount: number; // Gross total before discount
   finalAmount: number; // Net total after discount
   discount?: number;
@@ -100,6 +101,3 @@ export type ThemeSettings = {
   companyAddress?: string;
   companyPhone?: string;
 }
-
-    
-    

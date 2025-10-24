@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useTransition } from "react"
 import Link from "next/link"
 import {
   File,
@@ -9,6 +9,7 @@ import {
   PlusCircle,
   Search,
   Calendar as CalendarIcon,
+  ChevronDown,
 } from "lucide-react"
 
 import {
@@ -57,7 +58,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
-import { format, parseISO } from "date-fns"
+import { Badge } from "@/components/ui/badge"
+import { format } from "date-fns"
 import { cn, formatCurrency } from "@/lib/utils"
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
 import { Customer, Sale, Product, Unit, SalesItem, Payment } from "@/lib/types"
@@ -65,9 +67,30 @@ import { collection, query, getDocs } from "firebase/firestore"
 import { SaleForm } from "./components/sale-form"
 import { Input } from "@/components/ui/input"
 import { Calendar } from "@/components/ui/calendar"
-import { deleteSaleTransaction } from "./actions"
+import { deleteSaleTransaction, updateSaleStatus } from "./actions"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
+
+type SaleStatus = 'all' | 'pending' | 'unprinted' | 'printed';
+
+const getStatusVariant = (status: Sale['status']): "default" | "secondary" | "outline" => {
+  switch (status) {
+    case 'printed': return 'default';
+    case 'pending': return 'secondary';
+    case 'unprinted': return 'outline';
+    default: return 'outline';
+  }
+}
+
+const getStatusText = (status: Sale['status']) => {
+  switch (status) {
+    case 'printed': return 'Đã in';
+    case 'pending': return 'Chờ xử lý';
+    case 'unprinted': return 'Chưa in';
+    default: return 'Không xác định';
+  }
+}
+
 
 export default function SalesPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -78,6 +101,8 @@ export default function SalesPage() {
   const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sale | undefined>(undefined);
+  const [statusFilter, setStatusFilter] = useState<SaleStatus>('all');
+  const [isUpdatingStatus, startStatusTransition] = useTransition();
 
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -156,9 +181,11 @@ export default function SalesPage() {
       
       const dateMatch = searchDate ? format(new Date(sale.transactionDate), 'yyyy-MM-dd') === format(searchDate, 'yyyy-MM-dd') : true;
 
-      return termMatch && dateMatch;
+      const statusMatch = statusFilter !== 'all' ? sale.status === statusFilter : true;
+
+      return termMatch && dateMatch && statusMatch;
     }).sort((a, b) => new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime());
-  }, [sales, searchTerm, searchDate, customersMap]);
+  }, [sales, searchTerm, searchDate, customersMap, statusFilter]);
 
   const totalRevenue = useMemo(() => {
     return filteredSales?.reduce((total, sale) => total + sale.finalAmount, 0) || 0;
@@ -197,6 +224,25 @@ export default function SalesPage() {
     setIsDeleting(false);
     setSaleToDelete(null);
   }
+  
+  const handleStatusChange = (saleId: string, status: Sale['status']) => {
+    startStatusTransition(async () => {
+      const result = await updateSaleStatus(saleId, status);
+      if (result.success) {
+        toast({
+          title: "Thành công!",
+          description: "Trạng thái đơn hàng đã được cập nhật.",
+        });
+        router.refresh();
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Ôi! Đã có lỗi xảy ra.",
+          description: result.error,
+        });
+      }
+    });
+  };
 
   return (
     <>
@@ -228,15 +274,13 @@ export default function SalesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <Tabs defaultValue="all">
+      <Tabs defaultValue="all" onValueChange={(value) => setStatusFilter(value as SaleStatus)}>
         <div className="flex items-center">
           <TabsList>
             <TabsTrigger value="all">Tất cả</TabsTrigger>
-            <TabsTrigger value="paid" disabled>Đã thanh toán</TabsTrigger>
-            <TabsTrigger value="pending" disabled>Đang chờ xử lý</TabsTrigger>
-            <TabsTrigger value="refunded" className="hidden sm:flex" disabled>
-              Đã hoàn tiền
-            </TabsTrigger>
+            <TabsTrigger value="pending">Chờ xử lý</TabsTrigger>
+            <TabsTrigger value="unprinted">Chưa in</TabsTrigger>
+            <TabsTrigger value="printed">Đã in</TabsTrigger>
           </TabsList>
           <div className="ml-auto flex items-center gap-2">
             <Button size="sm" variant="outline" className="h-8 gap-1" disabled>
@@ -253,7 +297,7 @@ export default function SalesPage() {
             </Button>
           </div>
         </div>
-        <TabsContent value="all">
+        <TabsContent value={statusFilter}>
           <Card>
             <CardHeader>
               <CardTitle>Đơn hàng</CardTitle>
@@ -309,6 +353,7 @@ export default function SalesPage() {
                     <TableHead>Mã đơn hàng</TableHead>
                     <TableHead>Khách hàng</TableHead>
                     <TableHead className="hidden md:table-cell">Ngày</TableHead>
+                    <TableHead>Trạng thái</TableHead>
                     <TableHead className="text-right">Tổng cộng</TableHead>
                     <TableHead>
                       <span className="sr-only">Hành động</span>
@@ -316,7 +361,7 @@ export default function SalesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isLoading && <TableRow><TableCell colSpan={6} className="text-center h-24">Đang tải...</TableCell></TableRow>}
+                  {isLoading && <TableRow><TableCell colSpan={7} className="text-center h-24">Đang tải...</TableCell></TableRow>}
                   {!isLoading && filteredSales?.map((sale, index) => {
                     const customer = customers?.find(c => c.id === sale.customerId);
                     return (
@@ -326,6 +371,38 @@ export default function SalesPage() {
                         <TableCell>{customer?.name || 'Khách lẻ'}</TableCell>
                         <TableCell className="hidden md:table-cell">
                           {new Date(sale.transactionDate).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="p-1 h-auto" disabled={isUpdatingStatus}>
+                                <Badge variant={getStatusVariant(sale.status)}>
+                                  {getStatusText(sale.status)}
+                                  <ChevronDown className="h-3 w-3 ml-1" />
+                                </Badge>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start">
+                              <DropdownMenuItem 
+                                onClick={() => handleStatusChange(sale.id, 'pending')}
+                                disabled={sale.status === 'pending' || isUpdatingStatus}
+                              >
+                                Chờ xử lý
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleStatusChange(sale.id, 'unprinted')}
+                                disabled={sale.status === 'unprinted' || isUpdatingStatus}
+                              >
+                                Chưa in
+                              </DropdownMenuItem>
+                               <DropdownMenuItem
+                                onClick={() => handleStatusChange(sale.id, 'printed')}
+                                disabled={sale.status === 'printed' || isUpdatingStatus}
+                              >
+                                Đã in
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                         <TableCell className="text-right">
                           {formatCurrency(sale.finalAmount)}
@@ -363,7 +440,7 @@ export default function SalesPage() {
                   })}
                   {!isLoading && !filteredSales?.length && (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center h-24">
+                      <TableCell colSpan={7} className="text-center h-24">
                         Không có đơn hàng nào phù hợp.
                       </TableCell>
                     </TableRow>

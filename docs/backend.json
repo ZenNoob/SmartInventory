@@ -262,6 +262,15 @@
           "description": "Date of the sales transaction.",
           "format": "date-time"
         },
+        "status": {
+          "type": "string",
+          "description": "Status of the sales transaction.",
+          "enum": [
+            "pending",
+            "unprinted",
+            "printed"
+          ]
+        },
         "totalAmount": {
           "type": "number",
           "description": "Total amount of the sales transaction."
@@ -276,7 +285,8 @@
         "invoiceNumber",
         "customerId",
         "transactionDate",
-        "totalAmount"
+        "totalAmount",
+        "status"
       ]
     },
     "SalesItem": {
