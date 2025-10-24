@@ -7,6 +7,7 @@ import html2canvas from 'html2canvas'
 import { ChevronLeft, File, Printer } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -16,7 +17,6 @@ import {
   TableRow,
   TableFooter,
 } from "@/components/ui/table"
-import { Card } from "@/components/ui/card"
 import { Logo } from "@/components/icons"
 import { formatCurrency } from "@/lib/utils"
 import type { Customer, Sale, SalesItem, Product, Unit } from "@/lib/types"
@@ -71,17 +71,39 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap }: Sa
       
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF({
-        orientation: 'p',
+        orientation: 'p', // portrait
         unit: 'px',
-        format: [canvas.width, canvas.height]
+        format: 'a4'
       });
-      pdf.addImage(imgData, "PNG", 0, 0, canvas.width, canvas.height);
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      
+      const canvasWidth = canvas.width;
+      const canvasHeight = canvas.height;
+
+      const ratio = canvasWidth / canvasHeight;
+      const pdfRatio = pdfWidth / pdfHeight;
+      
+      let finalWidth, finalHeight;
+      
+      // Fit to width
+      finalWidth = pdfWidth;
+      finalHeight = pdfWidth / ratio;
+      
+      if (finalHeight > pdfHeight) {
+          // If height is too big after fitting to width, fit to height instead
+          finalHeight = pdfHeight;
+          finalWidth = pdfHeight * ratio;
+      }
+      
+      pdf.addImage(imgData, "PNG", 0, 0, finalWidth, finalHeight);
       pdf.save(`HD-${sale.id.slice(-6).toUpperCase()}.pdf`);
     });
   };
 
   const totalAmount = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-  const remainingDebt = (totalAmount + (sale.previousDebt || 0)) - (sale.customerPayment || 0);
+  const remainingDebt = sale.remainingDebt || 0;
 
   return (
     <div ref={invoiceRef}>
@@ -177,7 +199,7 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap }: Sa
                 <TableFooter>
                     <TableRow>
                         <TableCell colSpan={6} className="text-right font-medium">Tổng tiền hàng</TableCell>
-                        <TableCell className="text-right font-semibold">{formatCurrency(totalAmount)}</TableCell>
+                        <TableCell className="text-right font-semibold">{formatCurrency(sale.totalAmount)}</TableCell>
                     </TableRow>
                     <TableRow>
                         <TableCell colSpan={6} className="text-right font-medium">Nợ cũ</TableCell>
