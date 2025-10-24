@@ -543,13 +543,13 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
                                 </FormItem>
                             )}
                         />
-                        <FormField
+                        <Controller
                             control={form.control}
                             name="discountValue"
                             render={({ field }) => (
                                 <FormItem className="w-32">
                                     <FormControl>
-                                        <Input type="number" {...field} />
+                                      { discountType === 'amount' ? <FormattedNumberInput {...field} /> : <Input type="number" {...field} /> }
                                     </FormControl>
                                 </FormItem>
                             )}
@@ -595,3 +595,5 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
     </Dialog>
   )
 }
+
+    
