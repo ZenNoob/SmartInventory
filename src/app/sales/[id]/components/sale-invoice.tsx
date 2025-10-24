@@ -56,9 +56,9 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap }: Sa
 
     // Hide buttons before capturing
     const buttons = input.querySelectorAll('button');
+    const links = input.querySelectorAll('a');
     links.forEach(link => link.style.display = 'none');
     buttons.forEach(btn => btn.style.display = 'none');
-    const links = input.querySelectorAll('a');
 
     html2canvas(input, {
       scale: 2, // Increase scale for better resolution
@@ -81,10 +81,18 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap }: Sa
       const canvasHeight = canvas.height;
       const canvasAspectRatio = canvasWidth / canvasHeight;
 
-      const renderWidth = pdfWidth;
-      const renderHeight = renderWidth / canvasAspectRatio;
+      let renderWidth = pdfWidth;
+      let renderHeight = renderWidth / canvasAspectRatio;
+      
+      if(renderHeight > pdfHeight){
+        renderHeight = pdfHeight;
+        renderWidth = renderHeight * canvasAspectRatio;
+      }
 
-      pdf.addImage(imgData, "PNG", 0, 0, renderWidth, renderHeight);
+      const xOffset = (pdfWidth - renderWidth) / 2;
+
+
+      pdf.addImage(imgData, "PNG", xOffset, 0, renderWidth, renderHeight);
       pdf.save(`${sale.invoiceNumber}.pdf`);
     });
   };
@@ -138,7 +146,12 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap }: Sa
                 <p><span className="font-semibold">Khách hàng:</span> {customer?.name || 'Khách lẻ'}</p>
                 <p><span className="font-semibold">Điện thoại:</span> {customer?.phone || 'N/A'}</p>
                 <p className="col-span-2"><span className="font-semibold">Địa chỉ:</span> {customer?.address || 'N/A'}</p>
-                <p className="col-span-2"><span className="font-semibold">MB Bank-Số Tài khoản:</span> 0915582447-Chủ TK: NGUYỄN THÀNH LÂM</p>
+                <p className="col-span-2">
+                  <span className="font-semibold">Thông tin ngân hàng:</span>{' '}
+                  {customer && customer.bankName && customer.bankAccountNumber 
+                    ? `${customer.bankName} - ${customer.bankAccountNumber}` 
+                    : 'Chưa có thông tin'}
+                </p>
             </div>
             
             <Table>
@@ -226,5 +239,3 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap }: Sa
     </div>
   )
 }
-
-    
