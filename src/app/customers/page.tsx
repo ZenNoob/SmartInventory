@@ -199,7 +199,7 @@ export default function CustomersPage() {
 
     const debtMap = new Map<string, { paid: number; debt: number; payments: Payment[] }>();
     customers.forEach(customer => {
-        const customerSales = sales.filter(s => s.customerId === customer.id).reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+        const customerSales = sales.filter(s => s.customerId === customer.id).reduce((sum, s) => sum + (s.finalAmount || 0), 0);
         const customerPayments = payments.filter(p => p.customerId === customer.id);
         const totalPaid = customerPayments.reduce((sum, p) => sum + p.amount, 0);
         const totalDebt = customerSales - totalPaid;

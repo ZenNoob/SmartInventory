@@ -58,7 +58,8 @@ export type Sale = {
   id: string;
   customerId: string;
   transactionDate: string; // ISO 8601 date string
-  totalAmount: number;
+  totalAmount: number; // Gross total before discount
+  finalAmount: number; // Net total after discount
   discount?: number;
   discountType?: 'percentage' | 'amount';
   discountValue?: number;

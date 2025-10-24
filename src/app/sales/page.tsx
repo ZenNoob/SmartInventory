@@ -276,7 +276,7 @@ export default function SalesPage() {
                           {new Date(sale.transactionDate).toLocaleDateString()}
                         </TableCell>
                         <TableCell className="text-right">
-                          {formatCurrency(sale.totalAmount)}
+                          {formatCurrency(sale.finalAmount)}
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>

@@ -60,10 +60,9 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap }: Sa
     const links = input.querySelectorAll('a');
     links.forEach(link => link.style.display = 'none');
 
-
     html2canvas(input, {
-        scale: 2, // Increase scale for better resolution
-        useCORS: true, 
+      scale: 2, // Increase scale for better resolution
+      useCORS: true,
     }).then((canvas) => {
       // Show buttons after capturing
       buttons.forEach(btn => btn.style.display = '');
@@ -83,27 +82,21 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap }: Sa
       const canvasHeight = canvas.height;
 
       const ratio = canvasWidth / canvasHeight;
-      const pdfRatio = pdfWidth / pdfHeight;
       
-      let finalWidth, finalHeight;
+      const finalWidth = pdfWidth;
+      const finalHeight = finalWidth / ratio;
       
-      // Fit to width
-      finalWidth = pdfWidth;
-      finalHeight = pdfWidth / ratio;
-      
+      let y = 0;
       if (finalHeight > pdfHeight) {
-          // If height is too big after fitting to width, fit to height instead
-          finalHeight = pdfHeight;
-          finalWidth = pdfHeight * ratio;
+          y = (pdfHeight - finalHeight) / 2;
       }
-      
-      pdf.addImage(imgData, "PNG", 0, 0, finalWidth, finalHeight);
+
+      pdf.addImage(imgData, "PNG", 0, y, finalWidth, finalHeight);
       pdf.save(`HD-${sale.id.slice(-6).toUpperCase()}.pdf`);
     });
   };
 
-  const totalAmount = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-  const remainingDebt = sale.remainingDebt || 0;
+  const totalBeforeDiscount = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
   return (
     <div ref={invoiceRef}>
@@ -211,7 +204,7 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap }: Sa
                     </TableRow>
                      <TableRow className="text-lg">
                         <TableCell colSpan={6} className="text-right font-bold">Còn Nợ lại</TableCell>
-                        <TableCell className="text-right font-bold">{formatCurrency(remainingDebt)}</TableCell>
+                        <TableCell className="text-right font-bold">{formatCurrency(sale.remainingDebt || 0)}</TableCell>
                     </TableRow>
                 </TableFooter>
             </Table>

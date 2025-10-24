@@ -165,7 +165,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
 
     const debtMap = new Map<string, number>();
     customers.forEach(customer => {
-        const customerSales = sales.filter(s => s.customerId === customer.id).reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+        const customerSales = sales.filter(s => s.customerId === customer.id).reduce((sum, s) => sum + (s.finalAmount || 0), 0);
         const customerPayments = payments.filter(p => p.customerId === customer.id).reduce((sum, p) => sum + p.amount, 0);
         debtMap.set(customer.id, customerSales - customerPayments);
     });
@@ -175,8 +175,13 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
   const refinedSaleFormSchema = useMemo(() => saleFormSchema.superRefine((data, ctx) => {
     data.items.forEach((item, index) => {
       if (!item.productId) return;
-      const { stock } = getStockInfo(item.productId);
-      if (item.quantity > stock) {
+      const product = productsMap.get(item.productId);
+      if (!product) return;
+      const { stockInBaseUnit } = getStockInfo(item.productId);
+      const { conversionFactor } = getUnitInfo(product.unitId);
+      const requestedQuantityInBase = item.quantity * (conversionFactor || 1);
+
+      if (requestedQuantityInBase > stockInBaseUnit) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: [`items`, index, `quantity`],
@@ -184,7 +189,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
         });
       }
     });
-  }), [getStockInfo]);
+  }), [getStockInfo, productsMap, getUnitInfo]);
 
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(refinedSaleFormSchema),
@@ -221,7 +226,6 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
     }
     const product = productsMap.get(item.productId)!;
     const { conversionFactor } = getUnitInfo(product.unitId);
-    // The price is per base unit, so we multiply by quantity in base unit
     const quantityInBaseUnit = (item.quantity || 0) * (conversionFactor || 1);
 
     return acc + quantityInBaseUnit * (item.price || 0);
@@ -251,7 +255,8 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
     const saleData = {
         customerId: data.customerId,
         transactionDate: new Date(data.transactionDate).toISOString(),
-        totalAmount: finalAmount, // This is the total for this specific sale
+        totalAmount: totalAmount,
+        finalAmount: finalAmount,
         discount: calculatedDiscount,
         discountType: data.discountType,
         discountValue: data.discountValue,
@@ -410,12 +415,8 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
                     const baseUnit = saleUnitInfo.baseUnit || unitsMap.get(product.unitId);
                     
                     const itemValues = watchedItems[index];
-                    const lineTotal = itemValues && itemValues.price && itemValues.quantity
-                      ? ((itemValues.quantity || 0) * (saleUnitInfo.conversionFactor || 1)) * (itemValues.price || 0)
-                      : 0;
-
                     const quantityInBaseUnit = (itemValues?.quantity || 0) * (saleUnitInfo.conversionFactor || 1);
-
+                    const lineTotal = quantityInBaseUnit * (itemValues?.price || 0);
 
                     const stockInfo = getStockInfo(product.id);
                     const avgCostInfo = getAverageCost(product.id);
