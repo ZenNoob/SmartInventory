@@ -174,11 +174,10 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
   const totalAmount = useMemo(() => {
     return watchedItems.reduce((acc, item) => {
       const product = productsMap.get(item.productId);
-      if (!product) return acc;
-      // Note: Here we multiply by the BASE UNIT price, but the quantity is in the SALE unit.
-      // So we need to convert quantity to base unit before multiplying.
+      if (!product || !item.price) return acc;
       const { conversionFactor } = getUnitInfo(product.unitId);
-      return acc + (item.quantity * conversionFactor * item.price);
+      const quantityInBaseUnit = (item.quantity || 0) * conversionFactor;
+      return acc + (quantityInBaseUnit * item.price);
     }, 0);
   }, [watchedItems, productsMap, getUnitInfo]);
 
@@ -332,7 +331,8 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
                     const baseUnit = saleUnitInfo.baseUnit || unitsMap.get(product.unitId);
                     
                     const itemValues = watchedItems[index];
-                    const lineTotal = (itemValues.quantity || 0) * (itemValues.price || 0) * (saleUnitInfo.conversionFactor || 1) ;
+                    const quantityInBaseUnit = (itemValues.quantity || 0) * saleUnitInfo.conversionFactor;
+                    const lineTotal = quantityInBaseUnit * (itemValues.price || 0);
 
                     const stockInfo = getStockInfo(product.id);
                     const avgCostInfo = getAverageCost(product.id);
