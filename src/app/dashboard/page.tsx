@@ -123,11 +123,19 @@ export default async function Dashboard() {
   const totalRevenue = sales.reduce((acc, sale) => acc + sale.totalAmount, 0)
   const totalSales = sales.length
   
-  const totalCustomerDebt = customers.reduce((acc, customer) => {
-      const customerSales = sales.filter(s => s.customerId === customer.id).reduce((sum, s) => sum + s.totalAmount, 0);
-      const customerPayments = payments.filter(p => p.customerId === customer.id).reduce((sum, p) => sum + p.amount, 0);
-      return acc + (customerSales - customerPayments);
-  }, 0);
+  let totalCustomerDebt = 0;
+  let customersWithDebt = 0;
+
+  customers.forEach(customer => {
+    const customerSales = sales.filter(s => s.customerId === customer.id).reduce((sum, s) => sum + s.finalAmount, 0);
+    const customerPayments = payments.filter(p => p.customerId === customer.id).reduce((sum, p) => sum + p.amount, 0);
+    const debt = customerSales - customerPayments;
+    if (debt > 0) {
+      totalCustomerDebt += debt;
+      customersWithDebt++;
+    }
+  });
+
 
   return (
     <div className="flex flex-col gap-4">
@@ -165,8 +173,8 @@ export default async function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(totalCustomerDebt)}</div>
-            <p className="text-xs text-muted-foreground">
-              +5 khách hàng có nợ mới
+             <p className="text-xs text-muted-foreground">
+              Có {customersWithDebt} khách hàng đang nợ
             </p>
           </CardContent>
         </Card>
