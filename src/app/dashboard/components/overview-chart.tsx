@@ -47,7 +47,7 @@ export function OverviewChart({ data }: OverviewChartProps) {
             fontSize={12}
             tickLine={false}
             axisLine={false}
-            tickFormatter={(value) => `${formatCurrency(Number(value))}`}
+            tickFormatter={(value) => `${(Number(value) / 1000000).toLocaleString('vi-VN', { maximumFractionDigits: 1 })}tr`}
           />
           <YAxis
             yAxisId="right"
