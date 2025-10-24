@@ -42,7 +42,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { formatCurrency } from "@/lib/utils"
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
-import { Customer, Sale, Product, Unit, SalesItem } from "@/lib/types"
+import { Customer, Sale, Product, Unit, SalesItem, Payment } from "@/lib/types"
 import { collection, query, getDocs } from "firebase/firestore"
 import { SaleForm } from "./components/sale-form"
 
@@ -72,11 +72,17 @@ export default function SalesPage() {
     if (!firestore) return null;
     return query(collection(firestore, "units"));
   }, [firestore]);
+  
+  const paymentsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, "payments"));
+  }, [firestore]);
 
   const { data: sales, isLoading: salesLoading } = useCollection<Sale>(salesQuery);
   const { data: customers, isLoading: customersLoading } = useCollection<Customer>(customersQuery);
   const { data: products, isLoading: productsLoading } = useCollection<Product>(productsQuery);
   const { data: units, isLoading: unitsLoading } = useCollection<Unit>(unitsQuery);
+  const { data: payments, isLoading: paymentsLoading } = useCollection<Payment>(paymentsQuery);
 
   useEffect(() => {
     async function fetchAllSalesItems() {
@@ -106,7 +112,7 @@ export default function SalesPage() {
   }, [sales, firestore, salesLoading]);
 
 
-  const isLoading = salesLoading || customersLoading || productsLoading || unitsLoading || salesItemsLoading;
+  const isLoading = salesLoading || customersLoading || productsLoading || unitsLoading || salesItemsLoading || paymentsLoading;
 
   const handleAddSale = () => {
     setIsFormOpen(true);
@@ -121,6 +127,8 @@ export default function SalesPage() {
         products={products || []}
         units={units || []}
         allSalesItems={allSalesItems || []}
+        sales={sales || []}
+        payments={payments || []}
       />
       <Tabs defaultValue="all">
         <div className="flex items-center">
@@ -244,5 +252,3 @@ export default function SalesPage() {
     </>
   )
 }
-
-    

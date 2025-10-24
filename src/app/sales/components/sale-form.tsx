@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Input } from "@/components/ui/input"
-import { Customer, Product, Unit, SalesItem } from '@/lib/types'
+import { Customer, Product, Unit, SalesItem, Sale, Payment } from '@/lib/types'
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
 import { Check, ChevronsUpDown, PlusCircle, Trash2 } from 'lucide-react'
@@ -62,6 +62,8 @@ interface SaleFormProps {
   products: Product[];
   units: Unit[];
   allSalesItems: SalesItem[];
+  sales: Sale[];
+  payments: Payment[];
 }
 
 const FormattedNumberInput = ({ value, onChange, ...props }: { value: number; onChange: (value: number) => void; [key: string]: any }) => {
@@ -88,7 +90,7 @@ const FormattedNumberInput = ({ value, onChange, ...props }: { value: number; on
 };
 
 
-export function SaleForm({ isOpen, onOpenChange, customers, products, units, allSalesItems }: SaleFormProps) {
+export function SaleForm({ isOpen, onOpenChange, customers, products, units, allSalesItems, sales, payments }: SaleFormProps) {
   const { toast } = useToast();
   const router = useRouter();
   const [productSearchOpen, setProductSearchOpen] = useState(false);
@@ -153,6 +155,18 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
     
     return { avgCost: totalCost / totalQuantityInBaseUnit, baseUnit: costBaseUnit };
   }, [productsMap, getUnitInfo, unitsMap]);
+
+  const customerDebts = useMemo(() => {
+    if (!customers || !sales || !payments) return new Map<string, number>();
+
+    const debtMap = new Map<string, number>();
+    customers.forEach(customer => {
+        const customerSales = sales.filter(s => s.customerId === customer.id).reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+        const customerPayments = payments.filter(p => p.customerId === customer.id).reduce((sum, p) => sum + p.amount, 0);
+        debtMap.set(customer.id, customerSales - customerPayments);
+    });
+    return debtMap;
+  }, [customers, sales, payments]);
 
   const refinedSaleFormSchema = useMemo(() => saleFormSchema.superRefine((data, ctx) => {
     data.items.forEach((item, index) => {
@@ -259,7 +273,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { onOpenChange(open); if(!open) form.reset(); }}>
-      <DialogContent className="sm:max-w-4xl grid-rows-[auto,1fr,auto] max-h-[90vh]">
+      <DialogContent className="sm:max-w-5xl grid-rows-[auto,1fr,auto] max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Tạo đơn hàng mới</DialogTitle>
           <DialogDescription>
@@ -302,29 +316,35 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
                                 <CommandList>
                                 <CommandEmpty>Không tìm thấy khách hàng.</CommandEmpty>
                                 <CommandGroup>
-                                    {customers.map((customer) => (
-                                    <CommandItem
-                                        value={`${customer.name} ${customer.phone}`}
-                                        key={customer.id}
-                                        onSelect={() => {
-                                            form.setValue("customerId", customer.id)
-                                            setCustomerSearchOpen(false)
-                                        }}
-                                    >
-                                        <Check
-                                        className={cn(
-                                            "mr-2 h-4 w-4",
-                                            customer.id === field.value
-                                            ? "opacity-100"
-                                            : "opacity-0"
-                                        )}
-                                        />
-                                        <div>
-                                            <p>{customer.name}</p>
-                                            <p className="text-xs text-muted-foreground">{customer.phone}</p>
-                                        </div>
-                                    </CommandItem>
-                                    ))}
+                                    {customers.map((customer) => {
+                                      const debt = customerDebts.get(customer.id) || 0;
+                                      return (
+                                        <CommandItem
+                                            value={`${customer.name} ${customer.phone}`}
+                                            key={customer.id}
+                                            onSelect={() => {
+                                                form.setValue("customerId", customer.id)
+                                                setCustomerSearchOpen(false)
+                                            }}
+                                        >
+                                            <Check
+                                            className={cn(
+                                                "mr-2 h-4 w-4",
+                                                customer.id === field.value
+                                                ? "opacity-100"
+                                                : "opacity-0"
+                                            )}
+                                            />
+                                            <div className="flex justify-between w-full">
+                                                <div>
+                                                  <p>{customer.name}</p>
+                                                  <p className="text-xs text-muted-foreground">{customer.phone}</p>
+                                                </div>
+                                                {debt > 0 && <p className="text-xs text-destructive">Nợ: {formatCurrency(debt)}</p>}
+                                            </div>
+                                        </CommandItem>
+                                      )
+                                    })}
                                 </CommandGroup>
                                 </CommandList>
                             </Command>
@@ -364,6 +384,8 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
                       ? ((itemValues.quantity || 0) * (saleUnitInfo.conversionFactor || 1)) * (itemValues.price || 0)
                       : 0;
 
+                    const quantityInBaseUnit = (itemValues?.quantity || 0) * (saleUnitInfo.conversionFactor || 1);
+
 
                     const stockInfo = getStockInfo(product.id);
                     const avgCostInfo = getAverageCost(product.id);
@@ -371,7 +393,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
                     return (
                         <div key={field.id} className="p-3 border rounded-md relative">
                             <p className="font-medium mb-2">{product?.name || 'Sản phẩm không xác định'}</p>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                <FormField
                                   control={form.control}
                                   name={`items.${index}.quantity`}
@@ -382,12 +404,17 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
                                             <Input type="number" step="any" {...field} />
                                         </FormControl>
                                         <FormDescription>
-                                            (Tồn: {stockInfo.stock.toFixed(2)} {stockInfo.mainUnit?.name})
+                                            Tồn: {stockInfo.stock.toFixed(2)} {stockInfo.mainUnit?.name}
                                         </FormDescription>
                                         <FormMessage />
                                     </FormItem>
                                   )}
                                 />
+                                <div className="space-y-2">
+                                  <FormLabel>Số lượng ({baseUnit?.name || 'ĐVT cơ sở'})</FormLabel>
+                                  <Input value={quantityInBaseUnit.toLocaleString()} readOnly />
+                                  <FormDescription>&nbsp;</FormDescription>
+                                </div>
                                <FormField
                                   control={form.control}
                                   name={`items.${index}.price`}
@@ -405,8 +432,9 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
                                   )}
                                 />
                                 <div className="space-y-2">
-                                  <Label>Thành tiền</Label>
+                                  <FormLabel>Thành tiền</FormLabel>
                                   <Input value={formatCurrency(lineTotal)} readOnly className="font-semibold" />
+                                   <FormDescription>&nbsp;</FormDescription>
                                 </div>
                             </div>
                             <Button
@@ -490,5 +518,3 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
     </Dialog>
   )
 }
-
-    
