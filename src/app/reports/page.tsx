@@ -38,6 +38,15 @@ type CustomerDebtInfo = {
 
 type SortKey = 'customerName' | 'customerPhone' | 'totalSales' | 'totalPayments' | 'finalDebt';
 
+const formatPhoneNumber = (phone?: string) => {
+  if (!phone) return 'N/A';
+  // Assuming 10-digit phone numbers like 0905123456
+  if (phone.length === 10) {
+    return `${phone.substring(0, 4)} ${phone.substring(4, 7)} ${phone.substring(7, 10)}`;
+  }
+  return phone; // Return as is if not 10 digits
+};
+
 export default function ReportsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>('finalDebt');
@@ -204,7 +213,7 @@ export default function ReportsPage() {
                 <TableRow key={data.customerId}>
                   <TableCell>{index + 1}</TableCell>
                   <TableCell className="font-medium">{data.customerName}</TableCell>
-                  <TableCell>{data.customerPhone || 'N/A'}</TableCell>
+                  <TableCell>{formatPhoneNumber(data.customerPhone)}</TableCell>
                   <TableCell className="text-right">{formatCurrency(data.totalSales)}</TableCell>
                   <TableCell className="text-right">{formatCurrency(data.totalPayments)}</TableCell>
                   <TableCell className={`text-right font-semibold ${data.finalDebt > 0 ? 'text-destructive' : ''}`}>
