@@ -39,6 +39,10 @@ const themeFormSchema = z.object({
   accent: z.string().min(1, "Bắt buộc"),
   accentForeground: z.string().min(1, "Bắt buộc"),
   lowStockThreshold: z.coerce.number().min(0, "Ngưỡng phải là số dương."),
+  companyName: z.string().optional(),
+  companyBusinessLine: z.string().optional(),
+  companyAddress: z.string().optional(),
+  companyPhone: z.string().optional(),
 });
 
 type ThemeFormValues = z.infer<typeof themeFormSchema>;
@@ -65,6 +69,10 @@ export default function SettingsPage() {
       accent: '#ff6600',
       accentForeground: '#111827',
       lowStockThreshold: 10,
+      companyName: '',
+      companyBusinessLine: '',
+      companyAddress: '',
+      companyPhone: '',
     },
   });
   
@@ -78,6 +86,10 @@ export default function SettingsPage() {
         accent: hslToHex(themeSettings.accent),
         accentForeground: hslToHex(themeSettings.accentForeground),
         lowStockThreshold: themeSettings.lowStockThreshold || 10,
+        companyName: themeSettings.companyName || '',
+        companyBusinessLine: themeSettings.companyBusinessLine || '',
+        companyAddress: themeSettings.companyAddress || '',
+        companyPhone: themeSettings.companyPhone || '',
       });
     }
   }, [themeSettings, form]);
@@ -91,12 +103,16 @@ export default function SettingsPage() {
       accent: hexToHsl(data.accent),
       accentForeground: hexToHsl(data.accentForeground),
       lowStockThreshold: data.lowStockThreshold,
+      companyName: data.companyName,
+      companyBusinessLine: data.companyBusinessLine,
+      companyAddress: data.companyAddress,
+      companyPhone: data.companyPhone,
     };
     const result = await upsertThemeSettings(hslData);
     if (result.success) {
       toast({
         title: "Thành công!",
-        description: "Đã cập nhật cài đặt giao diện.",
+        description: "Đã cập nhật cài đặt.",
       });
       router.refresh();
     } else {
@@ -108,7 +124,7 @@ export default function SettingsPage() {
     }
   };
 
-  const ColorField = ({ name, label }: { name: keyof Omit<ThemeFormValues, 'lowStockThreshold'>, label: string }) => (
+  const ColorField = ({ name, label }: { name: keyof Omit<ThemeFormValues, 'lowStockThreshold' | 'companyName' | 'companyBusinessLine' | 'companyAddress' | 'companyPhone'>, label: string }) => (
     <FormField
       control={form.control}
       name={name}
@@ -142,6 +158,67 @@ export default function SettingsPage() {
              {isLoading && <p>Đang tải cài đặt...</p>}
             {!isLoading && (
               <>
+                <div>
+                  <h3 className="text-lg font-medium">Thông tin doanh nghiệp</h3>
+                  <p className="text-sm text-muted-foreground mb-6">Thông tin này sẽ được hiển thị trên hóa đơn.</p>
+                  <div className='space-y-4'>
+                     <FormField
+                        control={form.control}
+                        name="companyBusinessLine"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Ngành nghề kinh doanh</FormLabel>
+                            <FormControl>
+                                <Input placeholder="Vd: CƠ SỞ SẢN XUẤT VÀ KINH DOANH GIỐNG CÂY TRỒNG" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="companyName"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Tên doanh nghiệp</FormLabel>
+                            <FormControl>
+                                <Input placeholder="Vd: MINH PHÁT" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="companyAddress"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Địa chỉ</FormLabel>
+                            <FormControl>
+                                <Input placeholder="Vd: 70 Ấp 1, X. Mỹ Thạnh, H. Thủ Thừa, T. Long an" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="companyPhone"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Số điện thoại</FormLabel>
+                            <FormControl>
+                                <Input placeholder="Vd: 0915 582 447" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                      />
+                  </div>
+                </div>
+
+                <Separator />
+
                 <div>
                     <h3 className="text-lg font-medium">Giao diện</h3>
                     <p className="text-sm text-muted-foreground mb-6">Tùy chỉnh màu sắc của ứng dụng.</p>

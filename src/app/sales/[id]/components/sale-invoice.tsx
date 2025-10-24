@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/table"
 import { Logo } from "@/components/icons"
 import { formatCurrency } from "@/lib/utils"
-import type { Customer, Sale, SalesItem, Product, Unit } from "@/lib/types"
+import type { Customer, Sale, SalesItem, Product, Unit, ThemeSettings } from "@/lib/types"
 
 interface SaleInvoiceProps {
     sale: Sale;
@@ -27,9 +27,10 @@ interface SaleInvoiceProps {
     customer: Customer | null;
     productsMap: Map<string, Product>;
     unitsMap: Map<string, Unit>;
+    settings: ThemeSettings | null;
 }
 
-export function SaleInvoice({ sale, items, customer, productsMap, unitsMap }: SaleInvoiceProps) {
+export function SaleInvoice({ sale, items, customer, productsMap, unitsMap, settings }: SaleInvoiceProps) {
   const invoiceRef = useRef<HTMLDivElement>(null);
 
   const getUnitInfo = (unitId: string) => {
@@ -122,13 +123,13 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap }: Sa
                 <div className="flex items-center gap-4">
                     <Logo className="h-16 w-16 text-primary" />
                     <div>
-                        <p className="font-semibold text-lg">CƠ SỞ SẢN XUẤT VÀ KINH DOANH GIỐNG CÂY TRỒNG</p>
-                        <p className="font-bold text-2xl text-primary">MINH PHÁT</p>
+                        <p className="font-semibold text-lg">{settings?.companyBusinessLine || 'CƠ SỞ SẢN XUẤT VÀ KINH DOANH GIỐNG CÂY TRỒNG'}</p>
+                        <p className="font-bold text-2xl text-primary">{settings?.companyName || 'MINH PHÁT'}</p>
                     </div>
                 </div>
                 <div className="text-right">
-                    <p className="font-semibold">70 Ấp 1, X. Mỹ Thạnh, H. Thủ Thừa, T. Long an</p>
-                    <p>Điện thoại: 0915 582 447</p>
+                    <p className="font-semibold">{settings?.companyAddress || '70 Ấp 1, X. Mỹ Thạnh, H. Thủ Thừa, T. Long an'}</p>
+                    <p>Điện thoại: {settings?.companyPhone || '0915 582 447'}</p>
                 </div>
             </header>
 

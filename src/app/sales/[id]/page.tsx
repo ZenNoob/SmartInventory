@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation"
 import { getAdminServices } from "@/lib/admin-actions"
-import type { Customer, Sale, SalesItem, Product, Unit } from "@/lib/types"
+import type { Customer, Sale, SalesItem, Product, Unit, ThemeSettings } from "@/lib/types"
 import { SaleInvoice } from "./components/sale-invoice";
 import { toPlainObject } from "@/lib/utils";
 
@@ -10,7 +10,7 @@ async function getSaleData(saleId: string) {
 
     const saleDoc = await firestore.collection('sales_transactions').doc(saleId).get();
     if (!saleDoc.exists) {
-        return { sale: null, items: [], customer: null, productsMap: new Map(), unitsMap: new Map() };
+        return { sale: null, items: [], customer: null, productsMap: new Map(), unitsMap: new Map(), settings: null };
     }
     const sale = toPlainObject({ id: saleDoc.id, ...saleDoc.data() }) as Sale;
 
@@ -40,16 +40,19 @@ async function getSaleData(saleId: string) {
         unitsMap.set(doc.id, toPlainObject({ id: doc.id, ...doc.data() }) as Unit);
     });
 
-    return { sale, items, customer, productsMap, unitsMap };
+    const settingsDoc = await firestore.collection('settings').doc('theme').get();
+    const settings = settingsDoc.exists ? toPlainObject(settingsDoc.data()) as ThemeSettings : null;
+
+    return { sale, items, customer, productsMap, unitsMap, settings };
 }
 
 
 export default async function SaleDetailPage({ params }: { params: { id: string } }) {
-  const { sale, items, customer, productsMap, unitsMap } = await getSaleData(params.id);
+  const { sale, items, customer, productsMap, unitsMap, settings } = await getSaleData(params.id);
 
   if (!sale) {
     notFound()
   }
 
-  return <SaleInvoice sale={sale} items={items} customer={customer} productsMap={productsMap} unitsMap={unitsMap} />
+  return <SaleInvoice sale={sale} items={items} customer={customer} productsMap={productsMap} unitsMap={unitsMap} settings={settings} />
 }

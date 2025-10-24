@@ -4,7 +4,7 @@ import { ThemeSettings } from "@/lib/types";
 import { getAdminServices } from "@/lib/admin-actions";
 import { toPlainObject } from "@/lib/utils";
 
-export async function upsertThemeSettings(settings: ThemeSettings): Promise<{ success: boolean; error?: string }> {
+export async function upsertThemeSettings(settings: Partial<ThemeSettings>): Promise<{ success: boolean; error?: string }> {
   try {
     const { firestore } = await getAdminServices();
 

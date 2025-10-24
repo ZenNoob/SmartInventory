@@ -95,6 +95,10 @@ export type ThemeSettings = {
   accent: string;
   accentForeground: string;
   lowStockThreshold: number;
+  companyName?: string;
+  companyBusinessLine?: string;
+  companyAddress?: string;
+  companyPhone?: string;
 }
 
     
