@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from "react"
-import { Search, ArrowUp, ArrowDown } from "lucide-react"
+import { Search, ArrowUp, ArrowDown, MoreHorizontal } from "lucide-react"
 
 import {
   Card,
@@ -20,14 +20,22 @@ import {
   TableRow,
   TableFooter as ShadcnTableFooter
 } from "@/components/ui/table"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
 import { collection, query } from "firebase/firestore"
 import { Customer, Sale, Payment } from "@/lib/types"
 import { formatCurrency } from "@/lib/utils"
+import { PaymentForm } from "./components/payment-form"
 
-type CustomerDebtInfo = {
+export type CustomerDebtInfo = {
   customerId: string;
   customerName: string;
   customerPhone?: string;
@@ -51,6 +59,9 @@ export default function ReportsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>('finalDebt');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [isPaymentFormOpen, setIsPaymentFormOpen] = useState(false);
+  const [selectedCustomerForPayment, setSelectedCustomerForPayment] = useState<CustomerDebtInfo | undefined>(undefined);
+
 
   const firestore = useFirestore();
 
@@ -73,7 +84,7 @@ export default function ReportsPage() {
   const { data: sales, isLoading: salesLoading } = useCollection<Sale>(salesQuery);
   const { data: payments, isLoading: paymentsLoading } = useCollection<Payment>(paymentsQuery);
 
-  const customerDebtData = useMemo(() => {
+  const customerDebtData = useMemo((): CustomerDebtInfo[] => {
     if (!customers || !sales || !payments) return [];
 
     return customers.map(customer => {
@@ -146,6 +157,11 @@ export default function ReportsPage() {
     }
   };
 
+  const handleOpenPaymentForm = (customer: CustomerDebtInfo) => {
+    setSelectedCustomerForPayment(customer);
+    setIsPaymentFormOpen(true);
+  }
+
   const SortableHeader = ({ sortKey: key, children, className }: { sortKey: SortKey; children: React.ReactNode; className?: string }) => (
     <TableHead className={className}>
       <Button variant="ghost" onClick={() => handleSort(key)} className="px-2 py-1 h-auto">
@@ -168,80 +184,98 @@ export default function ReportsPage() {
   }, [sortedDebtData]);
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex justify-between items-start">
-            <div>
-                <CardTitle>Báo cáo công nợ khách hàng</CardTitle>
-                <CardDescription>
-                Tổng hợp công nợ của tất cả các khách hàng.
-                </CardDescription>
-            </div>
-            <div className="text-right">
-                <p className="text-sm text-muted-foreground">Tổng nợ cuối kỳ</p>
-                <p className={`text-2xl font-bold ${totalRow.finalDebt > 0 ? 'text-destructive' : 'text-primary'}`}>
-                    {formatCurrency(totalRow.finalDebt)}
-                </p>
-            </div>
-        </div>
-        <div className="relative pt-4">
-            <Search className="absolute left-2.5 top-6 h-4 w-4 text-muted-foreground" />
-            <Input
-                type="search"
-                placeholder="Tìm kiếm theo tên hoặc SĐT..."
-                className="w-full rounded-lg bg-background pl-8 md:w-1/3"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-            />
-        </div>
-      </CardHeader>
-      <CardContent>
-        <Table>
-            <TableHeader>
-                <TableRow>
-                    <TableHead className="w-16">STT</TableHead>
-                    <SortableHeader sortKey="customerName">Tên khách hàng</SortableHeader>
-                    <SortableHeader sortKey="customerPhone">Số điện thoại</SortableHeader>
-                    <SortableHeader sortKey="totalSales" className="text-right">Tổng phát sinh</SortableHeader>
-                    <SortableHeader sortKey="totalPayments" className="text-right">Đã trả</SortableHeader>
-                    <SortableHeader sortKey="finalDebt" className="text-right">Nợ cuối kỳ</SortableHeader>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading && <TableRow><TableCell colSpan={6} className="text-center h-24">Đang tải dữ liệu...</TableCell></TableRow>}
-              {!isLoading && sortedDebtData.map((data, index) => (
-                <TableRow key={data.customerId}>
-                  <TableCell>{index + 1}</TableCell>
-                  <TableCell className="font-medium">{data.customerName}</TableCell>
-                  <TableCell>{formatPhoneNumber(data.customerPhone)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(data.totalSales)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(data.totalPayments)}</TableCell>
-                  <TableCell className={`text-right font-semibold ${data.finalDebt > 0 ? 'text-destructive' : ''}`}>
-                    {formatCurrency(data.finalDebt)}
-                  </TableCell>
-                </TableRow>
-              ))}
-               {!isLoading && sortedDebtData.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center h-24">Không có dữ liệu công nợ.</TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-             <ShadcnTableFooter>
-                <TableRow className="text-base font-bold">
-                    <TableCell colSpan={3}>Tổng cộng</TableCell>
-                    <TableCell className="text-right">{formatCurrency(totalRow.totalSales)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(totalRow.totalPayments)}</TableCell>
-                    <TableCell className={`text-right ${totalRow.finalDebt > 0 ? 'text-destructive' : ''}`}>{formatCurrency(totalRow.finalDebt)}</TableCell>
-                </TableRow>
-            </ShadcnTableFooter>
-        </Table>
-      </CardContent>
-       <CardFooter>
-          <div className="text-xs text-muted-foreground">
-            Hiển thị <strong>{sortedDebtData.length}</strong> khách hàng có công nợ.
+    <>
+      {selectedCustomerForPayment && (
+        <PaymentForm
+          isOpen={isPaymentFormOpen}
+          onOpenChange={setIsPaymentFormOpen}
+          customer={selectedCustomerForPayment}
+        />
+      )}
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-start">
+              <div>
+                  <CardTitle>Báo cáo công nợ khách hàng</CardTitle>
+                  <CardDescription>
+                  Tổng hợp công nợ của tất cả các khách hàng.
+                  </CardDescription>
+              </div>
+              <div className="text-right">
+                  <p className="text-sm text-muted-foreground">Tổng nợ cuối kỳ</p>
+                  <p className={`text-2xl font-bold ${totalRow.finalDebt > 0 ? 'text-destructive' : 'text-primary'}`}>
+                      {formatCurrency(totalRow.finalDebt)}
+                  </p>
+              </div>
           </div>
-        </CardFooter>
-    </Card>
+          <div className="relative pt-4">
+              <Search className="absolute left-2.5 top-6 h-4 w-4 text-muted-foreground" />
+              <Input
+                  type="search"
+                  placeholder="Tìm kiếm theo tên hoặc SĐT..."
+                  className="w-full rounded-lg bg-background pl-8 md:w-1/3"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+              />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Table>
+              <TableHeader>
+                  <TableRow>
+                      <TableHead className="w-16">STT</TableHead>
+                      <SortableHeader sortKey="customerName">Tên khách hàng</SortableHeader>
+                      <SortableHeader sortKey="customerPhone">Số điện thoại</SortableHeader>
+                      <SortableHeader sortKey="totalSales" className="text-right">Tổng phát sinh</SortableHeader>
+                      <SortableHeader sortKey="totalPayments" className="text-right">Đã trả</SortableHeader>
+                      <SortableHeader sortKey="finalDebt" className="text-right">Nợ cuối kỳ</SortableHeader>
+                      <TableHead className="text-right">Hành động</TableHead>
+                  </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading && <TableRow><TableCell colSpan={7} className="text-center h-24">Đang tải dữ liệu...</TableCell></TableRow>}
+                {!isLoading && sortedDebtData.map((data, index) => (
+                  <TableRow key={data.customerId}>
+                    <TableCell>{index + 1}</TableCell>
+                    <TableCell className="font-medium">{data.customerName}</TableCell>
+                    <TableCell>{formatPhoneNumber(data.customerPhone)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(data.totalSales)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(data.totalPayments)}</TableCell>
+                    <TableCell className={`text-right font-semibold ${data.finalDebt > 0 ? 'text-destructive' : ''}`}>
+                      {formatCurrency(data.finalDebt)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                       {data.finalDebt > 0 && (
+                          <Button variant="outline" size="sm" onClick={() => handleOpenPaymentForm(data)}>
+                            Thanh toán
+                          </Button>
+                        )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {!isLoading && sortedDebtData.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center h-24">Không có dữ liệu công nợ.</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+              <ShadcnTableFooter>
+                  <TableRow className="text-base font-bold">
+                      <TableCell colSpan={3}>Tổng cộng</TableCell>
+                      <TableCell className="text-right">{formatCurrency(totalRow.totalSales)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(totalRow.totalPayments)}</TableCell>
+                      <TableCell className={`text-right ${totalRow.finalDebt > 0 ? 'text-destructive' : ''}`}>{formatCurrency(totalRow.finalDebt)}</TableCell>
+                      <TableCell></TableCell>
+                  </TableRow>
+              </ShadcnTableFooter>
+          </Table>
+        </CardContent>
+        <CardFooter>
+            <div className="text-xs text-muted-foreground">
+              Hiển thị <strong>{sortedDebtData.length}</strong> khách hàng có công nợ.
+            </div>
+          </CardFooter>
+      </Card>
+    </>
   )
 }
