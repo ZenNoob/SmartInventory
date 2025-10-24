@@ -13,14 +13,18 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useAuth, useUser } from '@/firebase'
 import { useUserRole } from '@/hooks/use-user-role'
+import { useRouter } from 'next/navigation'
 
 export function UserNav() {
   const { user } = useUser();
   const { role } = useUserRole();
   const auth = useAuth();
+  const router = useRouter();
 
   const handleLogout = () => {
-    auth.signOut();
+    auth.signOut().then(() => {
+      router.push('/login');
+    });
   }
 
   return (
