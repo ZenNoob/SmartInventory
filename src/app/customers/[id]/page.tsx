@@ -159,6 +159,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
               <TableRow>
                 <TableHead className="w-[100px]">ID</TableHead>
                 <TableHead>Ngày</TableHead>
+                <TableHead>Ghi chú</TableHead>
                 <TableHead className="text-right">Số tiền</TableHead>
               </TableRow>
             </TableHeader>
@@ -168,12 +169,13 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
                   <TableRow key={payment.id}>
                     <TableCell className="font-medium">{payment.id.slice(-6).toUpperCase()}</TableCell>
                     <TableCell>{new Date(payment.paymentDate).toLocaleDateString()}</TableCell>
+                    <TableCell>{payment.notes}</TableCell>
                     <TableCell className="text-right">{formatCurrency(payment.amount)}</TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center h-24">Không tìm thấy thanh toán nào.</TableCell>
+                  <TableCell colSpan={4} className="text-center h-24">Không tìm thấy thanh toán nào.</TableCell>
                 </TableRow>
               )}
             </TableBody>
@@ -183,5 +185,3 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
     </div>
   )
 }
-
-    
