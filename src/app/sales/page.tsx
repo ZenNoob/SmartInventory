@@ -6,6 +6,8 @@ import {
   ListFilter,
   MoreHorizontal,
   PlusCircle,
+  Search,
+  Calendar as CalendarIcon,
 } from "lucide-react"
 
 import {
@@ -39,17 +41,27 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
-import { formatCurrency } from "@/lib/utils"
+import { format, parseISO } from "date-fns"
+import { cn, formatCurrency } from "@/lib/utils"
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
 import { Customer, Sale, Product, Unit, SalesItem, Payment } from "@/lib/types"
 import { collection, query, getDocs } from "firebase/firestore"
 import { SaleForm } from "./components/sale-form"
+import { Input } from "@/components/ui/input"
+import { Calendar } from "@/components/ui/calendar"
 
 export default function SalesPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [allSalesItems, setAllSalesItems] = useState<SalesItem[]>([]);
   const [salesItemsLoading, setSalesItemsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchDate, setSearchDate] = useState<Date | undefined>();
 
   const firestore = useFirestore();
 
@@ -83,6 +95,11 @@ export default function SalesPage() {
   const { data: products, isLoading: productsLoading } = useCollection<Product>(productsQuery);
   const { data: units, isLoading: unitsLoading } = useCollection<Unit>(unitsQuery);
   const { data: payments, isLoading: paymentsLoading } = useCollection<Payment>(paymentsQuery);
+  
+  const customersMap = useMemo(() => {
+    if (!customers) return new Map();
+    return new Map(customers.map(c => [c.id, c.name]));
+  }, [customers]);
 
   useEffect(() => {
     async function fetchAllSalesItems() {
@@ -111,6 +128,19 @@ export default function SalesPage() {
     fetchAllSalesItems();
   }, [sales, firestore, salesLoading]);
 
+  const filteredSales = useMemo(() => {
+    return sales?.filter(sale => {
+      const customerName = customersMap.get(sale.customerId)?.toLowerCase() || '';
+      const saleId = sale.id.toLowerCase();
+      const term = searchTerm.toLowerCase();
+      
+      const termMatch = term ? (saleId.includes(term) || customerName.includes(term)) : true;
+      
+      const dateMatch = searchDate ? format(parseISO(sale.transactionDate), 'yyyy-MM-dd') === format(searchDate, 'yyyy-MM-dd') : true;
+
+      return termMatch && dateMatch;
+    });
+  }, [sales, searchTerm, searchDate, customersMap]);
 
   const isLoading = salesLoading || customersLoading || productsLoading || unitsLoading || salesItemsLoading || paymentsLoading;
 
@@ -180,6 +210,43 @@ export default function SalesPage() {
               <CardDescription>
                 Danh sách tất cả các giao dịch bán hàng.
               </CardDescription>
+               <div className="flex items-center gap-4 mt-4">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="search"
+                    placeholder="Tìm theo mã đơn, tên khách hàng..."
+                    className="w-full rounded-lg bg-background pl-8 md:w-64"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                 <Popover>
+                    <PopoverTrigger asChild>
+                        <Button
+                        variant={"outline"}
+                        className={cn(
+                            "w-[240px] justify-start text-left font-normal",
+                            !searchDate && "text-muted-foreground"
+                        )}
+                        >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {searchDate ? format(searchDate, "dd/MM/yyyy") : <span>Lọc theo ngày</span>}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                            mode="single"
+                            selected={searchDate}
+                            onSelect={setSearchDate}
+                            initialFocus
+                        />
+                    </PopoverContent>
+                 </Popover>
+                 {searchDate && (
+                    <Button variant="ghost" onClick={() => setSearchDate(undefined)}>Xóa lọc ngày</Button>
+                 )}
+           </div>
             </CardHeader>
             <CardContent>
               <Table>
@@ -196,7 +263,7 @@ export default function SalesPage() {
                 </TableHeader>
                 <TableBody>
                   {isLoading && <TableRow><TableCell colSpan={5} className="text-center h-24">Đang tải...</TableCell></TableRow>}
-                  {!isLoading && sales?.map((sale) => {
+                  {!isLoading && filteredSales?.map((sale) => {
                     const customer = customers?.find(c => c.id === sale.customerId);
                     return (
                       <TableRow key={sale.id}>
@@ -230,10 +297,10 @@ export default function SalesPage() {
                       </TableRow>
                     );
                   })}
-                  {!isLoading && !sales?.length && (
+                  {!isLoading && !filteredSales?.length && (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center h-24">
-                        Không có đơn hàng nào.
+                        Không có đơn hàng nào phù hợp.
                       </TableCell>
                     </TableRow>
                   )}
@@ -242,7 +309,7 @@ export default function SalesPage() {
             </CardContent>
             <CardFooter>
               <div className="text-xs text-muted-foreground">
-                Hiển thị <strong>{sales?.length || 0}</strong> trên <strong>{sales?.length || 0}</strong>{" "}
+                Hiển thị <strong>{filteredSales?.length || 0}</strong> trên <strong>{sales?.length || 0}</strong>{" "}
                 đơn hàng
               </div>
             </CardFooter>
