@@ -34,7 +34,7 @@ export function PredictRiskForm({ customer, sales, payments }: PredictRiskFormPr
     setError(null)
     setPrediction(null)
 
-    const totalSales = sales.reduce((acc, sale) => acc + sale.total, 0);
+    const totalSales = sales.reduce((acc, sale) => acc + sale.totalAmount, 0);
     const totalPayments = payments.reduce((acc, payment) => acc + payment.amount, 0);
     const outstandingBalance = totalSales - totalPayments;
     
@@ -57,7 +57,7 @@ export function PredictRiskForm({ customer, sales, payments }: PredictRiskFormPr
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="w-full">
+        <Button size="sm" variant="outline">
           <Bot className="mr-2 h-4 w-4" /> Dự đoán rủi ro
         </Button>
       </DialogTrigger>

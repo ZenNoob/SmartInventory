@@ -35,7 +35,15 @@ async function getCustomerData(customerId: string) {
     if (!customerDoc.exists) {
         return { customer: null, sales: [], payments: [] };
     }
-    const customer = { id: customerDoc.id, ...customerDoc.data() } as Customer;
+    const customerData = customerDoc.data();
+    // Convert Timestamps to strings
+    const customer = { 
+      id: customerDoc.id, 
+      ...customerData,
+      createdAt: customerData?.createdAt.toDate().toISOString(),
+      updatedAt: customerData?.updatedAt.toDate().toISOString(),
+    } as Customer;
+
 
     const salesSnapshot = await firestore.collection('sales_transactions').where('customerId', '==', customerId).get();
     const sales = salesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Sale[];
@@ -78,9 +86,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
           {customer.customerType === 'business' ? 'Doanh nghiệp' : 'Cá nhân'}
         </Badge>
         <div className="hidden items-center gap-2 md:ml-auto md:flex">
-          {/* <Button variant="outline" size="sm">
-            Sửa
-          </Button> */}
+          <PredictRiskForm customer={customer} sales={sales} payments={payments} />
           <Button size="sm">Ghi lại thanh toán</Button>
         </div>
       </div>
