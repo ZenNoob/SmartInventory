@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from "react"
+import Link from "next/link"
 import {
   File,
   ListFilter,
@@ -291,7 +292,9 @@ export default function SalesPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Hành động</DropdownMenuLabel>
-                              <DropdownMenuItem>Xem chi tiết</DropdownMenuItem>
+                              <DropdownMenuItem asChild>
+                                <Link href={`/sales/${sale.id}`}>Xem chi tiết</Link>
+                              </DropdownMenuItem>
                               <DropdownMenuItem>In hóa đơn</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
