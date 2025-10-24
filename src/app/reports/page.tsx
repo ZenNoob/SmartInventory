@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from "react"
+import Link from "next/link"
 import { Search, ArrowUp, ArrowDown, MoreHorizontal } from "lucide-react"
 
 import {
@@ -240,7 +241,11 @@ export default function ReportsPage() {
                 {!isLoading && sortedDebtData.map((data, index) => (
                   <TableRow key={data.customerId}>
                     <TableCell>{index + 1}</TableCell>
-                    <TableCell className="font-medium">{data.customerName}</TableCell>
+                    <TableCell className="font-medium">
+                      <Link href={`/customers/${data.customerId}`} className="hover:underline">
+                        {data.customerName}
+                      </Link>
+                    </TableCell>
                     <TableCell>{formatPhoneNumber(data.customerPhone)}</TableCell>
                     <TableCell className="text-right">{formatCurrency(data.totalSales)}</TableCell>
                     <TableCell className="text-right">{formatCurrency(data.totalPayments)}</TableCell>
