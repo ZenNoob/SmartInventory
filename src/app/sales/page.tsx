@@ -149,7 +149,7 @@ export default function SalesPage() {
   const filteredSales = useMemo(() => {
     return sales?.filter(sale => {
       const customerName = customersMap.get(sale.customerId)?.toLowerCase() || '';
-      const invoiceNumber = sale.invoiceNumber.toLowerCase();
+      const invoiceNumber = sale.invoiceNumber?.toLowerCase() || '';
       const term = searchTerm.toLowerCase();
       
       const termMatch = term ? (invoiceNumber.includes(term) || customerName.includes(term)) : true;
@@ -375,5 +375,3 @@ export default function SalesPage() {
     </>
   )
 }
-
-    
