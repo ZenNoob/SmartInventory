@@ -46,6 +46,7 @@ import { Check, ChevronsUpDown, PlusCircle, Trash2 } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn, formatCurrency } from '@/lib/utils'
 import { upsertSaleTransaction } from '../actions'
+import { Label } from '@/components/ui/label'
 
 const saleItemSchema = z.object({
   productId: z.string().min(1, "Vui lòng chọn sản phẩm."),
