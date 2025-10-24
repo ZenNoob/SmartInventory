@@ -236,7 +236,6 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
   const totalPayable = finalAmount + previousDebt;
   const remainingDebt = totalPayable - (customerPayment || 0);
 
-
   const onSubmit = async (data: SaleFormValues) => {
     const itemsData = data.items.map(item => {
         const product = productsMap.get(item.productId)!;
@@ -271,7 +270,9 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
       onOpenChange(false);
       form.reset();
       router.refresh();
-      router.push(`/sales/${result.saleId}`);
+      if (result.saleId) {
+        router.push(`/sales/${result.saleId}`);
+      }
     } else {
       toast({
         variant: "destructive",
@@ -523,31 +524,53 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
             {/* Right Column */}
             <div className='md:col-span-1 flex flex-col justify-between border-l pl-8'>
               <div className="space-y-4">
-                  <h3 className="text-md font-medium">Thanh toán</h3>
-                  <div className="space-y-4 text-sm">
-                      <div className="flex justify-between items-center">
-                          <span>Tổng tiền hàng:</span>
-                          <span className="font-semibold">{formatCurrency(totalAmount)}</span>
+                  <h3 className="text-md font-medium">Tóm tắt thanh toán</h3>
+                    <div className="space-y-4 text-sm">
+                        <div className="flex justify-between items-center">
+                            <span>Tổng tiền hàng:</span>
+                            <span className="font-semibold">{formatCurrency(totalAmount)}</span>
+                        </div>
+                         <FormField
+                            control={form.control}
+                            name="discountValue"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <div className="flex justify-between items-center">
+                                        <FormLabel>Giảm giá:</FormLabel>
+                                        <FormattedNumberInput {...field} id="discountValue" className="w-32"/>
+                                    </div>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <div className="flex justify-between items-center font-bold text-lg text-primary">
+                          <span>Thanh toán:</span>
+                          <span>{formatCurrency(finalAmount)}</span>
                       </div>
+                    </div>
+                  <Separator/>
+                   <div className="space-y-4 text-sm">
                       <div className="flex justify-between items-center">
                           <Label>Nợ cũ:</Label>
                           <span className="font-semibold">{formatCurrency(previousDebt)}</span>
                       </div>
-                      <Separator/>
                       <div className="flex justify-between items-center font-bold">
                           <span>Tổng cộng:</span>
                           <span>{formatCurrency(totalPayable)}</span>
                       </div>
-                      <div className="flex justify-between items-center">
-                          <Label htmlFor='customerPayment'>Khách thanh toán:</Label>
-                            <Controller
-                              control={form.control}
-                              name={`customerPayment`}
-                              render={({ field }) => (
-                                  <FormattedNumberInput {...field} id="customerPayment" className="w-32"/>
-                              )}
-                          />
-                      </div>
+                      <FormField
+                            control={form.control}
+                            name="customerPayment"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <div className="flex justify-between items-center">
+                                        <FormLabel>Khách thanh toán:</FormLabel>
+                                        <FormattedNumberInput {...field} id="customerPayment" className="w-32"/>
+                                    </div>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
                       <Separator/>
                        <div className={`flex justify-between items-center font-bold text-lg ${remainingDebt > 0 ? 'text-destructive' : 'text-green-600'}`}>
                           <span>Còn nợ lại:</span>

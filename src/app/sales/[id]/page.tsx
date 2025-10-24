@@ -87,7 +87,7 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
     return { baseUnit: unit, conversionFactor: 1, name: unit.name };
   };
 
-  const totalAmount = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const lineItemsTotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
   return (
     <div>
@@ -183,7 +183,7 @@ export default async function SaleDetailPage({ params }: { params: { id: string 
                 <TableFooter>
                     <TableRow>
                         <TableCell colSpan={6} className="text-right font-medium">Tổng tiền hàng</TableCell>
-                        <TableCell className="text-right font-semibold">{formatCurrency(totalAmount)}</TableCell>
+                        <TableCell className="text-right font-semibold">{formatCurrency(sale.totalAmount || 0)}</TableCell>
                     </TableRow>
                     <TableRow>
                         <TableCell colSpan={6} className="text-right font-medium">Nợ cũ</TableCell>
