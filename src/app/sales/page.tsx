@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/card"
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -47,6 +46,16 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { format, parseISO } from "date-fns"
 import { cn, formatCurrency } from "@/lib/utils"
@@ -56,6 +65,9 @@ import { collection, query, getDocs } from "firebase/firestore"
 import { SaleForm } from "./components/sale-form"
 import { Input } from "@/components/ui/input"
 import { Calendar } from "@/components/ui/calendar"
+import { deleteSaleTransaction } from "./actions"
+import { useToast } from "@/hooks/use-toast"
+import { useRouter } from "next/navigation"
 
 export default function SalesPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -63,8 +75,12 @@ export default function SalesPage() {
   const [salesItemsLoading, setSalesItemsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchDate, setSearchDate] = useState<Date | undefined>();
+  const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const firestore = useFirestore();
+  const { toast } = useToast();
+  const router = useRouter();
 
   const salesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -149,6 +165,27 @@ export default function SalesPage() {
     setIsFormOpen(true);
   };
   
+  const handleDelete = async () => {
+    if (!saleToDelete) return;
+    setIsDeleting(true);
+    const result = await deleteSaleTransaction(saleToDelete.id);
+    if (result.success) {
+      toast({
+        title: "Thành công!",
+        description: `Đã xóa đơn hàng ${saleToDelete.id.slice(-6).toUpperCase()}.`,
+      });
+      router.refresh();
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Ôi! Đã có lỗi xảy ra.",
+        description: result.error,
+      });
+    }
+    setIsDeleting(false);
+    setSaleToDelete(null);
+  }
+
   return (
     <>
       <SaleForm
@@ -161,36 +198,35 @@ export default function SalesPage() {
         sales={sales || []}
         payments={payments || []}
       />
+      <AlertDialog open={!!saleToDelete} onOpenChange={(open) => !open && setSaleToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Bạn có chắc chắn không?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Hành động này không thể được hoàn tác. Thao tác này sẽ xóa vĩnh viễn đơn hàng {' '}
+              <strong>{saleToDelete?.id.slice(-6).toUpperCase()}</strong>.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Hủy</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
+              {isDeleting ? "Đang xóa..." : "Xóa"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <Tabs defaultValue="all">
         <div className="flex items-center">
           <TabsList>
             <TabsTrigger value="all">Tất cả</TabsTrigger>
-            <TabsTrigger value="paid">Đã thanh toán</TabsTrigger>
-            <TabsTrigger value="pending">Đang chờ xử lý</TabsTrigger>
-            <TabsTrigger value="refunded" className="hidden sm:flex">
+            <TabsTrigger value="paid" disabled>Đã thanh toán</TabsTrigger>
+            <TabsTrigger value="pending" disabled>Đang chờ xử lý</TabsTrigger>
+            <TabsTrigger value="refunded" className="hidden sm:flex" disabled>
               Đã hoàn tiền
             </TabsTrigger>
           </TabsList>
           <div className="ml-auto flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 gap-1">
-                  <ListFilter className="h-3.5 w-3.5" />
-                  <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                    Lọc
-                  </span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Lọc theo</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuCheckboxItem checked>
-                  Đã thanh toán
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem>Đang chờ xử lý</DropdownMenuCheckboxItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button size="sm" variant="outline" className="h-8 gap-1">
+            <Button size="sm" variant="outline" className="h-8 gap-1" disabled>
               <File className="h-3.5 w-3.5" />
               <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
                 Xuất
@@ -295,7 +331,11 @@ export default function SalesPage() {
                               <DropdownMenuItem asChild>
                                 <Link href={`/sales/${sale.id}`}>Xem chi tiết</Link>
                               </DropdownMenuItem>
-                              <DropdownMenuItem>In hóa đơn</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => window.open(`/sales/${sale.id}`, '_blank')}>In hóa đơn</DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-destructive" onClick={() => setSaleToDelete(sale)}>
+                                Xóa
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
