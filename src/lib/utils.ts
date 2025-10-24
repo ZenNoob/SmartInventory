@@ -97,3 +97,21 @@ export function hexToHsl(hex: string): string {
 
   return `${hVal} ${sVal}% ${lVal}%`;
 }
+
+
+export function toPlainObject<T>(data: any): T {
+    if (data && typeof data === 'object' && typeof data.toDate === 'function') {
+        return data.toDate().toISOString() as any;
+    }
+    if (Array.isArray(data)) {
+        return data.map(item => toPlainObject(item)) as any;
+    }
+    if (data && typeof data === 'object' && !Array.isArray(data) && Object.prototype.toString.call(data) === '[object Object]') {
+        const res: { [key: string]: any } = {};
+        for (const key in data) {
+            res[key] = toPlainObject(data[key]);
+        }
+        return res as T;
+    }
+    return data;
+}

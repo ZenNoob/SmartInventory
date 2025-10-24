@@ -33,46 +33,26 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, toPlainObject } from "@/lib/utils"
 import { getAdminServices } from "@/lib/admin-actions"
 import { Customer, Sale, Payment } from "@/lib/types"
-
-function toPlainObject<T>(data: any): T {
-    if (data && typeof data === 'object' && data.toDate) {
-        return data.toDate().toISOString();
-    }
-    if (Array.isArray(data)) {
-        return data.map(item => toPlainObject(item)) as any;
-    }
-    if (data && typeof data === 'object') {
-        const res: { [key: string]: any } = {};
-        for (const key in data) {
-            res[key] = toPlainObject(data[key]);
-        }
-        return res as T;
-    }
-    return data;
-}
 
 async function getDashboardData() {
     const { firestore } = await getAdminServices();
 
     const customersSnapshot = await firestore.collection('customers').get();
     const customers = customersSnapshot.docs.map(doc => {
-      const data = doc.data();
-      return toPlainObject({ id: doc.id, ...data }) as Customer;
+      return toPlainObject({ id: doc.id, ...doc.data() }) as Customer;
     })
 
     const salesSnapshot = await firestore.collection('sales_transactions').get();
     const sales = salesSnapshot.docs.map(doc => {
-        const data = doc.data();
-        return toPlainObject({ id: doc.id, ...data }) as Sale;
+        return toPlainObject({ id: doc.id, ...doc.data() }) as Sale;
     });
 
     const paymentsSnapshot = await firestore.collection('payments').get();
     const payments = paymentsSnapshot.docs.map(doc => {
-        const data = doc.data();
-        return toPlainObject({ id: doc.id, ...data }) as Payment;
+        return toPlainObject({ id: doc.id, ...doc.data() }) as Payment;
     });
     
     return { customers, sales, payments };

@@ -21,29 +21,12 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, toPlainObject } from "@/lib/utils"
 import { PredictRiskForm } from "./components/predict-risk-form"
 import { useDoc, useFirestore, useMemoFirebase } from "@/firebase"
 import { Customer, Payment, Sale } from "@/lib/types"
 import { doc, collection, query, where, getDocs } from "firebase/firestore"
 import { getAdminServices } from "@/lib/admin-actions"
-
-function toPlainObject<T>(data: any): T {
-    if (data && typeof data === 'object' && data.toDate) {
-        return data.toDate().toISOString();
-    }
-    if (Array.isArray(data)) {
-        return data.map(item => toPlainObject(item)) as any;
-    }
-    if (data && typeof data === 'object') {
-        const res: { [key: string]: any } = {};
-        for (const key in data) {
-            res[key] = toPlainObject(data[key]);
-        }
-        return res as T;
-    }
-    return data;
-}
 
 async function getCustomerData(customerId: string) {
     const { firestore } = await getAdminServices();
@@ -52,20 +35,17 @@ async function getCustomerData(customerId: string) {
     if (!customerDoc.exists) {
         return { customer: null, sales: [], payments: [] };
     }
-    const customerData = customerDoc.data();
-    const customer = toPlainObject({ id: customerDoc.id, ...customerData }) as Customer;
+    const customer = toPlainObject({ id: customerDoc.id, ...customerDoc.data() }) as Customer;
 
 
     const salesSnapshot = await firestore.collection('sales_transactions').where('customerId', '==', customerId).get();
     const sales = salesSnapshot.docs.map(doc => {
-      const data = doc.data();
-      return toPlainObject({ id: doc.id, ...data }) as Sale;
+      return toPlainObject({ id: doc.id, ...doc.data() }) as Sale;
     });
 
     const paymentsSnapshot = await firestore.collection('payments').where('customerId', '==', customerId).get();
     const payments = paymentsSnapshot.docs.map(doc => {
-      const data = doc.data();
-      return toPlainObject({ id: doc.id, ...data }) as Payment;
+      return toPlainObject({ id: doc.id, ...doc.data() }) as Payment;
     });
     
     return { customer, sales, payments };

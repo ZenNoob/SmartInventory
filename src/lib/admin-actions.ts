@@ -4,6 +4,7 @@ import { firebaseConfig } from '@/firebase/config';
 import { initializeApp as initializeAdminApp, getApps as getAdminApps, getApp as getAdminApp, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from "firebase-admin/firestore";
+import { toPlainObject } from './utils';
 
 function getServiceAccount() {
   const serviceAccountB64 = process.env.FIREBASE_SERVICE_ACCOUNT_B64;
