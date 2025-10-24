@@ -175,12 +175,12 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
   const refinedSaleFormSchema = useMemo(() => saleFormSchema.superRefine((data, ctx) => {
     data.items.forEach((item, index) => {
       if (!item.productId) return;
-      const { stock, mainUnit } = getStockInfo(item.productId);
+      const { stock } = getStockInfo(item.productId);
       if (item.quantity > stock) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: [`items`, index, `quantity`],
-          message: `Vượt quá tồn kho (Tồn: ${stock.toFixed(2)} ${mainUnit?.name || ''})`,
+          message: `Vượt quá tồn kho`,
         });
       }
     });
@@ -214,18 +214,16 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
       trigger('items');
   }, [watchedItems, trigger, allSalesItems]);
 
-  const totalAmount = useMemo(() => {
-    return watchedItems.reduce((acc, item) => {
-      if (!item.productId || !item.price || !item.quantity) {
-          return acc;
-      }
-      const product = productsMap.get(item.productId)!;
-      const { conversionFactor } = getUnitInfo(product.unitId);
-      const quantityInBaseUnit = (item.quantity || 0) * (conversionFactor || 1);
-  
-      return acc + quantityInBaseUnit * (item.price || 0);
-    }, 0);
-  }, [watchedItems, productsMap, getUnitInfo]);
+  const totalAmount = watchedItems.reduce((acc, item) => {
+    if (!item.productId || !item.price || !item.quantity) {
+        return acc;
+    }
+    const product = productsMap.get(item.productId)!;
+    const { conversionFactor } = getUnitInfo(product.unitId);
+    const quantityInBaseUnit = (item.quantity || 0) * (conversionFactor || 1);
+
+    return acc + quantityInBaseUnit * (item.price || 0);
+  }, 0);
   
   const calculatedDiscount = discountType === 'percentage'
     ? (totalAmount * discountValue) / 100
