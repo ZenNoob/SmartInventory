@@ -1,4 +1,5 @@
 
+
 import {
   Activity,
   ArrowUpRight,
@@ -38,6 +39,13 @@ import {
 import { formatCurrency, toPlainObject } from "@/lib/utils"
 import { getAdminServices } from "@/lib/admin-actions"
 import { Customer, Sale, Payment, Product, Unit, SalesItem, ThemeSettings } from "@/lib/types"
+import { OverviewChart } from "./components/overview-chart"
+
+export type MonthlyOverview = {
+  month: string;
+  "Doanh thu": number;
+  "Doanh số": number;
+}
 
 async function getDashboardData() {
     const { firestore } = await getAdminServices();
@@ -95,13 +103,36 @@ async function getDashboardData() {
     const revenuePercentageChange = calculatePercentageChange(totalRevenueCurrentMonth, totalRevenuePreviousMonth);
     const salesPercentageChange = calculatePercentageChange(totalSalesCurrentMonth, totalSalesPreviousMonth);
 
+    // --- Monthly Overview for Chart ---
+    const monthlyOverview: MonthlyOverview[] = [];
+    const monthSet = new Set<string>();
 
-    return { customers, sales, payments, products, units, salesItems, settings, revenuePercentageChange, salesPercentageChange };
+    for (let i = 11; i >= 0; i--) {
+        const date = new Date();
+        date.setMonth(date.getMonth() - i);
+        const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
+        if (!monthSet.has(monthKey)) {
+            monthlyOverview.push({ month: monthKey, "Doanh thu": 0, "Doanh số": 0 });
+            monthSet.add(monthKey);
+        }
+    }
+    
+    sales.forEach(sale => {
+        const saleDate = new Date(sale.transactionDate);
+        const monthKey = `${saleDate.getFullYear()}-${(saleDate.getMonth() + 1).toString().padStart(2, '0')}`;
+        const monthData = monthlyOverview.find(m => m.month === monthKey);
+        if (monthData) {
+            monthData["Doanh thu"] += sale.finalAmount;
+            monthData["Doanh số"] += 1;
+        }
+    });
+
+    return { customers, sales, payments, products, units, salesItems, settings, revenuePercentageChange, salesPercentageChange, monthlyOverview };
 }
 
 
 export default async function Dashboard() {
-  const { customers, sales, payments, products, units, salesItems, settings, revenuePercentageChange, salesPercentageChange } = await getDashboardData();
+  const { customers, sales, payments, products, units, salesItems, settings, revenuePercentageChange, salesPercentageChange, monthlyOverview } = await getDashboardData();
   
   const unitsMap = new Map(units.map(u => [u.id, u]));
 
@@ -299,8 +330,15 @@ export default async function Dashboard() {
           </CardContent>
         </Card>
       </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Tổng quan</CardTitle>
+          <CardDescription>Doanh thu và doanh số trong 12 tháng qua.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <OverviewChart data={monthlyOverview} />
+        </CardContent>
+      </Card>
     </div>
   )
 }
-
-    
