@@ -176,7 +176,7 @@ export default async function Dashboard() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalRevenue)}</div>
+            <div className="text-2xl font-bold text-primary">{formatCurrency(totalRevenue)}</div>
             <p className="text-xs text-muted-foreground">
                 {revenuePercentageChange >= 0 ? '+' : ''}{revenuePercentageChange.toFixed(1)}% so với tháng trước
             </p>
@@ -200,7 +200,7 @@ export default async function Dashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalCustomerDebt)}</div>
+            <div className="text-2xl font-bold text-destructive">{formatCurrency(totalCustomerDebt)}</div>
              <p className="text-xs text-muted-foreground">
               Có {customersWithDebt} khách hàng đang nợ
             </p>
