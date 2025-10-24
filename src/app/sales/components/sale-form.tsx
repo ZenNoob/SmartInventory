@@ -211,19 +211,21 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
 
   const { trigger } = form;
   useEffect(() => {
-    trigger('items');
-  }, [watchedItems, trigger]);
+      trigger('items');
+  }, [watchedItems, trigger, allSalesItems]);
 
-  const totalAmount = watchedItems.reduce((acc, item) => {
-    if (!item.productId || !item.price || !item.quantity) {
-        return acc;
-    }
-    const product = productsMap.get(item.productId)!;
-    const { conversionFactor } = getUnitInfo(product.unitId);
-    const quantityInBaseUnit = (item.quantity || 0) * (conversionFactor || 1);
-
-    return acc + quantityInBaseUnit * (item.price || 0);
-  }, 0);
+  const totalAmount = useMemo(() => {
+    return watchedItems.reduce((acc, item) => {
+      if (!item.productId || !item.price || !item.quantity) {
+          return acc;
+      }
+      const product = productsMap.get(item.productId)!;
+      const { conversionFactor } = getUnitInfo(product.unitId);
+      const quantityInBaseUnit = (item.quantity || 0) * (conversionFactor || 1);
+  
+      return acc + quantityInBaseUnit * (item.price || 0);
+    }, 0);
+  }, [watchedItems, productsMap, getUnitInfo]);
   
   const calculatedDiscount = discountType === 'percentage'
     ? (totalAmount * discountValue) / 100
@@ -298,9 +300,9 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid md:grid-cols-2 gap-x-8 flex-grow overflow-hidden">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="grid md:grid-cols-4 gap-x-8 flex-grow overflow-hidden">
             {/* Left Column */}
-            <div className="flex flex-col gap-4 overflow-hidden">
+            <div className="md:col-span-3 flex flex-col gap-4 overflow-hidden">
               <div className="grid grid-cols-2 gap-4">
                  <FormField
                   control={form.control}
@@ -512,7 +514,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
             </div>
 
             {/* Right Column */}
-            <div className='flex flex-col justify-between border-l -ml-2 pl-8'>
+            <div className='md:col-span-1 flex flex-col justify-between border-l pl-8'>
               <div className="space-y-4">
                   <h3 className="text-md font-medium">Thanh toán</h3>
                   <div className="space-y-4 text-sm">
@@ -588,11 +590,11 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
                       </div>
                   </div>
               </div>
-              <DialogFooter className="pt-4 border-t mt-4">
-                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Hủy</Button>
-                <Button type="submit" disabled={form.formState.isSubmitting}>
+              <DialogFooter className="pt-4 border-t mt-4 flex-col gap-2">
+                <Button type="submit" disabled={form.formState.isSubmitting} className="w-full">
                   {form.formState.isSubmitting ? 'Đang tạo...' : 'Tạo đơn hàng'}
                 </Button>
+                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="w-full">Hủy</Button>
               </DialogFooter>
             </div>
           </form>
