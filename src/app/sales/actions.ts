@@ -7,7 +7,7 @@ export async function upsertSaleTransaction(
   sale: Partial<Omit<Sale, 'id'>> & { id?: string }, 
   items: Omit<SalesItem, 'id' | 'salesTransactionId'>[]
 ): Promise<{ success: boolean; error?: string; saleId?: string }> {
-  const { firestore } = getAdminServices();
+  const { firestore } = await getAdminServices();
 
   try {
     return await firestore.runTransaction(async (transaction) => {
@@ -79,7 +79,7 @@ export async function upsertSaleTransaction(
 
 
 export async function deleteSaleTransaction(saleId: string): Promise<{ success: boolean; error?: string }> {
-  const { firestore } = getAdminServices();
+  const { firestore } = await getAdminServices();
   const saleRef = firestore.collection('sales_transactions').doc(saleId);
 
   try {
