@@ -350,7 +350,7 @@ export default function SalesPage() {
                                <DropdownMenuItem onClick={() => handleEditSale(sale)}>
                                 Sửa
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => window.open(`/sales/${sale.id}`, '_blank')}>In hóa đơn</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => window.open(`/sales/${sale.id}?print=true`, '_blank')}>In hóa đơn</DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem className="text-destructive" onClick={() => setSaleToDelete(sale)}>
                                 Xóa

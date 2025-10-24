@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useEffect } from 'react'
 import Link from "next/link"
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
@@ -28,10 +28,21 @@ interface SaleInvoiceProps {
     productsMap: Map<string, Product>;
     unitsMap: Map<string, Unit>;
     settings: ThemeSettings | null;
+    autoPrint: boolean;
 }
 
-export function SaleInvoice({ sale, items, customer, productsMap, unitsMap, settings }: SaleInvoiceProps) {
+export function SaleInvoice({ sale, items, customer, productsMap, unitsMap, settings, autoPrint }: SaleInvoiceProps) {
   const invoiceRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (autoPrint) {
+      // Timeout to allow the page to render fully before printing
+      setTimeout(() => {
+        window.print();
+      }, 500);
+    }
+  }, [autoPrint]);
+
 
   const getUnitInfo = (unitId: string) => {
     const unit = unitsMap.get(unitId);

@@ -47,12 +47,14 @@ async function getSaleData(saleId: string) {
 }
 
 
-export default async function SaleDetailPage({ params }: { params: { id: string } }) {
+export default async function SaleDetailPage({ params, searchParams }: { params: { id: string }, searchParams: { [key: string]: string | string[] | undefined } }) {
   const { sale, items, customer, productsMap, unitsMap, settings } = await getSaleData(params.id);
 
   if (!sale) {
     notFound()
   }
 
-  return <SaleInvoice sale={sale} items={items} customer={customer} productsMap={productsMap} unitsMap={unitsMap} settings={settings} />
+  const autoPrint = searchParams.print === 'true';
+
+  return <SaleInvoice sale={sale} items={items} customer={customer} productsMap={productsMap} unitsMap={unitsMap} settings={settings} autoPrint={autoPrint} />
 }
