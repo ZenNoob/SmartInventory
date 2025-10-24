@@ -37,39 +37,42 @@ import { formatCurrency } from "@/lib/utils"
 import { getAdminServices } from "@/lib/admin-actions"
 import { Customer, Sale, Payment } from "@/lib/types"
 
+function toPlainObject<T>(data: any): T {
+    if (data && typeof data === 'object' && data.toDate) {
+        return data.toDate().toISOString();
+    }
+    if (Array.isArray(data)) {
+        return data.map(item => toPlainObject(item)) as any;
+    }
+    if (data && typeof data === 'object') {
+        const res: { [key: string]: any } = {};
+        for (const key in data) {
+            res[key] = toPlainObject(data[key]);
+        }
+        return res as T;
+    }
+    return data;
+}
+
 async function getDashboardData() {
     const { firestore } = await getAdminServices();
 
     const customersSnapshot = await firestore.collection('customers').get();
     const customers = customersSnapshot.docs.map(doc => {
       const data = doc.data();
-      return { 
-        id: doc.id, 
-        ...data,
-        createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
-        updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : data.updatedAt,
-        birthday: data.birthday?.toDate ? data.birthday.toDate().toISOString() : data.birthday,
-      } as Customer;
+      return toPlainObject({ id: doc.id, ...data }) as Customer;
     })
 
     const salesSnapshot = await firestore.collection('sales_transactions').get();
     const sales = salesSnapshot.docs.map(doc => {
         const data = doc.data();
-        return { 
-            id: doc.id, 
-            ...data,
-            transactionDate: data.transactionDate?.toDate ? data.transactionDate.toDate().toISOString() : data.transactionDate,
-        } as Sale
+        return toPlainObject({ id: doc.id, ...data }) as Sale;
     });
 
     const paymentsSnapshot = await firestore.collection('payments').get();
     const payments = paymentsSnapshot.docs.map(doc => {
         const data = doc.data();
-        return { 
-            id: doc.id, 
-            ...data,
-            paymentDate: data.paymentDate?.toDate ? data.paymentDate.toDate().toISOString() : data.paymentDate,
-        } as Payment
+        return toPlainObject({ id: doc.id, ...data }) as Payment;
     });
     
     return { customers, sales, payments };

@@ -25,11 +25,15 @@ export async function getThemeSettings(): Promise<ThemeSettings | null> {
             const data = doc.data();
             // Convert any Timestamps to plain objects if they exist
             if (data) {
-                for (const key in data) {
-                    if (data[key] && typeof data[key].toDate === 'function') {
-                        data[key] = data[key].toDate().toISOString();
+                // This is a simple deep-clone-like operation to handle nested objects if any
+                const plainData = JSON.parse(JSON.stringify(data, (key, value) => {
+                    if (value && typeof value === 'object' && value.hasOwnProperty('_seconds')) {
+                        // Check for Firestore Timestamp-like object
+                        return new Date(value._seconds * 1000).toISOString();
                     }
-                }
+                    return value;
+                }));
+                return plainData as ThemeSettings;
             }
             return data as ThemeSettings;
         }

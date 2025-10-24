@@ -28,6 +28,23 @@ import { Customer, Payment, Sale } from "@/lib/types"
 import { doc, collection, query, where, getDocs } from "firebase/firestore"
 import { getAdminServices } from "@/lib/admin-actions"
 
+function toPlainObject<T>(data: any): T {
+    if (data && typeof data === 'object' && data.toDate) {
+        return data.toDate().toISOString();
+    }
+    if (Array.isArray(data)) {
+        return data.map(item => toPlainObject(item)) as any;
+    }
+    if (data && typeof data === 'object') {
+        const res: { [key: string]: any } = {};
+        for (const key in data) {
+            res[key] = toPlainObject(data[key]);
+        }
+        return res as T;
+    }
+    return data;
+}
+
 async function getCustomerData(customerId: string) {
     const { firestore } = await getAdminServices();
     
@@ -36,34 +53,19 @@ async function getCustomerData(customerId: string) {
         return { customer: null, sales: [], payments: [] };
     }
     const customerData = customerDoc.data();
-    // Convert Timestamps to strings
-    const customer = { 
-      id: customerDoc.id, 
-      ...customerData,
-      createdAt: customerData?.createdAt.toDate().toISOString(),
-      updatedAt: customerData?.updatedAt.toDate().toISOString(),
-      birthday: customerData?.birthday ? new Date(customerData.birthday).toISOString() : undefined,
-    } as Customer;
+    const customer = toPlainObject({ id: customerDoc.id, ...customerData }) as Customer;
 
 
     const salesSnapshot = await firestore.collection('sales_transactions').where('customerId', '==', customerId).get();
     const sales = salesSnapshot.docs.map(doc => {
       const data = doc.data();
-      return { 
-        id: doc.id, 
-        ...data,
-        transactionDate: data.transactionDate?.toDate ? data.transactionDate.toDate().toISOString() : data.transactionDate,
-      } as Sale;
+      return toPlainObject({ id: doc.id, ...data }) as Sale;
     });
 
     const paymentsSnapshot = await firestore.collection('payments').where('customerId', '==', customerId).get();
     const payments = paymentsSnapshot.docs.map(doc => {
       const data = doc.data();
-      return { 
-        id: doc.id, 
-        ...data,
-        paymentDate: data.paymentDate?.toDate ? data.paymentDate.toDate().toISOString() : data.paymentDate,
-      } as Payment;
+      return toPlainObject({ id: doc.id, ...data }) as Payment;
     });
     
     return { customer, sales, payments };
