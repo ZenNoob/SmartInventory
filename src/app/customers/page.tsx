@@ -491,10 +491,17 @@ export default function CustomersPage() {
                     </TableCell>
                      <TableCell>
                       {debtInfo ? (
-                        <button className="underline cursor-pointer text-left" onClick={() => setViewingPaymentsFor(customer)}>
-                           <div className="text-green-600">{formatCurrency(debtInfo.paid)}</div>
-                           <div className={debtInfo.debt > 0 ? "text-destructive" : ""}>{formatCurrency(debtInfo.debt)}</div>
-                        </button>
+                        <div className="text-left">
+                          <button 
+                            className="underline cursor-pointer text-green-600" 
+                            onClick={() => setViewingPaymentsFor(customer)}
+                          >
+                            {formatCurrency(debtInfo.paid)}
+                          </button>
+                          <Link href={`/customers/${customer.id}`} className={`block underline cursor-pointer ${debtInfo.debt > 0 ? "text-destructive" : ""}`}>
+                            {formatCurrency(debtInfo.debt)}
+                          </Link>
+                        </div>
                       ) : (
                         <span>Đang tính...</span>
                       )}
