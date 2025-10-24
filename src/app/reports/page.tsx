@@ -30,12 +30,13 @@ import { formatCurrency } from "@/lib/utils"
 type CustomerDebtInfo = {
   customerId: string;
   customerName: string;
+  customerPhone?: string;
   totalSales: number;
   totalPayments: number;
   finalDebt: number;
 }
 
-type SortKey = 'customerName' | 'totalSales' | 'totalPayments' | 'finalDebt';
+type SortKey = 'customerName' | 'customerPhone' | 'totalSales' | 'totalPayments' | 'finalDebt';
 
 export default function ReportsPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -80,6 +81,7 @@ export default function ReportsPage() {
       return {
         customerId: customer.id,
         customerName: customer.name,
+        customerPhone: customer.phone,
         totalSales: customerSales,
         totalPayments: customerPayments,
         finalDebt: finalDebt,
@@ -91,7 +93,10 @@ export default function ReportsPage() {
     let filtered = customerDebtData;
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(data => data.customerName.toLowerCase().includes(term));
+      filtered = filtered.filter(data => 
+        data.customerName.toLowerCase().includes(term) ||
+        (data.customerPhone && data.customerPhone.includes(term))
+      );
     }
     return filtered;
   }, [customerDebtData, searchTerm]);
@@ -100,8 +105,15 @@ export default function ReportsPage() {
     let sortableItems = [...(filteredDebtData || [])];
     if (sortKey) {
       sortableItems.sort((a, b) => {
-        let valA = a[sortKey];
-        let valB = b[sortKey];
+        let valA, valB;
+
+        if (sortKey === 'customerPhone') {
+          valA = a.customerPhone || '';
+          valB = b.customerPhone || '';
+        } else {
+          valA = a[sortKey];
+          valB = b[sortKey];
+        }
 
         if (typeof valA === 'string' && typeof valB === 'string') {
           valA = valA.toLowerCase();
@@ -167,7 +179,7 @@ export default function ReportsPage() {
             <Search className="absolute left-2.5 top-6 h-4 w-4 text-muted-foreground" />
             <Input
                 type="search"
-                placeholder="Tìm kiếm theo tên khách hàng..."
+                placeholder="Tìm kiếm theo tên hoặc SĐT..."
                 className="w-full rounded-lg bg-background pl-8 md:w-1/3"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -180,17 +192,19 @@ export default function ReportsPage() {
                 <TableRow>
                     <TableHead className="w-16">STT</TableHead>
                     <SortableHeader sortKey="customerName">Tên khách hàng</SortableHeader>
+                    <SortableHeader sortKey="customerPhone">Số điện thoại</SortableHeader>
                     <SortableHeader sortKey="totalSales" className="text-right">Tổng phát sinh</SortableHeader>
                     <SortableHeader sortKey="totalPayments" className="text-right">Đã trả</SortableHeader>
                     <SortableHeader sortKey="finalDebt" className="text-right">Nợ cuối kỳ</SortableHeader>
                 </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && <TableRow><TableCell colSpan={5} className="text-center h-24">Đang tải dữ liệu...</TableCell></TableRow>}
+              {isLoading && <TableRow><TableCell colSpan={6} className="text-center h-24">Đang tải dữ liệu...</TableCell></TableRow>}
               {!isLoading && sortedDebtData.map((data, index) => (
                 <TableRow key={data.customerId}>
                   <TableCell>{index + 1}</TableCell>
                   <TableCell className="font-medium">{data.customerName}</TableCell>
+                  <TableCell>{data.customerPhone || 'N/A'}</TableCell>
                   <TableCell className="text-right">{formatCurrency(data.totalSales)}</TableCell>
                   <TableCell className="text-right">{formatCurrency(data.totalPayments)}</TableCell>
                   <TableCell className={`text-right font-semibold ${data.finalDebt > 0 ? 'text-destructive' : ''}`}>
@@ -200,13 +214,13 @@ export default function ReportsPage() {
               ))}
                {!isLoading && sortedDebtData.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center h-24">Không có dữ liệu công nợ.</TableCell>
+                  <TableCell colSpan={6} className="text-center h-24">Không có dữ liệu công nợ.</TableCell>
                 </TableRow>
               )}
             </TableBody>
              <ShadcnTableFooter>
                 <TableRow className="text-base font-bold">
-                    <TableCell colSpan={2}>Tổng cộng</TableCell>
+                    <TableCell colSpan={3}>Tổng cộng</TableCell>
                     <TableCell className="text-right">{formatCurrency(totalRow.totalSales)}</TableCell>
                     <TableCell className="text-right">{formatCurrency(totalRow.totalPayments)}</TableCell>
                     <TableCell className={`text-right ${totalRow.finalDebt > 0 ? 'text-destructive' : ''}`}>{formatCurrency(totalRow.finalDebt)}</TableCell>
