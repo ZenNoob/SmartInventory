@@ -23,7 +23,15 @@ import {
   SidebarMenuButton,
   SidebarFooter,
   useSidebar,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
 } from '@/components/ui/sidebar'
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from '@/components/ui/collapsible'
 import { Logo } from '@/components/icons'
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase'
 import { useUserRole } from '@/hooks/use-user-role'
@@ -142,18 +150,36 @@ export function MainNav() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={isActive('/reports')}
-                  tooltip="Báo cáo"
-                >
-                  <Link href="/reports">
-                    <LineChart />
-                    {state === 'expanded' && <span>Báo cáo</span>}
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              
+              <Collapsible asChild>
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                     <SidebarMenuButton
+                        className="w-full"
+                        isActive={isActive('/reports')}
+                        tooltip="Báo cáo"
+                      >
+                        <LineChart />
+                        {state === 'expanded' && <span>Báo cáo</span>}
+                      </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent asChild>
+                    <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive('/reports/debt')}>
+                                <Link href="/reports/debt">Công nợ</Link>
+                            </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                         <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive('/reports/revenue')}>
+                                <Link href="/reports/revenue">Doanh thu</Link>
+                            </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
+
               {canSeeUserManagement && (
                 <SidebarMenuItem>
                   <SidebarMenuButton
