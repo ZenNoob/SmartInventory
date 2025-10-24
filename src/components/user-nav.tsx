@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useAuth, useUser } from '@/firebase'
 import { useUserRole } from '@/hooks/use-user-role'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 export function UserNav() {
@@ -55,8 +56,8 @@ export function UserNav() {
           <DropdownMenuItem>
             Thanh toán
           </DropdownMenuItem>
-          <DropdownMenuItem>
-            Cài đặt
+          <DropdownMenuItem asChild>
+            <Link href="/settings">Cài đặt</Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
