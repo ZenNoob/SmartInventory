@@ -158,20 +158,13 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
   const refinedSaleFormSchema = saleFormSchema.superRefine((data, ctx) => {
     data.items.forEach((item, index) => {
       if (!item.productId) return;
-      const { stockInBaseUnit } = getStockInfo(item.productId);
-      const product = productsMap.get(item.productId)!;
-      const { conversionFactor } = getUnitInfo(product.unitId);
-      const requestedQuantityInBaseUnit = item.quantity * conversionFactor;
+      const { stock, mainUnit } = getStockInfo(item.productId);
 
-      if (requestedQuantityInBaseUnit > stockInBaseUnit) {
-        const { stock, mainUnit, baseUnit } = getStockInfo(item.productId);
-        const stockDisplay = baseUnit?.name === mainUnit?.name 
-          ? `${stock.toFixed(2)} ${mainUnit?.name}`
-          : `${stock.toFixed(2)} ${mainUnit?.name} (~${stockInBaseUnit.toFixed(2)} ${baseUnit?.name})`
+      if (item.quantity > stock) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: [`items`, index, `quantity`],
-          message: `Vượt quá tồn kho (Tồn: ${stockDisplay})`,
+          message: `Vượt quá tồn kho (Tồn: ${stock.toFixed(2)} ${mainUnit?.name || ''})`,
         });
       }
     });
@@ -199,7 +192,6 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
         return acc;
     }
     const product = productsMap.get(item.productId)!;
-    const { baseUnit } = getUnitInfo(product.unitId);
     const { conversionFactor } = getUnitInfo(product.unitId);
     const quantityInBaseUnit = (item.quantity || 0) * (conversionFactor || 1);
 
@@ -250,6 +242,14 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
   const addProductToSale = (productId: string) => {
     const product = productsMap.get(productId);
     if (product) {
+      if (watchedItems.some(item => item.productId === productId)) {
+        toast({
+          variant: "destructive",
+          title: "Sản phẩm đã tồn tại",
+          description: "Sản phẩm này đã có trong đơn hàng.",
+        });
+        return;
+      }
       append({ productId: product.id, quantity: 1, price: 0 });
     }
   }
@@ -357,8 +357,10 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
                     const baseUnit = saleUnitInfo.baseUnit || unitsMap.get(product.unitId);
                     
                     const itemValues = watchedItems[index];
-                    const quantityInBaseUnit = (itemValues.quantity || 0) * (saleUnitInfo.conversionFactor || 1);
-                    const lineTotal = quantityInBaseUnit * (itemValues.price || 0);
+                    const lineTotal = itemValues && itemValues.price && itemValues.quantity
+                      ? ((itemValues.quantity || 0) * (saleUnitInfo.conversionFactor || 1)) * (itemValues.price || 0)
+                      : 0;
+
 
                     const stockInfo = getStockInfo(product.id);
                     const avgCostInfo = getAverageCost(product.id);
