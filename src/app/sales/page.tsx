@@ -10,6 +10,8 @@ import {
   Search,
   Calendar as CalendarIcon,
   ChevronDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react"
 
 import {
@@ -72,6 +74,8 @@ import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 
 type SaleStatus = 'all' | 'pending' | 'unprinted' | 'printed';
+type SortKey = 'invoiceNumber' | 'customer' | 'transactionDate' | 'status' | 'finalAmount';
+
 
 const getStatusVariant = (status: Sale['status']): "default" | "secondary" | "outline" => {
   switch (status) {
@@ -103,6 +107,8 @@ export default function SalesPage() {
   const [selectedSale, setSelectedSale] = useState<Sale | undefined>(undefined);
   const [statusFilter, setStatusFilter] = useState<SaleStatus>('all');
   const [isUpdatingStatus, startStatusTransition] = useTransition();
+  const [sortKey, setSortKey] = useState<SortKey>('transactionDate');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -171,8 +177,17 @@ export default function SalesPage() {
     fetchAllSalesItems();
   }, [sales, firestore, salesLoading]);
 
-  const filteredSales = useMemo(() => {
-    return sales?.filter(sale => {
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDirection('asc');
+    }
+  };
+
+  const sortedSales = useMemo(() => {
+    let sortableItems = sales?.filter(sale => {
       const customerName = customersMap.get(sale.customerId)?.toLowerCase() || '';
       const invoiceNumber = sale.invoiceNumber?.toLowerCase() || '';
       const term = searchTerm.toLowerCase();
@@ -184,12 +199,48 @@ export default function SalesPage() {
       const statusMatch = statusFilter !== 'all' ? sale.status === statusFilter : true;
 
       return termMatch && dateMatch && statusMatch;
-    }).sort((a, b) => new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime());
-  }, [sales, searchTerm, searchDate, customersMap, statusFilter]);
+    }) || [];
+
+    sortableItems.sort((a, b) => {
+      let valA: string | number, valB: string | number;
+
+      switch (sortKey) {
+        case 'invoiceNumber':
+          valA = a.invoiceNumber || '';
+          valB = b.invoiceNumber || '';
+          break;
+        case 'customer':
+          valA = customersMap.get(a.customerId)?.toLowerCase() || '';
+          valB = customersMap.get(b.customerId)?.toLowerCase() || '';
+          break;
+        case 'transactionDate':
+          valA = new Date(a.transactionDate).getTime();
+          valB = new Date(b.transactionDate).getTime();
+          break;
+        case 'finalAmount':
+          valA = a.finalAmount;
+          valB = b.finalAmount;
+          break;
+        case 'status':
+          valA = a.status;
+          valB = b.status;
+          break;
+        default:
+          return 0;
+      }
+      
+      if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+      if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return sortableItems;
+  }, [sales, searchTerm, searchDate, customersMap, statusFilter, sortKey, sortDirection]);
+
 
   const totalRevenue = useMemo(() => {
-    return filteredSales?.reduce((total, sale) => total + sale.finalAmount, 0) || 0;
-  }, [filteredSales]);
+    return sortedSales?.reduce((total, sale) => total + sale.finalAmount, 0) || 0;
+  }, [sortedSales]);
 
 
   const isLoading = salesLoading || customersLoading || productsLoading || unitsLoading || salesItemsLoading || paymentsLoading;
@@ -243,6 +294,17 @@ export default function SalesPage() {
       }
     });
   };
+
+  const SortableHeader = ({ sortKey: key, children, className }: { sortKey: SortKey; children: React.ReactNode, className?: string }) => (
+    <TableHead className={className}>
+      <Button variant="ghost" onClick={() => handleSort(key)} className="px-2 py-1 h-auto">
+        {children}
+        {sortKey === key && (
+          sortDirection === 'asc' ? <ArrowUp className="h-4 w-4 ml-2" /> : <ArrowDown className="h-4 w-4 ml-2" />
+        )}
+      </Button>
+    </TableHead>
+  );
 
   return (
     <>
@@ -349,24 +411,22 @@ export default function SalesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-16">STT</TableHead>
-                    <TableHead>Mã đơn hàng</TableHead>
-                    <TableHead>Khách hàng</TableHead>
-                    <TableHead className="hidden md:table-cell">Ngày</TableHead>
-                    <TableHead>Trạng thái</TableHead>
-                    <TableHead className="text-right">Tổng cộng</TableHead>
+                    <SortableHeader sortKey="invoiceNumber">Mã đơn hàng</SortableHeader>
+                    <SortableHeader sortKey="customer">Khách hàng</SortableHeader>
+                    <SortableHeader sortKey="transactionDate" className="hidden md:table-cell">Ngày</SortableHeader>
+                    <SortableHeader sortKey="status">Trạng thái</SortableHeader>
+                    <SortableHeader sortKey="finalAmount" className="text-right">Tổng cộng</SortableHeader>
                     <TableHead>
                       <span className="sr-only">Hành động</span>
                     </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isLoading && <TableRow><TableCell colSpan={7} className="text-center h-24">Đang tải...</TableCell></TableRow>}
-                  {!isLoading && filteredSales?.map((sale, index) => {
+                  {isLoading && <TableRow><TableCell colSpan={6} className="text-center h-24">Đang tải...</TableCell></TableRow>}
+                  {!isLoading && sortedSales?.map((sale) => {
                     const customer = customers?.find(c => c.id === sale.customerId);
                     return (
                       <TableRow key={sale.id}>
-                        <TableCell className="font-medium">{index + 1}</TableCell>
                         <TableCell className="font-medium">{sale.invoiceNumber}</TableCell>
                         <TableCell>{customer?.name || 'Khách lẻ'}</TableCell>
                         <TableCell className="hidden md:table-cell">
@@ -438,9 +498,9 @@ export default function SalesPage() {
                       </TableRow>
                     );
                   })}
-                  {!isLoading && !filteredSales?.length && (
+                  {!isLoading && !sortedSales?.length && (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center h-24">
+                      <TableCell colSpan={6} className="text-center h-24">
                         Không có đơn hàng nào phù hợp.
                       </TableCell>
                     </TableRow>
@@ -450,7 +510,7 @@ export default function SalesPage() {
             </CardContent>
             <CardFooter>
               <div className="text-xs text-muted-foreground">
-                Hiển thị <strong>{filteredSales?.length || 0}</strong> trên <strong>{sales?.length || 0}</strong>{" "}
+                Hiển thị <strong>{sortedSales?.length || 0}</strong> trên <strong>{sales?.length || 0}</strong>{" "}
                 đơn hàng
               </div>
             </CardFooter>
