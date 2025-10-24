@@ -112,9 +112,9 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
 
   const getStockInfo = useCallback((productId: string) => {
     const product = productsMap.get(productId);
-    if (!product || !product.unitId) return { stock: 0, stockInBaseUnit: 0, mainUnit: undefined };
+    if (!product || !product.unitId) return { stock: 0, stockInBaseUnit: 0, mainUnit: undefined, baseUnit: undefined };
 
-    const { conversionFactor: mainConversionFactor } = getUnitInfo(product.unitId);
+    const { name: mainUnitName, baseUnit: mainBaseUnit, conversionFactor: mainConversionFactor } = getUnitInfo(product.unitId);
     
     let totalImportedInBaseUnit = 0;
     product.purchaseLots?.forEach(lot => {
@@ -128,8 +128,10 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
 
     const stockInBaseUnit = totalImportedInBaseUnit - totalSoldInBaseUnit;
     const stockInMainUnit = stockInBaseUnit / (mainConversionFactor || 1);
+    const mainUnit = unitsMap.get(product.unitId);
+    const baseUnit = mainBaseUnit || mainUnit;
 
-    return { stock: stockInMainUnit, stockInBaseUnit, mainUnit: unitsMap.get(product.unitId) };
+    return { stock: stockInMainUnit, stockInBaseUnit, mainUnit, baseUnit };
   }, [productsMap, allSalesItems, getUnitInfo, unitsMap]);
 
   const getAverageCost = useCallback((productId: string) => {
@@ -153,9 +155,30 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
     return { avgCost: totalCost / totalQuantityInBaseUnit, baseUnit: costBaseUnit };
   }, [productsMap, getUnitInfo, unitsMap]);
 
+  const refinedSaleFormSchema = saleFormSchema.superRefine((data, ctx) => {
+    data.items.forEach((item, index) => {
+      if (!item.productId) return;
+      const { stockInBaseUnit } = getStockInfo(item.productId);
+      const product = productsMap.get(item.productId)!;
+      const { conversionFactor } = getUnitInfo(product.unitId);
+      const requestedQuantityInBaseUnit = item.quantity * conversionFactor;
+
+      if (requestedQuantityInBaseUnit > stockInBaseUnit) {
+        const { stock, mainUnit, baseUnit } = getStockInfo(item.productId);
+        const stockDisplay = baseUnit?.name === mainUnit?.name 
+          ? `${stock.toFixed(2)} ${mainUnit?.name}`
+          : `${stock.toFixed(2)} ${mainUnit?.name} (~${stockInBaseUnit.toFixed(2)} ${baseUnit?.name})`
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [`items`, index, `quantity`],
+          message: `Vượt quá tồn kho (Tồn: ${stockDisplay})`,
+        });
+      }
+    });
+  });
 
   const form = useForm<SaleFormValues>({
-    resolver: zodResolver(saleFormSchema),
+    resolver: zodResolver(refinedSaleFormSchema),
     defaultValues: {
       customerId: '',
       transactionDate: new Date().toISOString().split('T')[0],
@@ -172,14 +195,17 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
   const watchedItems = form.watch("items");
   
   const totalAmount = watchedItems.reduce((acc, item) => {
-    const product = productsMap.get(item.productId);
-    if (!product || !item.price || !item.quantity) return acc;
+    if (!item.productId || !item.price || !item.quantity) {
+        return acc;
+    }
+    const product = productsMap.get(item.productId)!;
+    const { baseUnit } = getUnitInfo(product.unitId);
+    const { conversionFactor } = getUnitInfo(product.unitId);
+    const quantityInBaseUnit = (item.quantity || 0) * (conversionFactor || 1);
 
-    const saleUnitInfo = getUnitInfo(product.unitId);
-    const quantityInBaseUnit = (item.quantity || 0) * (saleUnitInfo.conversionFactor || 1);
-
-    return acc + quantityInBaseUnit * item.price;
+    return acc + quantityInBaseUnit * (item.price || 0);
   }, 0);
+
 
   const finalAmount = totalAmount - (form.watch('discount') || 0);
 
