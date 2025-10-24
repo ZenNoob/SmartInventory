@@ -208,9 +208,10 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
   const discountValue = form.watch('discountValue') || 0;
   const customerPayment = form.watch('customerPayment') || 0;
 
+  const { trigger } = form;
   useEffect(() => {
-    form.trigger('items');
-  }, [watchedItems, form]);
+    trigger('items');
+  }, [watchedItems, trigger]);
 
   const totalAmount = watchedItems.reduce((acc, item) => {
     if (!item.productId || !item.price || !item.quantity) {
@@ -288,7 +289,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { onOpenChange(open); if(!open) form.reset(); }}>
-      <DialogContent className="sm:max-w-5xl grid-rows-[auto_1fr_auto] max-h-[90vh]">
+      <DialogContent className="sm:max-w-5xl grid grid-rows-[auto_auto_1fr_auto] max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Tạo đơn hàng mới</DialogTitle>
           <DialogDescription>
@@ -296,9 +297,9 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4 overflow-hidden">
-            <div className='flex-grow space-y-4 overflow-y-auto pr-6'>
-              <div className="grid grid-cols-2 gap-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4 overflow-hidden h-full">
+            <div className="shrink-0">
+                <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="customerId"
@@ -383,7 +384,9 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
                   )}
                 />
               </div>
+            </div>
 
+            <div className='flex-grow space-y-4 overflow-y-auto pr-6 -mr-6'>
               <div>
                 <h3 className="text-md font-medium mb-2">Chi tiết đơn hàng</h3>
                 <div className="space-y-3">
@@ -595,5 +598,3 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
     </Dialog>
   )
 }
-
-    
