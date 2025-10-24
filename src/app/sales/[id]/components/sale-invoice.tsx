@@ -80,6 +80,9 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap }: Sa
     });
   };
 
+  const totalAmount = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+  const remainingDebt = (totalAmount + (sale.previousDebt || 0)) - (sale.customerPayment || 0);
+
   return (
     <div ref={invoiceRef}>
         <div className="flex items-center gap-4 mb-4 print:hidden">
@@ -174,7 +177,7 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap }: Sa
                 <TableFooter>
                     <TableRow>
                         <TableCell colSpan={6} className="text-right font-medium">Tổng tiền hàng</TableCell>
-                        <TableCell className="text-right font-semibold">{formatCurrency(sale.totalAmount || 0)}</TableCell>
+                        <TableCell className="text-right font-semibold">{formatCurrency(totalAmount)}</TableCell>
                     </TableRow>
                     <TableRow>
                         <TableCell colSpan={6} className="text-right font-medium">Nợ cũ</TableCell>
@@ -186,7 +189,7 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap }: Sa
                     </TableRow>
                      <TableRow className="text-lg">
                         <TableCell colSpan={6} className="text-right font-bold">Còn Nợ lại</TableCell>
-                        <TableCell className="text-right font-bold">{formatCurrency(sale.remainingDebt || 0)}</TableCell>
+                        <TableCell className="text-right font-bold">{formatCurrency(remainingDebt)}</TableCell>
                     </TableRow>
                 </TableFooter>
             </Table>
