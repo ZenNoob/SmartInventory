@@ -27,6 +27,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -106,6 +108,7 @@ export default function SalesPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sale | undefined>(undefined);
   const [statusFilter, setStatusFilter] = useState<SaleStatus>('all');
+  const [customerFilter, setCustomerFilter] = useState<string>('all');
   const [isUpdatingStatus, startStatusTransition] = useTransition();
   const [sortKey, setSortKey] = useState<SortKey>('invoiceNumber');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -198,7 +201,9 @@ export default function SalesPage() {
 
       const statusMatch = statusFilter !== 'all' ? sale.status === statusFilter : true;
 
-      return termMatch && dateMatch && statusMatch;
+      const customerMatch = customerFilter !== 'all' ? sale.customerId === customerFilter : true;
+
+      return termMatch && dateMatch && statusMatch && customerMatch;
     }) || [];
 
     sortableItems.sort((a, b) => {
@@ -235,7 +240,7 @@ export default function SalesPage() {
     });
 
     return sortableItems;
-  }, [sales, searchTerm, searchDate, customersMap, statusFilter, sortKey, sortDirection]);
+  }, [sales, searchTerm, searchDate, customersMap, statusFilter, customerFilter, sortKey, sortDirection]);
 
 
   const totalRevenue = useMemo(() => {
@@ -366,7 +371,7 @@ export default function SalesPage() {
               <CardDescription>
                 Danh sách tất cả các giao dịch bán hàng.
               </CardDescription>
-               <div className="flex items-center gap-4 mt-4">
+               <div className="flex flex-wrap items-center gap-4 mt-4">
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -402,6 +407,28 @@ export default function SalesPage() {
                  {searchDate && (
                     <Button variant="ghost" onClick={() => setSearchDate(undefined)}>Xóa lọc ngày</Button>
                  )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="h-10 gap-1">
+                      <ListFilter className="h-3.5 w-3.5" />
+                      <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                        Lọc theo khách hàng
+                      </span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Lọc theo khách hàng</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuRadioGroup value={customerFilter} onValueChange={setCustomerFilter}>
+                      <DropdownMenuRadioItem value="all">Tất cả khách hàng</DropdownMenuRadioItem>
+                      {customers?.map((customer) => (
+                        <DropdownMenuRadioItem key={customer.id} value={customer.id}>
+                          {customer.name}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                  <div className="ml-auto text-lg font-semibold">
                     Doanh thu: <span className="text-primary">{formatCurrency(totalRevenue)}</span>
                  </div>
