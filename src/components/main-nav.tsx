@@ -175,6 +175,11 @@ export function MainNav() {
                                 <Link href="/reports/revenue">Doanh thu</Link>
                             </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive('/reports/sold-products')}>
+                                <Link href="/reports/sold-products">Sản phẩm đã bán</Link>
+                            </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
                     </SidebarMenuSub>
                   </CollapsibleContent>
                 </SidebarMenuItem>
