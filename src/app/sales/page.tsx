@@ -12,6 +12,8 @@ import {
   ChevronDown,
   ArrowUp,
   ArrowDown,
+  ChevronsUpDown,
+  Check,
 } from "lucide-react"
 
 import {
@@ -27,8 +29,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -61,6 +61,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { format } from "date-fns"
@@ -112,6 +121,7 @@ export default function SalesPage() {
   const [isUpdatingStatus, startStatusTransition] = useTransition();
   const [sortKey, setSortKey] = useState<SortKey>('invoiceNumber');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [customerPopoverOpen, setCustomerPopoverOpen] = useState(false);
 
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -407,28 +417,68 @@ export default function SalesPage() {
                  {searchDate && (
                     <Button variant="ghost" onClick={() => setSearchDate(undefined)}>Xóa lọc ngày</Button>
                  )}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="h-10 gap-1">
-                      <ListFilter className="h-3.5 w-3.5" />
-                      <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                        Lọc theo khách hàng
-                      </span>
+                <Popover open={customerPopoverOpen} onOpenChange={setCustomerPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={customerPopoverOpen}
+                      className="w-[200px] justify-between"
+                    >
+                      {customerFilter !== 'all'
+                        ? customers?.find((customer) => customer.id === customerFilter)?.name
+                        : "Lọc theo khách hàng"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Lọc theo khách hàng</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuRadioGroup value={customerFilter} onValueChange={setCustomerFilter}>
-                      <DropdownMenuRadioItem value="all">Tất cả khách hàng</DropdownMenuRadioItem>
-                      {customers?.map((customer) => (
-                        <DropdownMenuRadioItem key={customer.id} value={customer.id}>
-                          {customer.name}
-                        </DropdownMenuRadioItem>
-                      ))}
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[200px] p-0">
+                    <Command>
+                      <CommandInput placeholder="Tìm khách hàng..." />
+                      <CommandList>
+                        <CommandEmpty>Không tìm thấy khách hàng.</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem
+                              key="all"
+                              value="all"
+                              onSelect={() => {
+                                setCustomerFilter("all");
+                                setCustomerPopoverOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  customerFilter === "all" ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              Tất cả khách hàng
+                            </CommandItem>
+                          {customers?.map((customer) => (
+                            <CommandItem
+                              key={customer.id}
+                              value={customer.name}
+                              onSelect={() => {
+                                setCustomerFilter(customer.id);
+                                setCustomerPopoverOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  customerFilter === customer.id ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {customer.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                {customerFilter !== 'all' && (
+                  <Button variant="ghost" onClick={() => setCustomerFilter('all')}>Xóa bộ lọc khách hàng</Button>
+                )}
                  <div className="ml-auto text-lg font-semibold">
                     Doanh thu: <span className="text-primary">{formatCurrency(totalRevenue)}</span>
                  </div>
