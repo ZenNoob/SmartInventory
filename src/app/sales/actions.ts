@@ -4,8 +4,7 @@ import { Sale, SalesItem } from "@/lib/types";
 import { getAdminServices } from "@/lib/admin-actions";
 
 export async function upsertSaleTransaction(
-  sale: Omit<Sale, 'id' | 'totalAmount' > & { totalAmount: number }, 
-  // The items passed here have their quantity in the base unit
+  sale: Omit<Sale, 'id'>, 
   items: Omit<SalesItem, 'id' | 'salesTransactionId'>[]
 ): Promise<{ success: boolean; error?: string; saleId?: string }> {
   const { firestore } = await getAdminServices();
@@ -26,7 +25,7 @@ export async function upsertSaleTransaction(
       });
     }
     
-    // Create a payment document if customerPayment is provided
+    // Create a payment document if customerPayment is provided and it's a valid customer
     if (sale.customerPayment && sale.customerPayment > 0 && sale.customerId) {
       const paymentRef = firestore.collection('payments').doc();
       await paymentRef.set({

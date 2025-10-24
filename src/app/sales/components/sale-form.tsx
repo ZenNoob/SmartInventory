@@ -208,6 +208,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
   const discountType = form.watch('discountType');
   const discountValue = form.watch('discountValue') || 0;
   const customerPayment = form.watch('customerPayment') || 0;
+  const selectedCustomerId = form.watch('customerId');
 
   const { trigger } = form;
   useEffect(() => {
@@ -220,6 +221,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
     }
     const product = productsMap.get(item.productId)!;
     const { conversionFactor } = getUnitInfo(product.unitId);
+    // The price is per base unit, so we multiply by quantity in base unit
     const quantityInBaseUnit = (item.quantity || 0) * (conversionFactor || 1);
 
     return acc + quantityInBaseUnit * (item.price || 0);
@@ -230,13 +232,16 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
     : discountValue;
     
   const finalAmount = totalAmount - calculatedDiscount;
-  const remainingAmount = customerPayment - finalAmount;
+  const previousDebt = customerDebts.get(selectedCustomerId) || 0;
+  const totalPayable = finalAmount + previousDebt;
+  const remainingDebt = totalPayable - (customerPayment || 0);
 
 
   const onSubmit = async (data: SaleFormValues) => {
     const itemsData = data.items.map(item => {
         const product = productsMap.get(item.productId)!;
         const { conversionFactor } = getUnitInfo(product.unitId);
+        // Quantity needs to be stored in the base unit
         return {
             productId: item.productId,
             quantity: item.quantity * (conversionFactor || 1),
@@ -247,11 +252,13 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
     const saleData = {
         customerId: data.customerId,
         transactionDate: new Date(data.transactionDate).toISOString(),
-        totalAmount: finalAmount,
+        totalAmount: finalAmount, // This is the total for this specific sale
         discount: calculatedDiscount,
         discountType: data.discountType,
         discountValue: data.discountValue,
         customerPayment: data.customerPayment,
+        previousDebt: previousDebt,
+        remainingDebt: remainingDebt,
     };
 
     const result = await upsertSaleTransaction(saleData, itemsData);
@@ -264,6 +271,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
       onOpenChange(false);
       form.reset();
       router.refresh();
+      router.push(`/sales/${result.saleId}`);
     } else {
       toast({
         variant: "destructive",
@@ -284,6 +292,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
         });
         return;
       }
+      // Default price to 0, let user input it
       append({ productId: product.id, quantity: 1, price: 0 });
     }
   }
@@ -521,58 +530,16 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
                           <span className="font-semibold">{formatCurrency(totalAmount)}</span>
                       </div>
                       <div className="flex justify-between items-center">
-                          <FormField
-                              control={form.control}
-                              name="discountType"
-                              render={({ field }) => (
-                                  <FormItem className="flex items-center gap-2 space-y-0">
-                                      <FormLabel className="p-0 m-0">Giảm giá:</FormLabel>
-                                      <FormControl>
-                                          <RadioGroup
-                                              onValueChange={field.onChange}
-                                              defaultValue={field.value}
-                                              className="flex"
-                                          >
-                                              <FormItem className="flex items-center space-x-1 space-y-0">
-                                                  <FormControl>
-                                                      <RadioGroupItem value="amount" />
-                                                  </FormControl>
-                                                  <FormLabel className="font-normal text-xs">VNĐ</FormLabel>
-                                              </FormItem>
-                                              <FormItem className="flex items-center space-x-1 space-y-0">
-                                                  <FormControl>
-                                                      <RadioGroupItem value="percentage" />
-                                                  </FormControl>
-                                                  <FormLabel className="font-normal text-xs">%</FormLabel>
-                                              </FormItem>
-                                          </RadioGroup>
-                                      </FormControl>
-                                  </FormItem>
-                              )}
-                          />
-                           <Controller
-                              control={form.control}
-                              name="discountValue"
-                              render={({ field }) => (
-                                  <FormItem className="w-32">
-                                      <FormControl>
-                                        { discountType === 'amount' ? <FormattedNumberInput {...field} /> : <Input type="number" {...field} /> }
-                                      </FormControl>
-                                  </FormItem>
-                              )}
-                          />
-                      </div>
-                       <div className="flex justify-between items-center text-destructive">
-                          <span>Số tiền giảm:</span>
-                          <span>- {formatCurrency(calculatedDiscount)}</span>
+                          <Label>Nợ cũ:</Label>
+                          <span className="font-semibold">{formatCurrency(previousDebt)}</span>
                       </div>
                       <Separator/>
-                      <div className="flex justify-between items-center font-bold text-lg">
-                          <span>Khách cần trả:</span>
-                          <span>{formatCurrency(finalAmount)}</span>
+                      <div className="flex justify-between items-center font-bold">
+                          <span>Tổng cộng:</span>
+                          <span>{formatCurrency(totalPayable)}</span>
                       </div>
-                       <div className="flex justify-between items-center">
-                          <Label htmlFor='customerPayment'>Tiền khách đưa:</Label>
+                      <div className="flex justify-between items-center">
+                          <Label htmlFor='customerPayment'>Khách thanh toán:</Label>
                             <Controller
                               control={form.control}
                               name={`customerPayment`}
@@ -582,9 +549,9 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
                           />
                       </div>
                       <Separator/>
-                       <div className={`flex justify-between items-center font-bold ${remainingAmount < 0 ? 'text-destructive' : 'text-green-600'}`}>
-                          <span>{remainingAmount < 0 ? 'Nợ mới:' : 'Tiền thừa:'}</span>
-                          <span>{formatCurrency(Math.abs(remainingAmount))}</span>
+                       <div className={`flex justify-between items-center font-bold text-lg ${remainingDebt > 0 ? 'text-destructive' : 'text-green-600'}`}>
+                          <span>Còn nợ lại:</span>
+                          <span>{formatCurrency(remainingDebt)}</span>
                       </div>
                   </div>
               </div>

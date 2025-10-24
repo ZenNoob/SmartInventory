@@ -63,6 +63,8 @@ export type Sale = {
   discountType?: 'percentage' | 'amount';
   discountValue?: number;
   customerPayment?: number;
+  previousDebt?: number;
+  remainingDebt?: number;
 }
 
 export type Payment = {
