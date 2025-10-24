@@ -13,35 +13,47 @@ export async function upsertSaleTransaction(
     return await firestore.runTransaction(async (transaction) => {
       let saleRef;
       
-      // If it's an update, delete old items and payments first
       if (sale.id) {
+        // UPDATE LOGIC
         saleRef = firestore.collection('sales_transactions').doc(sale.id);
 
-        // Delete all old items in the sales_items subcollection
+        // --- ALL READS FIRST ---
+        const oldSaleDoc = await transaction.get(saleRef);
+        if (!oldSaleDoc.exists) {
+          throw new Error("Đơn hàng không tồn tại.");
+        }
+        const oldSaleData = oldSaleDoc.data() as Sale;
+
         const oldItemsQuery = saleRef.collection('sales_items');
         const oldItemsSnapshot = await transaction.get(oldItemsQuery);
-        oldItemsSnapshot.docs.forEach(doc => transaction.delete(doc.ref));
 
-        // Delete the associated old payment, if it exists
-        const saleDocBeforeUpdate = await transaction.get(saleRef);
-        const oldSaleData = saleDocBeforeUpdate.data() as Sale | undefined;
-
-        if (oldSaleData?.customerId && oldSaleData.customerPayment && oldSaleData.customerPayment > 0) {
+        let oldPaymentDoc: FirebaseFirestore.QueryDocumentSnapshot | undefined;
+        if (oldSaleData.customerId && oldSaleData.customerPayment && oldSaleData.customerPayment > 0) {
           const paymentNote = `Thanh toán cho đơn hàng ${oldSaleData.id.slice(-6).toUpperCase()}`;
           const paymentsQuery = firestore.collection('payments')
-              .where('customerId', '==', oldSaleData.customerId)
-              .where('notes', '==', paymentNote);
-          
+            .where('customerId', '==', oldSaleData.customerId)
+            .where('notes', '==', paymentNote);
           const oldPaymentsSnapshot = await transaction.get(paymentsQuery);
           if (!oldPaymentsSnapshot.empty) {
-            transaction.delete(oldPaymentsSnapshot.docs[0].ref);
+            oldPaymentDoc = oldPaymentsSnapshot.docs[0];
           }
         }
+        
+        // --- ALL WRITES SECOND ---
+        // Delete old items
+        oldItemsSnapshot.docs.forEach(doc => transaction.delete(doc.ref));
+
+        // Delete old payment
+        if (oldPaymentDoc) {
+          transaction.delete(oldPaymentDoc.ref);
+        }
+        
       } else {
-        // It's a new sale, create a new document reference
+        // CREATE LOGIC
         saleRef = firestore.collection('sales_transactions').doc();
       }
 
+      // --- WRITES for both CREATE and UPDATE ---
       // Set/update the main sale document
       const saleDataWithId = { ...sale, id: saleRef.id };
       transaction.set(saleRef, saleDataWithId);
