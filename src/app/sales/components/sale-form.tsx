@@ -171,17 +171,15 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
 
   const watchedItems = form.watch("items");
   
-  const totalAmount = useMemo(() => {
-    return watchedItems.reduce((acc, item) => {
-      const product = productsMap.get(item.productId);
-      if (!product || !item.price) return acc;
-      
-      const saleUnitInfo = getUnitInfo(product.unitId);
-      const quantityInBaseUnit = (item.quantity || 0) * saleUnitInfo.conversionFactor;
-      
-      return acc + (quantityInBaseUnit * item.price);
-    }, 0);
-  }, [watchedItems, productsMap, getUnitInfo]);
+  const totalAmount = watchedItems.reduce((acc, item) => {
+    const product = productsMap.get(item.productId);
+    if (!product || !item.price || !item.quantity) return acc;
+
+    const saleUnitInfo = getUnitInfo(product.unitId);
+    const quantityInBaseUnit = (item.quantity || 0) * (saleUnitInfo.conversionFactor || 1);
+
+    return acc + quantityInBaseUnit * item.price;
+  }, 0);
 
   const finalAmount = totalAmount - (form.watch('discount') || 0);
 
@@ -192,7 +190,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
         return {
             productId: item.productId,
             // We store quantity in the base unit in Firestore
-            quantity: item.quantity * conversionFactor,
+            quantity: item.quantity * (conversionFactor || 1),
             price: item.price,
         };
     });
@@ -333,7 +331,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
                     const baseUnit = saleUnitInfo.baseUnit || unitsMap.get(product.unitId);
                     
                     const itemValues = watchedItems[index];
-                    const quantityInBaseUnit = (itemValues.quantity || 0) * saleUnitInfo.conversionFactor;
+                    const quantityInBaseUnit = (itemValues.quantity || 0) * (saleUnitInfo.conversionFactor || 1);
                     const lineTotal = quantityInBaseUnit * (itemValues.price || 0);
 
                     const stockInfo = getStockInfo(product.id);
