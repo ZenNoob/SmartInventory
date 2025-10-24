@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -43,6 +43,30 @@ interface PaymentFormProps {
   onOpenChange: (isOpen: boolean) => void;
   customer: CustomerDebtInfo;
 }
+
+const FormattedNumberInput = ({ value, onChange, ...props }: { value: number; onChange: (value: number) => void; [key: string]: any }) => {
+  const [displayValue, setDisplayValue] = useState(value?.toLocaleString('en-US') || '');
+
+  useEffect(() => {
+    setDisplayValue(value?.toLocaleString('en-US') || '0');
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/,/g, '');
+    const numberValue = parseInt(rawValue, 10);
+
+    if (!isNaN(numberValue)) {
+      setDisplayValue(numberValue.toLocaleString('en-US'));
+      onChange(numberValue);
+    } else if (rawValue === '') {
+      setDisplayValue('');
+      onChange(0);
+    }
+  };
+
+  return <Input type="text" value={displayValue} onChange={handleChange} {...props} />;
+};
+
 
 export function PaymentForm({ isOpen, onOpenChange, customer }: PaymentFormProps) {
   const { toast } = useToast();
@@ -111,7 +135,7 @@ export function PaymentForm({ isOpen, onOpenChange, customer }: PaymentFormProps
                 <FormItem>
                   <FormLabel>Số tiền thanh toán</FormLabel>
                   <FormControl>
-                    <Input type="number" {...field} />
+                    <FormattedNumberInput {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
