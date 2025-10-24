@@ -74,7 +74,7 @@ import { useCollection, useDoc, useFirestore, useMemoFirebase } from "@/firebase
 import { formatCurrency } from "@/lib/utils"
 import { PredictShortageForm } from "./components/predict-shortage-form"
 import { ProductForm } from "./components/product-form"
-import { Category, Product, SalesItem, ThemeSettings, Unit } from "@/lib/types"
+import { Category, Product, Sale, SalesItem, ThemeSettings, Unit } from "@/lib/types"
 import { collection, query, getDocs, doc } from "firebase/firestore"
 import { Input } from "@/components/ui/input"
 import { updateProductStatus, deleteProduct, generateProductTemplate } from "./actions"
@@ -121,9 +121,8 @@ export default function ProductsPage() {
     return query(collection(firestore, "units"));
   }, [firestore]);
 
-  const salesItemsQuery = useMemoFirebase(() => {
+  const salesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    // This creates a collection group query to get all sales_items across all sales_transactions
     return query(collection(firestore, 'sales_transactions'));
   }, [firestore]);
 
@@ -135,7 +134,7 @@ export default function ProductsPage() {
   const { data: products, isLoading: productsLoading } = useCollection<Product>(productsQuery);
   const { data: categories, isLoading: categoriesLoading } = useCollection<Category>(categoriesQuery);
   const { data: units, isLoading: unitsLoading } = useCollection<Unit>(unitsQuery);
-  const { data: sales, isLoading: salesLoading } = useCollection(salesItemsQuery);
+  const { data: sales, isLoading: salesLoading } = useCollection<Sale>(salesQuery);
   const { data: settings, isLoading: settingsLoading } = useDoc<ThemeSettings>(settingsRef);
   
   const [allSalesItems, setAllSalesItems] = useState<SalesItem[]>([]);
@@ -157,7 +156,7 @@ export default function ProductsPage() {
         const itemsCollectionRef = collection(firestore, `sales_transactions/${sale.id}/sales_items`);
         const itemsSnapshot = await getDocs(itemsCollectionRef);
         itemsSnapshot.forEach(doc => {
-          items.push(doc.data() as SalesItem);
+          items.push({ id: doc.id, ...doc.data() } as SalesItem);
         });
       }
       setAllSalesItems(items);
@@ -685,3 +684,5 @@ export default function ProductsPage() {
     </>
   )
 }
+
+    

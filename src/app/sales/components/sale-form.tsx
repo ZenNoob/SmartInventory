@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -23,13 +23,6 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   Command,
   CommandEmpty,
   CommandGroup,
@@ -39,7 +32,7 @@ import {
 } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Input } from "@/components/ui/input"
-import { Customer, Product, Unit } from '@/lib/types'
+import { Customer, Product, Unit, SalesItem } from '@/lib/types'
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
 import { Check, ChevronsUpDown, PlusCircle, Trash2 } from 'lucide-react'
@@ -69,6 +62,7 @@ interface SaleFormProps {
   customers: Customer[];
   products: Product[];
   units: Unit[];
+  allSalesItems: SalesItem[];
 }
 
 const FormattedNumberInput = ({ value, onChange, ...props }: { value: number; onChange: (value: number) => void; [key: string]: any }) => {
@@ -95,15 +89,16 @@ const FormattedNumberInput = ({ value, onChange, ...props }: { value: number; on
 };
 
 
-export function SaleForm({ isOpen, onOpenChange, customers, products, units }: SaleFormProps) {
+export function SaleForm({ isOpen, onOpenChange, customers, products, units, allSalesItems }: SaleFormProps) {
   const { toast } = useToast();
   const router = useRouter();
   const [productSearchOpen, setProductSearchOpen] = useState(false);
+  const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
 
   const unitsMap = useMemo(() => new Map(units.map(u => [u.id, u])), [units]);
   const productsMap = useMemo(() => new Map(products.map(p => [p.id, p])), [products]);
 
-  const getUnitInfo = (unitId: string): { baseUnit?: Unit; conversionFactor: number, name: string } => {
+  const getUnitInfo = useCallback((unitId: string): { baseUnit?: Unit; conversionFactor: number, name: string } => {
     const unit = unitsMap.get(unitId);
     if (!unit) return { conversionFactor: 1, name: '' };
     
@@ -113,7 +108,51 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units }: S
     }
     
     return { baseUnit: unit, conversionFactor: 1, name: unit.name };
-  };
+  }, [unitsMap]);
+
+  const getStockInfo = useCallback((productId: string) => {
+    const product = productsMap.get(productId);
+    if (!product || !product.unitId) return { stock: 0, stockInBaseUnit: 0, mainUnit: undefined };
+
+    const { conversionFactor: mainConversionFactor } = getUnitInfo(product.unitId);
+    
+    let totalImportedInBaseUnit = 0;
+    product.purchaseLots?.forEach(lot => {
+        const { conversionFactor } = getUnitInfo(lot.unitId);
+        totalImportedInBaseUnit += lot.quantity * conversionFactor;
+    });
+    
+    const totalSoldInBaseUnit = allSalesItems
+      .filter(item => item.productId === product.id)
+      .reduce((acc, item) => acc + item.quantity, 0);
+
+    const stockInBaseUnit = totalImportedInBaseUnit - totalSoldInBaseUnit;
+    const stockInMainUnit = stockInBaseUnit / (mainConversionFactor || 1);
+
+    return { stock: stockInMainUnit, stockInBaseUnit, mainUnit: unitsMap.get(product.unitId) };
+  }, [productsMap, allSalesItems, getUnitInfo, unitsMap]);
+
+  const getAverageCost = useCallback((productId: string) => {
+    const product = productsMap.get(productId);
+    if (!product || !product.purchaseLots || product.purchaseLots.length === 0 || !product.unitId) return { avgCost: 0, baseUnit: undefined};
+
+    let totalCost = 0;
+    let totalQuantityInBaseUnit = 0;
+    let costBaseUnit: Unit | undefined;
+
+    product.purchaseLots.forEach(lot => {
+        const { baseUnit, conversionFactor } = getUnitInfo(lot.unitId);
+        const quantityInBaseUnit = lot.quantity * conversionFactor;
+        totalCost += lot.cost * quantityInBaseUnit;
+        totalQuantityInBaseUnit += quantityInBaseUnit;
+        costBaseUnit = baseUnit || unitsMap.get(lot.unitId);
+    });
+    
+    if (totalQuantityInBaseUnit === 0) return { avgCost: 0, baseUnit: costBaseUnit };
+    
+    return { avgCost: totalCost / totalQuantityInBaseUnit, baseUnit: costBaseUnit };
+  }, [productsMap, getUnitInfo, unitsMap]);
+
 
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(saleFormSchema),
@@ -125,7 +164,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units }: S
     },
   });
   
-  const { fields, append, remove, update } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "items"
   });
@@ -144,14 +183,13 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units }: S
   const finalAmount = totalAmount - (form.watch('discount') || 0);
 
   const onSubmit = async (data: SaleFormValues) => {
-    // The quantity to save should be in the base unit.
     const itemsData = data.items.map(item => {
         const product = productsMap.get(item.productId)!;
         const { conversionFactor } = getUnitInfo(product.unitId);
         return {
             productId: item.productId,
-            quantity: item.quantity * conversionFactor, // Convert to base unit for storage
-            price: item.price, // Price is already per base unit
+            quantity: item.quantity * conversionFactor,
+            price: item.price,
         };
     });
 
@@ -205,20 +243,62 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units }: S
                   control={form.control}
                   name="customerId"
                   render={({ field }) => (
-                    <FormItem>
+                     <FormItem className="flex flex-col">
                       <FormLabel>Khách hàng</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Chọn khách hàng..." />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {customers.map(customer => (
-                            <SelectItem key={customer.id} value={customer.id}>{customer.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className={cn(
+                                "w-full justify-between",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value
+                                ? customers.find(
+                                    (c) => c.id === field.value
+                                  )?.name
+                                : "Chọn khách hàng..."}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                           <Command>
+                                <CommandInput placeholder="Tìm khách hàng theo tên hoặc SĐT..." />
+                                <CommandList>
+                                <CommandEmpty>Không tìm thấy khách hàng.</CommandEmpty>
+                                <CommandGroup>
+                                    {customers.map((customer) => (
+                                    <CommandItem
+                                        value={`${customer.name} ${customer.phone}`}
+                                        key={customer.id}
+                                        onSelect={() => {
+                                            form.setValue("customerId", customer.id)
+                                            setCustomerSearchOpen(false)
+                                        }}
+                                    >
+                                        <Check
+                                        className={cn(
+                                            "mr-2 h-4 w-4",
+                                            customer.id === field.value
+                                            ? "opacity-100"
+                                            : "opacity-0"
+                                        )}
+                                        />
+                                        <div>
+                                            <p>{customer.name}</p>
+                                            <p className="text-xs text-muted-foreground">{customer.phone}</p>
+                                        </div>
+                                    </CommandItem>
+                                    ))}
+                                </CommandGroup>
+                                </CommandList>
+                            </Command>
+                        </PopoverContent>
+                      </Popover>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -248,6 +328,8 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units }: S
                     const saleUnitInfo = getUnitInfo(product.unitId);
                     const baseUnit = saleUnitInfo.baseUnit || unitsMap.get(product.unitId);
                     const convertedQuantity = watchedItems[index].quantity * saleUnitInfo.conversionFactor;
+                    const stockInfo = getStockInfo(product.id);
+                    const avgCostInfo = getAverageCost(product.id);
                     
                     return (
                         <div key={field.id} className="p-3 border rounded-md relative">
@@ -258,7 +340,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units }: S
                                   name={`items.${index}.quantity`}
                                   render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Số lượng ({saleUnitInfo.name || 'ĐVT'})</FormLabel>
+                                        <FormLabel>Số lượng ({saleUnitInfo.name || 'ĐVT'}) <span className="text-muted-foreground">(Tồn: {stockInfo.stock.toFixed(2)})</span></FormLabel>
                                         <FormControl>
                                             <Input type="number" step="any" {...field} />
                                         </FormControl>
@@ -280,6 +362,9 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units }: S
                                         <FormControl>
                                             <FormattedNumberInput {...field} />
                                         </FormControl>
+                                         <FormDescription>
+                                            Giá nhập TB: {formatCurrency(avgCostInfo.avgCost)}
+                                        </FormDescription>
                                          <FormMessage />
                                     </FormItem>
                                   )}
@@ -366,3 +451,5 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units }: S
     </Dialog>
   )
 }
+
+    

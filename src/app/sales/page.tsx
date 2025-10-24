@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from "react"
+import { useState, useMemo, useEffect } from "react"
 import {
   File,
   ListFilter,
@@ -42,12 +42,14 @@ import {
 import { Button } from "@/components/ui/button"
 import { formatCurrency } from "@/lib/utils"
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
-import { Customer, Sale, Product, Unit } from "@/lib/types"
-import { collection, query } from "firebase/firestore"
+import { Customer, Sale, Product, Unit, SalesItem } from "@/lib/types"
+import { collection, query, getDocs } from "firebase/firestore"
 import { SaleForm } from "./components/sale-form"
 
 export default function SalesPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [allSalesItems, setAllSalesItems] = useState<SalesItem[]>([]);
+  const [salesItemsLoading, setSalesItemsLoading] = useState(true);
 
   const firestore = useFirestore();
 
@@ -76,7 +78,35 @@ export default function SalesPage() {
   const { data: products, isLoading: productsLoading } = useCollection<Product>(productsQuery);
   const { data: units, isLoading: unitsLoading } = useCollection<Unit>(unitsQuery);
 
-  const isLoading = salesLoading || customersLoading || productsLoading || unitsLoading;
+  useEffect(() => {
+    async function fetchAllSalesItems() {
+      if (!firestore || !sales) {
+        if (!salesLoading) setSalesItemsLoading(false);
+        return;
+      };
+      
+      setSalesItemsLoading(true);
+      const items: SalesItem[] = [];
+      try {
+        for (const sale of sales) {
+          const itemsCollectionRef = collection(firestore, `sales_transactions/${sale.id}/sales_items`);
+          const itemsSnapshot = await getDocs(itemsCollectionRef);
+          itemsSnapshot.forEach(doc => {
+            items.push({ id: doc.id, ...doc.data() } as SalesItem);
+          });
+        }
+        setAllSalesItems(items);
+      } catch (error) {
+        console.error("Error fetching sales items: ", error);
+      } finally {
+        setSalesItemsLoading(false);
+      }
+    }
+    fetchAllSalesItems();
+  }, [sales, firestore, salesLoading]);
+
+
+  const isLoading = salesLoading || customersLoading || productsLoading || unitsLoading || salesItemsLoading;
 
   const handleAddSale = () => {
     setIsFormOpen(true);
@@ -90,6 +120,7 @@ export default function SalesPage() {
         customers={customers || []}
         products={products || []}
         units={units || []}
+        allSalesItems={allSalesItems || []}
       />
       <Tabs defaultValue="all">
         <div className="flex items-center">
@@ -126,10 +157,10 @@ export default function SalesPage() {
                 Xuất
               </span>
             </Button>
-            <Button size="sm" className="h-8 gap-1" onClick={handleAddSale}>
+            <Button size="sm" className="h-8 gap-1" onClick={handleAddSale} disabled={isLoading}>
               <PlusCircle className="h-3.5 w-3.5" />
               <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                Tạo đơn hàng
+                {isLoading ? 'Đang tải...' : 'Tạo đơn hàng'}
               </span>
             </Button>
           </div>
@@ -213,3 +244,5 @@ export default function SalesPage() {
     </>
   )
 }
+
+    
