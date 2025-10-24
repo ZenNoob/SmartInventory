@@ -3,6 +3,8 @@
 import {
   MoreHorizontal,
   PlusCircle,
+  Search,
+  ListFilter,
 } from "lucide-react"
 
 import {
@@ -29,6 +31,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -42,11 +46,12 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase"
 import { collection, query, where } from "firebase/firestore"
 import { AppUser } from "@/lib/types"
 import { UserForm } from "./components/user-form"
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useUserRole } from "@/hooks/use-user-role"
 import Link from "next/link"
 import { deleteUser } from "./actions"
@@ -92,10 +97,22 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<AppUser | undefined>(undefined);
   const [userToDelete, setUserToDelete] = useState<AppUser | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [roleFilter, setRoleFilter] = useState<AppUser['role'] | 'all'>('all');
 
   const isLoading = isUsersLoading || isAdminLoading || isRoleLoading;
   
-  // Allow access if the user's role is 'admin' OR if the `admins` collection is empty.
+  const filteredUsers = useMemo(() => {
+    return users?.filter(user => {
+      const term = searchTerm.toLowerCase();
+      const roleMatch = roleFilter === 'all' || user.role === roleFilter;
+      const searchMatch = term === '' || 
+                          user.email.toLowerCase().includes(term) || 
+                          (user.displayName && user.displayName.toLowerCase().includes(term));
+      return roleMatch && searchMatch;
+    });
+  }, [users, searchTerm, roleFilter]);
+
   const canAccess = role === 'admin' || (!isLoading && admins?.length === 0);
   
   const handleAddUser = () => {
@@ -183,28 +200,57 @@ export default function UsersPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="flex items-center gap-2 mb-4">
-        <h1 className="text-2xl font-semibold">Quản lý người dùng</h1>
-        <div className="ml-auto flex items-center gap-2">
-          <Button size="sm" className="h-8 gap-1" onClick={handleAddUser}>
-            <PlusCircle className="h-3.5 w-3.5" />
-            <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-              Thêm người dùng
-            </span>
-          </Button>
-        </div>
-      </div>
       <Card>
         <CardHeader>
           <CardTitle>Người dùng</CardTitle>
           <CardDescription>
-            Danh sách tất cả người dùng trong hệ thống của bạn.
+            Quản lý người dùng trong hệ thống của bạn.
             {admins?.length === 0 && (
                <p className="text-destructive text-sm mt-2">
                  Chưa có quản trị viên nào. Hãy thêm một người dùng có vai trò 'Quản trị viên' để bảo mật trang này.
                </p>
             )}
           </CardDescription>
+          <div className="flex items-center gap-4 pt-4">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Tìm theo tên, email..."
+                className="w-full rounded-lg bg-background pl-8 md:w-80"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-10 gap-1">
+                  <ListFilter className="h-3.5 w-3.5" />
+                  <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                    Lọc vai trò
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Lọc theo vai trò</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuRadioGroup value={roleFilter} onValueChange={(value) => setRoleFilter(value as AppUser['role'] | 'all')}>
+                  <DropdownMenuRadioItem value="all">Tất cả</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="admin">Quản trị viên</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="accountant">Kế toán</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="inventory_manager">Quản lý kho</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <div className="ml-auto flex items-center gap-2">
+              <Button size="sm" className="h-10 gap-1" onClick={handleAddUser}>
+                <PlusCircle className="h-3.5 w-3.5" />
+                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                  Thêm người dùng
+                </span>
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -225,7 +271,7 @@ export default function UsersPage() {
                   <TableCell colSpan={5} className="text-center">Đang tải...</TableCell>
                 </TableRow>
               )}
-              {!isLoading && users?.map((user, index) => {
+              {!isLoading && filteredUsers?.map((user, index) => {
                 const isCurrentUser = user.id === currentUser?.uid;
                 return (
                   <TableRow key={user.id}>
@@ -258,7 +304,7 @@ export default function UsersPage() {
                           <DropdownMenuItem
                             className="text-destructive"
                             onClick={() => setUserToDelete(user)}
-                            disabled={isCurrentUser}
+                            disabled={isCurrentUser || (user.role === 'admin' && admins?.length === 1)}
                           >
                             Xóa
                           </DropdownMenuItem>
@@ -268,12 +314,19 @@ export default function UsersPage() {
                   </TableRow>
                 );
               })}
+               {!isLoading && filteredUsers?.length === 0 && (
+                <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                        Không tìm thấy người dùng nào.
+                    </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
         <CardFooter>
           <div className="text-xs text-muted-foreground">
-            Hiển thị <strong>1-{users?.length || 0}</strong> trên <strong>{users?.length || 0}</strong> người dùng
+            Hiển thị <strong>{filteredUsers?.length || 0}</strong> trên <strong>{users?.length || 0}</strong> người dùng
           </div>
         </CardFooter>
       </Card>
