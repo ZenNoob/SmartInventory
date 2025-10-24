@@ -80,18 +80,23 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap }: Sa
       
       const canvasWidth = canvas.width;
       const canvasHeight = canvas.height;
+      
+      const canvasAspectRatio = canvasWidth / canvasHeight;
+      let finalWidth, finalHeight;
 
-      const ratio = canvasWidth / canvasHeight;
-      
-      const finalWidth = pdfWidth;
-      const finalHeight = finalWidth / ratio;
-      
-      let y = 0;
-      if (finalHeight > pdfHeight) {
-          y = (pdfHeight - finalHeight) / 2;
+      if (canvasAspectRatio > (pdfWidth/pdfHeight)) {
+          finalWidth = pdfWidth;
+          finalHeight = pdfWidth / canvasAspectRatio;
+      } else {
+          finalHeight = pdfHeight;
+          finalWidth = pdfHeight * canvasAspectRatio;
       }
 
-      pdf.addImage(imgData, "PNG", 0, y, finalWidth, finalHeight);
+      let x = (pdfWidth - finalWidth) / 2;
+      let y = (pdfHeight - finalHeight) / 2;
+
+
+      pdf.addImage(imgData, "PNG", x, y, finalWidth, finalHeight);
       pdf.save(`HD-${sale.id.slice(-6).toUpperCase()}.pdf`);
     });
   };
@@ -193,6 +198,16 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap }: Sa
                     <TableRow>
                         <TableCell colSpan={6} className="text-right font-medium">Tổng tiền hàng</TableCell>
                         <TableCell className="text-right font-semibold">{formatCurrency(sale.totalAmount)}</TableCell>
+                    </TableRow>
+                    {sale.discount && sale.discount > 0 ? (
+                        <TableRow>
+                            <TableCell colSpan={6} className="text-right font-medium">Giảm giá</TableCell>
+                            <TableCell className="text-right font-semibold">-{formatCurrency(sale.discount)}</TableCell>
+                        </TableRow>
+                    ) : null}
+                     <TableRow>
+                        <TableCell colSpan={6} className="text-right font-medium">Tổng cộng</TableCell>
+                        <TableCell className="text-right font-semibold">{formatCurrency(sale.finalAmount)}</TableCell>
                     </TableRow>
                     <TableRow>
                         <TableCell colSpan={6} className="text-right font-medium">Nợ cũ</TableCell>
