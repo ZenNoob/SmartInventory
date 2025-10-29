@@ -32,7 +32,8 @@ async function getNextOrderNumber(firestore: FirebaseFirestore.Firestore, transa
 
 
 export async function createPurchaseOrder(
-  order: Omit<PurchaseOrder, 'id' | 'orderNumber'>
+  order: Omit<PurchaseOrder, 'id' | 'orderNumber' | 'createdAt'>,
+  items: PurchaseOrderItem[]
 ): Promise<{ success: boolean; error?: string; purchaseOrderId?: string }> {
   const { firestore } = await getAdminServices();
 
@@ -45,26 +46,15 @@ export async function createPurchaseOrder(
       const purchaseOrderRef = firestore.collection('purchase_orders').doc();
       const newPurchaseOrder: PurchaseOrder = {
         ...order,
+        items: items, // Embed items directly
         id: purchaseOrderRef.id,
         orderNumber,
         createdAt: FieldValue.serverTimestamp(),
       };
       transaction.set(purchaseOrderRef, newPurchaseOrder);
 
-      // 3. Create purchase_order_items subcollection and update product lots
-      const itemsRef = purchaseOrderRef.collection('purchase_order_items');
-      const productUpdatePromises: Promise<void>[] = [];
-
-      for (const item of order.items) {
-        const itemRef = itemsRef.doc();
-        const newItem: PurchaseOrderItem = {
-            ...item,
-            id: itemRef.id,
-            purchaseOrderId: purchaseOrderRef.id
-        }
-        transaction.set(itemRef, newItem);
-
-        // Prepare to update the corresponding product's purchaseLots array
+      // 3. Update product lots
+      for (const item of items) {
         const productRef = firestore.collection('products').doc(item.productId);
         const newPurchaseLot: PurchaseLot = {
             importDate: order.importDate,
@@ -86,5 +76,64 @@ export async function createPurchaseOrder(
   } catch (error: any) {
     console.error("Error creating purchase order:", error);
     return { success: false, error: error.message || 'Không thể tạo đơn nhập hàng.' };
+  }
+}
+
+export async function updatePurchaseOrder(
+  orderId: string,
+  orderUpdate: Omit<PurchaseOrder, 'id' | 'orderNumber' | 'createdAt'>,
+  itemsUpdate: PurchaseOrderItem[]
+): Promise<{ success: boolean; error?: string }> {
+  const { firestore } = await getAdminServices();
+  const purchaseOrderRef = firestore.collection('purchase_orders').doc(orderId);
+
+  try {
+    await firestore.runTransaction(async (transaction) => {
+      // 1. Get the original purchase order
+      const originalOrderDoc = await transaction.get(purchaseOrderRef);
+      if (!originalOrderDoc.exists) {
+        throw new Error("Không tìm thấy đơn nhập hàng để cập nhật.");
+      }
+      const originalOrder = originalOrderDoc.data() as PurchaseOrder;
+
+      // 2. Remove the old purchase lots from each affected product
+      for (const originalItem of originalOrder.items) {
+        const productRef = firestore.collection('products').doc(originalItem.productId);
+        const oldPurchaseLot: PurchaseLot = {
+          importDate: originalOrder.importDate,
+          quantity: originalItem.quantity,
+          cost: originalItem.cost,
+          unitId: originalItem.unitId,
+        };
+        transaction.update(productRef, {
+          purchaseLots: FieldValue.arrayRemove(oldPurchaseLot),
+        });
+      }
+
+      // 3. Add the new purchase lots to each affected product
+      for (const updatedItem of itemsUpdate) {
+        const productRef = firestore.collection('products').doc(updatedItem.productId);
+        const newPurchaseLot: PurchaseLot = {
+          importDate: orderUpdate.importDate,
+          quantity: updatedItem.quantity,
+          cost: updatedItem.cost,
+          unitId: updatedItem.unitId,
+        };
+        transaction.update(productRef, {
+          purchaseLots: FieldValue.arrayUnion(newPurchaseLot),
+        });
+      }
+
+      // 4. Update the main purchase order document
+      transaction.update(purchaseOrderRef, {
+        ...orderUpdate,
+        items: itemsUpdate, // Update the embedded items
+      });
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error updating purchase order:", error);
+    return { success: false, error: error.message || 'Không thể cập nhật đơn nhập hàng.' };
   }
 }

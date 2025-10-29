@@ -4,7 +4,7 @@ import { useRef } from 'react'
 import Link from "next/link"
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
-import { ChevronLeft, File, Printer } from "lucide-react"
+import { ChevronLeft, File, Printer, Pencil } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -114,6 +114,12 @@ export function PurchaseOrderInvoice({ purchaseOrder, items, productsMap, unitsM
           </Link>
         </Button>
         <div className="ml-auto flex items-center gap-2">
+           <Button variant="outline" size="sm" asChild>
+              <Link href={`/purchases/${purchaseOrder.id}/edit`}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Sửa phiếu
+              </Link>
+            </Button>
           <Button variant="outline" size="sm" onClick={handleExportPDF}>
             <File className="mr-2 h-4 w-4" />
             Xuất PDF
@@ -124,7 +130,7 @@ export function PurchaseOrderInvoice({ purchaseOrder, items, productsMap, unitsM
           </Button>
         </div>
       </div>
-        <Card className="p-6 sm:p-8 invoice-card" ref={invoiceRef}>
+        <Card className="p-6 sm:p-8" ref={invoiceRef}>
             <header className="flex items-start justify-between mb-8">
                 <div className="flex items-center gap-4">
                     <Logo className="h-16 w-16 text-primary" />

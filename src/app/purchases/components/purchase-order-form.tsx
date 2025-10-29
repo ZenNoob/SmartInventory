@@ -17,8 +17,6 @@ import {
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -37,7 +35,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
 import { Check, ChevronsUpDown, PlusCircle, Trash2, ChevronLeft } from 'lucide-react'
 import { cn, formatCurrency } from '@/lib/utils'
-import { createPurchaseOrder } from '../actions'
+import { createPurchaseOrder, updatePurchaseOrder } from '../actions'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import Link from 'next/link'
@@ -93,23 +91,38 @@ export function PurchaseOrderForm({ products, units, allSalesItems, purchaseOrde
   const { toast } = useToast();
   const router = useRouter();
   const [productSearchOpen, setProductSearchOpen] = useState(false);
+  const isEditMode = !!purchaseOrder;
 
   const unitsMap = useMemo(() => new Map(units.map(u => [u.id, u])), [units]);
   const productsMap = useMemo(() => new Map(products.map(p => [p.id, p])), [products]);
 
   const form = useForm<PurchaseOrderFormValues>({
     resolver: zodResolver(purchaseOrderSchema),
-    defaultValues: {
+    defaultValues: isEditMode ? {
+        importDate: new Date(purchaseOrder.importDate).toISOString().split('T')[0],
+        notes: purchaseOrder.notes || '',
+        items: purchaseOrder.items || []
+    } : {
       importDate: new Date().toISOString().split('T')[0],
       items: [],
       notes: '',
     },
   });
   
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
     name: "items"
   });
+
+  useEffect(() => {
+    if(isEditMode) {
+      form.reset({
+        importDate: new Date(purchaseOrder.importDate).toISOString().split('T')[0],
+        notes: purchaseOrder.notes || '',
+        items: purchaseOrder.items || []
+      })
+    }
+  }, [purchaseOrder, isEditMode, form])
   
   const getUnitInfo = useCallback((unitId: string): { baseUnit?: Unit; conversionFactor: number, name: string } => {
     const unit = unitsMap.get(unitId);
@@ -150,39 +163,47 @@ export function PurchaseOrderForm({ products, units, allSalesItems, purchaseOrde
 
   const watchedItems = form.watch("items");
 
-  const totalAmount = watchedItems.reduce((acc, item) => {
+  const totalAmount = useMemo(() => watchedItems.reduce((acc, item) => {
     if (!item.productId || item.cost === undefined || item.quantity === undefined) {
         return acc;
     }
     const product = productsMap.get(item.productId)!;
-    const { conversionFactor } = getUnitInfo(product.unitId);
+    const { conversionFactor } = getUnitInfo(item.unitId);
     const quantityInBaseUnit = (item.quantity || 0) * (conversionFactor || 1);
 
     return acc + quantityInBaseUnit * (item.cost || 0);
-  }, 0);
+  }, 0), [watchedItems, productsMap, getUnitInfo]);
 
 
   const onSubmit = async (data: PurchaseOrderFormValues) => {
-    const itemsData = data.items.map(item => {
-        const product = productsMap.get(item.productId)!;
-        const { conversionFactor } = getUnitInfo(product.unitId);
-        return {
-            ...item,
-        };
-    });
+    const itemsData: PurchaseOrderItem[] = data.items.map(item => ({
+        id: item.productId, // This is not correct but we need something here. Will be replaced by server
+        purchaseOrderId: purchaseOrder?.id || '', // same here
+        productId: item.productId,
+        productName: productsMap.get(item.productId)?.name,
+        quantity: item.quantity,
+        cost: item.cost,
+        unitId: item.unitId
+    }));
+    
+    const orderData = {
+        importDate: data.importDate,
+        notes: data.notes,
+        totalAmount: totalAmount,
+    };
+    
+    const result = isEditMode
+      ? await updatePurchaseOrder(purchaseOrder.id, orderData, itemsData)
+      : await createPurchaseOrder(orderData, itemsData);
 
-    const result = await createPurchaseOrder({
-        ...data,
-        items: itemsData,
-        totalAmount
-    });
 
     if (result.success) {
       toast({
         title: "Thành công!",
-        description: `Đã tạo đơn nhập hàng thành công.`,
+        description: `Đã ${isEditMode ? 'cập nhật' : 'tạo'} đơn nhập hàng thành công.`,
       });
       router.push('/purchases');
+      router.refresh();
     } else {
       toast({
         variant: "destructive",
@@ -225,7 +246,7 @@ export function PurchaseOrderForm({ products, units, allSalesItems, purchaseOrde
             </Button>
             <div className="flex-1">
                 <h1 className="text-2xl font-semibold tracking-tight">
-                    {purchaseOrder ? 'Chỉnh sửa đơn nhập hàng' : 'Tạo đơn nhập hàng mới'}
+                    {isEditMode ? 'Chỉnh sửa đơn nhập hàng' : 'Tạo đơn nhập hàng mới'}
                 </h1>
                 <p className="text-sm text-muted-foreground">
                     Điền thông tin để tạo một đợt nhập hàng mới cho nhiều sản phẩm.
@@ -236,7 +257,7 @@ export function PurchaseOrderForm({ products, units, allSalesItems, purchaseOrde
                     Hủy
                 </Button>
                 <Button type="submit" disabled={form.formState.isSubmitting}>
-                  {form.formState.isSubmitting ? 'Đang lưu...' : 'Lưu đơn nhập'}
+                  {form.formState.isSubmitting ? 'Đang lưu...' : (isEditMode ? 'Cập nhật đơn' : 'Lưu đơn nhập')}
                 </Button>
             </div>
         </div>
@@ -256,7 +277,9 @@ export function PurchaseOrderForm({ products, units, allSalesItems, purchaseOrde
                             const baseUnit = itemUnitInfo.baseUnit || unitsMap.get(product.unitId);
                             
                             const avgCostInfo = getAverageCost(product);
-                            const itemTotal = (watchedItems[index]?.quantity || 0) * (itemUnitInfo.conversionFactor || 1) * (watchedItems[index]?.cost || 0);
+                            
+                            const item = watchedItems[index];
+                            const lineTotal = (item?.quantity || 0) * (itemUnitInfo.conversionFactor || 1) * (item?.cost || 0);
 
                             return (
                                 <div key={field.id} className="p-4 border rounded-md relative space-y-3">
@@ -265,7 +288,7 @@ export function PurchaseOrderForm({ products, units, allSalesItems, purchaseOrde
                                         
                                         <div className="space-y-2">
                                           <FormLabel>Đơn vị tính</FormLabel>
-                                          <Input value={itemUnitInfo.name} readOnly />
+                                          <Input value={itemUnitInfo.name} readOnly disabled />
                                           {itemUnitInfo.conversionFactor && itemUnitInfo.conversionFactor > 1 && (
                                             <FormDescription>Quy cách: 1 {itemUnitInfo.name} = {itemUnitInfo.conversionFactor} {itemUnitInfo.baseUnit?.name}</FormDescription>
                                           )}
@@ -297,7 +320,7 @@ export function PurchaseOrderForm({ products, units, allSalesItems, purchaseOrde
                                             )}
                                         />
                                     </div>
-                                    <p className="text-right text-sm font-medium">Thành tiền: {formatCurrency(itemTotal)}</p>
+                                    <p className="text-right text-sm font-medium">Thành tiền: {formatCurrency(lineTotal)}</p>
                                      <Button
                                         type="button"
                                         variant="ghost"
@@ -359,6 +382,19 @@ export function PurchaseOrderForm({ products, units, allSalesItems, purchaseOrde
                                 <FormLabel>Ngày nhập hàng</FormLabel>
                                 <FormControl>
                                     <Input type="date" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                         />
+                         <FormField
+                            control={form.control}
+                            name="notes"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Ghi chú</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="Thêm ghi chú..." {...field} />
                                 </FormControl>
                                 <FormMessage />
                                 </FormItem>

@@ -200,6 +200,9 @@ export default function PurchasesPage() {
                           <DropdownMenuItem asChild>
                             <Link href={`/purchases/${order.id}`}>Xem chi tiết</Link>
                           </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                             <Link href={`/purchases/${order.id}/edit`}>Sửa</Link>
+                          </DropdownMenuItem>
                           {/* <DropdownMenuItem className="text-destructive">Xóa</DropdownMenuItem> */}
                         </DropdownMenuContent>
                       </DropdownMenu>
