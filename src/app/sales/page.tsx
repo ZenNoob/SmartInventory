@@ -14,6 +14,7 @@ import {
   ArrowDown,
   ChevronsUpDown,
   Check,
+  Undo2,
 } from "lucide-react"
 import * as xlsx from 'xlsx';
 
@@ -70,6 +71,12 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -555,90 +562,107 @@ export default function SalesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isLoading && <TableRow><TableCell colSpan={7} className="text-center h-24">Đang tải...</TableCell></TableRow>}
-                  {!isLoading && sortedSales?.map((sale, index) => {
-                    const customer = customers?.find(c => c.id === sale.customerId);
-                    return (
-                      <TableRow key={sale.id}>
-                        <TableCell className="font-medium">{index + 1}</TableCell>
-                        <TableCell className="font-medium">{sale.invoiceNumber}</TableCell>
-                        <TableCell>{customer?.name || 'Khách lẻ'}</TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          {new Date(sale.transactionDate).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="p-1 h-auto" disabled={isUpdatingStatus}>
-                                <Badge variant={getStatusVariant(sale.status)}>
-                                  {getStatusText(sale.status)}
-                                  <ChevronDown className="h-3 w-3 ml-1" />
-                                </Badge>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start">
-                              <DropdownMenuItem 
-                                onClick={() => handleStatusChange(sale.id, 'pending')}
-                                disabled={sale.status === 'pending' || isUpdatingStatus}
-                              >
-                                Chờ xử lý
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handleStatusChange(sale.id, 'unprinted')}
-                                disabled={sale.status === 'unprinted' || isUpdatingStatus}
-                              >
-                                Chưa in
-                              </DropdownMenuItem>
-                               <DropdownMenuItem
-                                onClick={() => handleStatusChange(sale.id, 'printed')}
-                                disabled={sale.status === 'printed' || isUpdatingStatus}
-                              >
-                                Đã in
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(sale.finalAmount)}
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                aria-haspopup="true"
-                                size="icon"
-                                variant="ghost"
-                              >
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">Chuyển đổi menu</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Hành động</DropdownMenuLabel>
-                              <DropdownMenuItem asChild>
-                                <Link href={`/sales/${sale.id}`}>Xem chi tiết</Link>
-                              </DropdownMenuItem>
-                               <DropdownMenuItem onClick={() => handleEditSale(sale)}>
-                                Sửa
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => window.open(`/sales/${sale.id}?print=true`, '_blank')}>In hóa đơn</DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-destructive" onClick={() => setSaleToDelete(sale)}>
-                                Xóa
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                  <TooltipProvider>
+                    {isLoading && <TableRow><TableCell colSpan={7} className="text-center h-24">Đang tải...</TableCell></TableRow>}
+                    {!isLoading && sortedSales?.map((sale, index) => {
+                      const customer = customers?.find(c => c.id === sale.customerId);
+                      const isReturnOrder = sale.finalAmount < 0;
+                      return (
+                        <TableRow key={sale.id}>
+                          <TableCell className="font-medium">{index + 1}</TableCell>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              {isReturnOrder && (
+                                <Tooltip>
+                                  <TooltipTrigger>
+                                    <Undo2 className="h-4 w-4 text-muted-foreground" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Đơn hàng trả</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                              {sale.invoiceNumber}
+                            </div>
+                          </TableCell>
+                          <TableCell>{customer?.name || 'Khách lẻ'}</TableCell>
+                          <TableCell className="hidden md:table-cell">
+                            {new Date(sale.transactionDate).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="p-1 h-auto" disabled={isUpdatingStatus}>
+                                  <Badge variant={getStatusVariant(sale.status)}>
+                                    {getStatusText(sale.status)}
+                                    <ChevronDown className="h-3 w-3 ml-1" />
+                                  </Badge>
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start">
+                                <DropdownMenuItem 
+                                  onClick={() => handleStatusChange(sale.id, 'pending')}
+                                  disabled={sale.status === 'pending' || isUpdatingStatus}
+                                >
+                                  Chờ xử lý
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleStatusChange(sale.id, 'unprinted')}
+                                  disabled={sale.status === 'unprinted' || isUpdatingStatus}
+                                >
+                                  Chưa in
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleStatusChange(sale.id, 'printed')}
+                                  disabled={sale.status === 'printed' || isUpdatingStatus}
+                                >
+                                  Đã in
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(sale.finalAmount)}
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  aria-haspopup="true"
+                                  size="icon"
+                                  variant="ghost"
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
+                                  <span className="sr-only">Chuyển đổi menu</span>
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Hành động</DropdownMenuLabel>
+                                <DropdownMenuItem asChild>
+                                  <Link href={`/sales/${sale.id}`}>Xem chi tiết</Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleEditSale(sale)}>
+                                  Sửa
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => window.open(`/sales/${sale.id}?print=true`, '_blank')}>In hóa đơn</DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem className="text-destructive" onClick={() => setSaleToDelete(sale)}>
+                                  Xóa
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {!isLoading && !sortedSales?.length && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center h-24">
+                          Không có đơn hàng nào phù hợp.
                         </TableCell>
                       </TableRow>
-                    );
-                  })}
-                  {!isLoading && !sortedSales?.length && (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center h-24">
-                        Không có đơn hàng nào phù hợp.
-                      </TableCell>
-                    </TableRow>
-                  )}
+                    )}
+                  </TooltipProvider>
                 </TableBody>
               </Table>
             </CardContent>
