@@ -75,9 +75,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { format } from "date-fns"
 import { cn, formatCurrency } from "@/lib/utils"
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
-import { Customer, Sale, Product, Unit, SalesItem, Payment } from "@/lib/types"
-import { collection, query, getDocs } from "firebase/firestore"
+import { useCollection, useDoc, useFirestore, useMemoFirebase } from "@/firebase"
+import { Customer, Sale, Product, Unit, SalesItem, Payment, ThemeSettings } from "@/lib/types"
+import { collection, query, getDocs, doc } from "firebase/firestore"
 import { SaleForm } from "./components/sale-form"
 import { Input } from "@/components/ui/input"
 import { Calendar } from "@/components/ui/calendar"
@@ -153,11 +153,18 @@ export default function SalesPage() {
     return query(collection(firestore, "payments"));
   }, [firestore]);
 
+  const settingsRef = useMemoFirebase(() => {
+    if(!firestore) return null;
+    return doc(firestore, 'settings', 'theme');
+  }, [firestore])
+
+
   const { data: sales, isLoading: salesLoading } = useCollection<Sale>(salesQuery);
   const { data: customers, isLoading: customersLoading } = useCollection<Customer>(customersQuery);
   const { data: products, isLoading: productsLoading } = useCollection<Product>(productsQuery);
   const { data: units, isLoading: unitsLoading } = useCollection<Unit>(unitsQuery);
   const { data: payments, isLoading: paymentsLoading } = useCollection<Payment>(paymentsQuery);
+  const { data: settings, isLoading: settingsLoading } = useDoc<ThemeSettings>(settingsRef);
   
   const customersMap = useMemo(() => {
     if (!customers) return new Map();
@@ -259,7 +266,7 @@ export default function SalesPage() {
   }, [sortedSales]);
 
 
-  const isLoading = salesLoading || customersLoading || productsLoading || unitsLoading || salesItemsLoading || paymentsLoading;
+  const isLoading = salesLoading || customersLoading || productsLoading || unitsLoading || salesItemsLoading || paymentsLoading || settingsLoading;
 
   const handleAddSale = () => {
     setSelectedSale(undefined);
@@ -379,6 +386,7 @@ export default function SalesPage() {
         allSalesItems={allSalesItems || []}
         sales={sales || []}
         payments={payments || []}
+        settings={settings || null}
         sale={selectedSale}
       />
       <AlertDialog open={!!saleToDelete} onOpenChange={(open) => !open && setSaleToDelete(null)}>

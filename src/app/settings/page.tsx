@@ -39,6 +39,7 @@ const themeFormSchema = z.object({
   accent: z.string().min(1, "Bắt buộc"),
   accentForeground: z.string().min(1, "Bắt buộc"),
   lowStockThreshold: z.coerce.number().min(0, "Ngưỡng phải là số dương."),
+  vatRate: z.coerce.number().min(0, "Tỷ lệ VAT phải là số không âm.").optional(),
   companyName: z.string().optional(),
   companyBusinessLine: z.string().optional(),
   companyAddress: z.string().optional(),
@@ -69,6 +70,7 @@ export default function SettingsPage() {
       accent: '#ff6600',
       accentForeground: '#111827',
       lowStockThreshold: 10,
+      vatRate: 0,
       companyName: '',
       companyBusinessLine: '',
       companyAddress: '',
@@ -86,6 +88,7 @@ export default function SettingsPage() {
         accent: hslToHex(themeSettings.accent),
         accentForeground: hslToHex(themeSettings.accentForeground),
         lowStockThreshold: themeSettings.lowStockThreshold || 10,
+        vatRate: themeSettings.vatRate || 0,
         companyName: themeSettings.companyName || '',
         companyBusinessLine: themeSettings.companyBusinessLine || '',
         companyAddress: themeSettings.companyAddress || '',
@@ -103,6 +106,7 @@ export default function SettingsPage() {
       accent: hexToHsl(data.accent),
       accentForeground: hexToHsl(data.accentForeground),
       lowStockThreshold: data.lowStockThreshold,
+      vatRate: data.vatRate,
       companyName: data.companyName,
       companyBusinessLine: data.companyBusinessLine,
       companyAddress: data.companyAddress,
@@ -124,7 +128,7 @@ export default function SettingsPage() {
     }
   };
 
-  const ColorField = ({ name, label }: { name: keyof Omit<ThemeFormValues, 'lowStockThreshold' | 'companyName' | 'companyBusinessLine' | 'companyAddress' | 'companyPhone'>, label: string }) => (
+  const ColorField = ({ name, label }: { name: keyof Omit<ThemeFormValues, 'lowStockThreshold' | 'vatRate' |'companyName' | 'companyBusinessLine' | 'companyAddress' | 'companyPhone'>, label: string }) => (
     <FormField
       control={form.control}
       name={name}
@@ -251,6 +255,24 @@ export default function SettingsPage() {
                             <FormLabel>Ngưỡng cảnh báo tồn kho</FormLabel>
                             <FormControl>
                                 <Input type="number" placeholder="Ví dụ: 10" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                </div>
+                <Separator />
+                <div>
+                     <h3 className="text-lg font-medium">Thuế</h3>
+                    <p className="text-sm text-muted-foreground mb-6">Cài đặt liên quan đến thuế giá trị gia tăng (VAT).</p>
+                     <FormField
+                        control={form.control}
+                        name="vatRate"
+                        render={({ field }) => (
+                            <FormItem className="max-w-xs">
+                            <FormLabel>Tỷ lệ thuế VAT (%)</FormLabel>
+                            <FormControl>
+                                <Input type="number" placeholder="Ví dụ: 10" {...field} value={field.value ?? ''} />
                             </FormControl>
                             <FormMessage />
                             </FormItem>

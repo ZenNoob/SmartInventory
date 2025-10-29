@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Input } from "@/components/ui/input"
-import { Customer, Product, Unit, SalesItem, Sale, Payment } from '@/lib/types'
+import { Customer, Product, Unit, SalesItem, Sale, Payment, ThemeSettings } from '@/lib/types'
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
 import { Check, ChevronsUpDown, PlusCircle, Trash2 } from 'lucide-react'
@@ -71,6 +71,7 @@ interface SaleFormProps {
   allSalesItems: SalesItem[];
   sales: Sale[];
   payments: Payment[];
+  settings: ThemeSettings | null;
   sale?: Sale;
 }
 
@@ -98,7 +99,7 @@ const FormattedNumberInput = ({ value, onChange, ...props }: { value: number; on
 };
 
 
-export function SaleForm({ isOpen, onOpenChange, customers, products, units, allSalesItems, sales, payments, sale }: SaleFormProps) {
+export function SaleForm({ isOpen, onOpenChange, customers, products, units, allSalesItems, sales, payments, settings, sale }: SaleFormProps) {
   const { toast } = useToast();
   const router = useRouter();
   const [productSearchOpen, setProductSearchOpen] = useState(false);
@@ -151,7 +152,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
   
   const getAverageCost = useCallback((productId: string) => {
     const product = productsMap.get(productId);
-    if (!product || !product.purchaseLots || !product.purchaseLots.length === 0 || !product.unitId) return { avgCost: 0, baseUnit: undefined};
+    if (!product || !product.purchaseLots || product.purchaseLots.length === 0 || !product.unitId) return { avgCost: 0, baseUnit: undefined};
 
     let totalCost = 0;
     let totalQuantityInBaseUnit = 0;
@@ -303,7 +304,11 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
     ? (totalAmount * discountValue) / 100
     : discountValue;
     
-  const finalAmount = totalAmount - calculatedDiscount;
+  const amountAfterDiscount = totalAmount - calculatedDiscount;
+  const vatRate = settings?.vatRate || 0;
+  const vatAmount = (amountAfterDiscount * vatRate) / 100;
+  const finalAmount = amountAfterDiscount + vatAmount;
+
   const previousDebt = customerDebts.get(selectedCustomerId) || 0;
   const totalPayable = finalAmount + previousDebt;
   const remainingDebt = totalPayable - (customerPayment || 0);
@@ -325,6 +330,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
         customerId: data.customerId,
         transactionDate: new Date(data.transactionDate).toISOString(),
         totalAmount: totalAmount,
+        vatAmount: vatAmount,
         finalAmount: finalAmount,
         discount: calculatedDiscount,
         discountType: data.discountType,
@@ -618,8 +624,14 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
                                 </FormItem>
                             )}
                         />
+                        {vatRate > 0 && (
+                        <div className="flex justify-between items-center">
+                            <span>Thuế VAT ({vatRate}%):</span>
+                            <span className="font-semibold">{formatCurrency(vatAmount)}</span>
+                        </div>
+                        )}
                         <div className="flex justify-between items-center font-bold text-lg text-primary">
-                          <span>Thanh toán:</span>
+                          <span>Tổng cộng:</span>
                           <span>{formatCurrency(finalAmount)}</span>
                       </div>
                     </div>
@@ -630,7 +642,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
                           <span className="font-semibold">{formatCurrency(previousDebt)}</span>
                       </div>
                       <div className="flex justify-between items-center font-bold">
-                          <span>Tổng cộng:</span>
+                          <span>Tổng phải trả:</span>
                           <span>{formatCurrency(totalPayable)}</span>
                       </div>
                       <FormField

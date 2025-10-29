@@ -65,8 +65,9 @@ export type Sale = {
   customerId: string;
   transactionDate: string; // ISO 8601 date string
   status: 'pending' | 'unprinted' | 'printed';
-  totalAmount: number; // Gross total before discount
-  finalAmount: number; // Net total after discount
+  totalAmount: number; // Gross total before discount and VAT
+  vatAmount?: number; // VAT amount
+  finalAmount: number; // Net total after discount and VAT
   discount?: number;
   discountType?: 'percentage' | 'amount';
   discountValue?: number;
@@ -98,6 +99,7 @@ export type ThemeSettings = {
   accent: string;
   accentForeground: string;
   lowStockThreshold: number;
+  vatRate?: number;
   companyName?: string;
   companyBusinessLine?: string;
   companyAddress?: string;

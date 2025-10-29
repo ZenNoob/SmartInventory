@@ -278,7 +278,15 @@
         },
         "totalAmount": {
           "type": "number",
-          "description": "Total amount of the sales transaction."
+          "description": "Total amount of the sales transaction before discount and VAT."
+        },
+        "vatAmount": {
+            "type": "number",
+            "description": "VAT amount for the sales transaction."
+        },
+        "finalAmount": {
+            "type": "number",
+            "description": "Total amount of the sales transaction after discount and VAT."
         },
         "discount": {
           "type": "number",
@@ -291,6 +299,7 @@
         "customerId",
         "transactionDate",
         "totalAmount",
+        "finalAmount",
         "status"
       ]
     },
@@ -422,6 +431,10 @@
         "lowStockThreshold": {
           "type": "number",
           "description": "The threshold below which a product is considered to have low stock."
+        },
+        "vatRate": {
+            "type": "number",
+            "description": "The Value Added Tax rate in percentage."
         },
         "companyName": {
           "type": "string",
