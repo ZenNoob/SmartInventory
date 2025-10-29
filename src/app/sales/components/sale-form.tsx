@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
@@ -46,7 +47,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 const saleItemSchema = z.object({
   productId: z.string().min(1, "Vui lòng chọn sản phẩm."),
-  quantity: z.coerce.number().min(0.01, "Số lượng phải lớn hơn 0."),
+  quantity: z.coerce.number().refine(val => val !== 0, "Số lượng không được bằng 0."),
   price: z.coerce.number().min(0, "Giá phải là số không âm."),
 });
 
@@ -84,13 +85,14 @@ const FormattedNumberInput = ({ value, onChange, ...props }: { value: number; on
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.replace(/,/g, '');
-    const numberValue = parseInt(rawValue, 10);
+    // Allow negative sign
+    const numberValue = parseFloat(rawValue);
 
     if (!isNaN(numberValue)) {
       setDisplayValue(numberValue.toLocaleString('en-US'));
       onChange(numberValue);
-    } else if (rawValue === '') {
-      setDisplayValue('');
+    } else if (e.target.value === '' || e.target.value === '-') {
+      setDisplayValue(e.target.value);
       onChange(0);
     }
   };
@@ -201,6 +203,10 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
       if (!item.productId) return;
       const product = productsMap.get(item.productId);
       if (!product) return;
+      
+      // For returns (negative quantity), we don't check stock
+      if (item.quantity <= 0) return;
+
       const { stockInBaseUnit } = getStockInfo(item.productId);
       const { conversionFactor } = getUnitInfo(product.unitId);
       const requestedQuantityInBase = item.quantity * (conversionFactor || 1);

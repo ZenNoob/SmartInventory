@@ -262,7 +262,7 @@ export default function ProductsPage() {
     const totalSoldInBaseUnit = allSalesItems
       .filter(item => item.productId === product.id)
       .reduce((acc, item) => {
-         return acc + item.quantity;
+         return acc + item.quantity; // a return will have a negative quantity
       }, 0);
 
     const stockInBaseUnit = totalImportedInBaseUnit - totalSoldInBaseUnit;
