@@ -33,9 +33,10 @@ export function Header() {
          <SidebarTrigger className="sm:hidden">
           <PanelLeft />
         </SidebarTrigger>
+      </div>
+      <div className="flex-1">
         <CommandMenu />
       </div>
-      
       <div className="ml-auto">
         <UserNav />
       </div>

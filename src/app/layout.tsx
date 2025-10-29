@@ -11,7 +11,6 @@ import { Toaster } from '@/components/ui/toaster'
 import { FirebaseClientProvider } from '@/firebase'
 import GlobalError from './global-error'
 import { getThemeSettings } from './settings/actions'
-import { CommandMenu } from '@/components/command-menu'
 
 
 const ptSans = PT_Sans({
