@@ -4,11 +4,11 @@ import { PanelLeft, Search } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { useUser } from '@/firebase'
 import { UserNav } from './user-nav'
+import { CommandMenu } from './command-menu'
 
 export function Header() {
   const pathname = usePathname()
@@ -33,14 +33,7 @@ export function Header() {
          <SidebarTrigger className="sm:hidden">
           <PanelLeft />
         </SidebarTrigger>
-        <div className="relative flex-1 md:grow-0">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Tìm kiếm..."
-            className="w-full rounded-lg bg-background pl-8 md:w-[200px] lg:w-[320px]"
-          />
-        </div>
+        <CommandMenu />
       </div>
       
       <div className="ml-auto">
