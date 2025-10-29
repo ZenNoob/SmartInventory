@@ -57,7 +57,7 @@ export function PurchaseOrderInvoice({ purchaseOrder, items, productsMap, unitsM
     links.forEach(link => link.style.display = 'none');
     buttons.forEach(btn => btn.style.display = 'none');
 
-    html2canvas(input.querySelector('.invoice-card') as HTMLElement, {
+    html2canvas(input, {
       scale: 2,
       useCORS: true,
     }).then((canvas) => {
