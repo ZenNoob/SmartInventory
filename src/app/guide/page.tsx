@@ -11,7 +11,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { List, ListChecks, ListPlus } from "lucide-react"
+import { List, ListChecks, ListPlus, Truck } from "lucide-react"
 
 export default function GuidePage() {
   return (
@@ -85,6 +85,35 @@ export default function GuidePage() {
                     <li>Hệ thống tự động tính toán tồn kho dựa trên tổng lượng hàng đã nhập và tổng lượng hàng đã bán.</li>
                     <li>Cột "Tồn kho" trên danh sách sản phẩm hiển thị số lượng còn lại theo đơn vị tính chính của sản phẩm đó.</li>
                   </ul>
+                </AccordionContent>
+              </AccordionItem>
+              <AccordionItem value="item-3">
+                <AccordionTrigger>
+                  <div className="flex items-center gap-2">
+                    <Truck className="h-5 w-5 text-primary" />
+                    <span>Bước 3: Quản lý Nhập hàng (Phiếu nhập kho)</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="prose prose-sm max-w-none pl-7 text-muted-foreground">
+                  <p>Trang <strong>Nhập hàng</strong> cho phép bạn tạo các đơn nhập hàng lớn, chứa nhiều sản phẩm khác nhau trong cùng một lần nhập.</p>
+                  <p><strong>Tạo đơn nhập hàng:</strong></p>
+                  <ul>
+                    <li>Truy cập trang <strong>Nhập hàng</strong> từ menu và nhấn "Tạo đơn nhập".</li>
+                    <li>Điền các thông tin chung như Ngày nhập hàng và Ghi chú.</li>
+                    <li>Nhấn "Thêm sản phẩm" để tìm và chọn các sản phẩm cần nhập vào đơn.</li>
+                    <li>Với mỗi sản phẩm, nhập Số lượng và Giá nhập (trên một đơn vị cơ sở).</li>
+                    <li>Sau khi thêm tất cả sản phẩm, nhấn "Lưu đơn nhập" để hoàn tất.</li>
+                  </ul>
+                   <p><strong>Cập nhật tồn kho:</strong></p>
+                   <ul>
+                    <li>Khi một đơn nhập hàng được tạo hoặc cập nhật, hệ thống sẽ tự động thêm một "lô hàng" tương ứng vào mỗi sản phẩm trong đơn.</li>
+                    <li>Tồn kho của sản phẩm sẽ được cập nhật ngay lập tức.</li>
+                   </ul>
+                   <p><strong>Quản lý phiếu nhập:</strong></p>
+                   <ul>
+                    <li>Tại trang danh sách, bạn có thể xem lại, sửa hoặc xóa các phiếu nhập hàng đã tạo.</li>
+                    <li>Việc sửa/xóa phiếu nhập cũng sẽ tự động điều chỉnh lại tồn kho sản phẩm cho chính xác.</li>
+                   </ul>
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
