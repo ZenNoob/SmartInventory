@@ -15,6 +15,7 @@ import {
   Users2,
   Folder,
   Scale,
+  Truck,
 } from "lucide-react"
 
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
@@ -30,7 +31,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command"
-import type { Customer, Product, Sale } from "@/lib/types"
+import type { Customer, Product, PurchaseOrder, Sale } from "@/lib/types"
 
 export function CommandMenu() {
   const router = useRouter()
@@ -61,10 +62,12 @@ export function CommandMenu() {
   const customersQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "customers")) : null, [firestore]);
   const productsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "products")) : null, [firestore]);
   const salesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "sales_transactions")) : null, [firestore]);
+  const purchasesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "purchase_orders")) : null, [firestore]);
 
   const { data: customers } = useCollection<Customer>(customersQuery);
   const { data: products } = useCollection<Product>(productsQuery);
   const { data: sales } = useCollection<Sale>(salesQuery);
+  const { data: purchases } = useCollection<PurchaseOrder>(purchasesQuery);
 
   const runCommand = React.useCallback((command: () => unknown) => {
     setOpen(false)
@@ -100,6 +103,10 @@ export function CommandMenu() {
             <CommandItem onSelect={() => runCommand(() => router.push('/products'))}>
               <Package className="mr-2 h-4 w-4" />
               <span>Sản phẩm</span>
+            </CommandItem>
+            <CommandItem onSelect={() => runCommand(() => router.push('/purchases'))}>
+              <Truck className="mr-2 h-4 w-4" />
+              <span>Nhập hàng</span>
             </CommandItem>
             <CommandItem onSelect={() => runCommand(() => router.push('/customers'))}>
               <Users className="mr-2 h-4 w-4" />
@@ -151,7 +158,7 @@ export function CommandMenu() {
           {sales && sales.length > 0 && (
             <>
                 <CommandSeparator />
-                <CommandGroup heading="Đơn hàng">
+                <CommandGroup heading="Đơn hàng bán">
                 {sales.slice(0, 5).map((sale) => (
                     <CommandItem
                     key={sale.id}
@@ -160,6 +167,23 @@ export function CommandMenu() {
                     >
                     <File className="mr-2 h-4 w-4" />
                     <span>{sale.invoiceNumber}</span>
+                    </CommandItem>
+                ))}
+                </CommandGroup>
+            </>
+          )}
+           {purchases && purchases.length > 0 && (
+            <>
+                <CommandSeparator />
+                <CommandGroup heading="Đơn hàng nhập">
+                {purchases.slice(0, 5).map((purchase) => (
+                    <CommandItem
+                    key={purchase.id}
+                    value={`Phiếu nhập ${purchase.orderNumber}`}
+                    onSelect={() => runCommand(() => router.push(`/purchases/${purchase.id}`))}
+                    >
+                    <File className="mr-2 h-4 w-4" />
+                    <span>{purchase.orderNumber}</span>
                     </CommandItem>
                 ))}
                 </CommandGroup>
