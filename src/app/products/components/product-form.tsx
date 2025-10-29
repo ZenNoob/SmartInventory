@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
@@ -75,6 +76,7 @@ const productFormSchema = z.object({
   name: z.string().min(1, "Tên sản phẩm không được để trống."),
   categoryId: z.string().min(1, "Danh mục là bắt buộc."),
   unitId: z.string().min(1, "Đơn vị tính là bắt buộc."),
+  sellingPrice: z.coerce.number().optional(),
   status: z.enum(['active', 'draft', 'archived']),
   lowStockThreshold: z.coerce.number().optional(),
   purchaseLots: z.array(purchaseLotSchema).optional(),
@@ -118,6 +120,7 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
         name: product.name, 
         categoryId: product.categoryId,
         unitId: product.unitId,
+        sellingPrice: product.sellingPrice,
         status: product.status,
         lowStockThreshold: product.lowStockThreshold,
         purchaseLots: product.purchaseLots.map(lot => ({
@@ -128,6 +131,7 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
         name: '', 
         categoryId: '',
         unitId: '',
+        sellingPrice: 0,
         status: 'draft',
         purchaseLots: []
       };
@@ -156,6 +160,7 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
                     name: product.name,
                     categoryId: product.categoryId,
                     unitId: product.unitId,
+                    sellingPrice: product.sellingPrice,
                     status: product.status,
                     lowStockThreshold: product.lowStockThreshold,
                     purchaseLots: product.purchaseLots && product.purchaseLots.length > 0 ? product.purchaseLots.map(lot => ({...lot, unitId: lot.unitId })) : []
@@ -164,6 +169,7 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
                     name: '',
                     categoryId: '',
                     unitId: '',
+                    sellingPrice: 0,
                     status: 'draft',
                     purchaseLots: []
                   }
@@ -314,7 +320,20 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
                   )}
                 />
                </div>
-
+                <FormField
+                    control={form.control}
+                    name="sellingPrice"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Giá bán đề xuất (trên 1 {mainProductBaseUnit?.name || 'đơn vị cơ sở'})</FormLabel>
+                            <FormControl>
+                                <FormattedNumberInput {...field} />
+                            </FormControl>
+                             <FormDescription>Giá này sẽ được tự động điền khi tạo đơn hàng mới.</FormDescription>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
 
               <Separator className='my-6'/>
               

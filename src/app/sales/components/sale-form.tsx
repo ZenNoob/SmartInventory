@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
@@ -367,8 +368,12 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
         });
         return;
       }
-      // Default price to 0, let user input it
-      append({ productId: product.id, quantity: 1, price: 0 });
+      // Default price to product's sellingPrice if available, otherwise 0
+      append({ 
+        productId: product.id, 
+        quantity: 1, 
+        price: product.sellingPrice || 0 
+      });
     }
   }
 
