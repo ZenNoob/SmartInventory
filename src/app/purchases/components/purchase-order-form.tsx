@@ -163,21 +163,17 @@ export function PurchaseOrderForm({ products, units, allSalesItems, purchaseOrde
 
   const watchedItems = form.watch("items");
   
-  const [totalAmount, setTotalAmount] = useState(0);
-
-  useEffect(() => {
-    const newTotal = watchedItems.reduce((acc, item) => {
+  const totalAmount = useMemo(() => {
+    return watchedItems.reduce((acc, item) => {
       if (!item.productId || item.cost === undefined || item.quantity === undefined) {
           return acc;
       }
-      const product = productsMap.get(item.productId)!;
       const { conversionFactor } = getUnitInfo(item.unitId);
       const quantityInBaseUnit = (item.quantity || 0) * (conversionFactor || 1);
 
       return acc + quantityInBaseUnit * (item.cost || 0);
     }, 0);
-    setTotalAmount(newTotal);
-  }, [watchedItems, productsMap, getUnitInfo]);
+  }, [watchedItems, getUnitInfo]);
 
 
   const onSubmit = async (data: PurchaseOrderFormValues) => {
