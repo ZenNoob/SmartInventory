@@ -170,17 +170,17 @@ export function PurchaseOrderInvoice({ purchaseOrder, items, productsMap, unitsM
                         if (!product) return null;
                         
                         const importUnitInfo = getUnitInfo(item.unitId);
-                        const baseUnitForCost = importUnitInfo.baseUnit || importUnitInfo;
+                        const baseUnitForCost = importUnitInfo.baseUnit || unitsMap.get(item.unitId);
 
                         const lineTotal = item.quantity * importUnitInfo.conversionFactor * item.cost;
 
                         return (
-                             <TableRow key={item.id}>
+                             <TableRow key={index}>
                                 <TableCell className="text-center">{index + 1}</TableCell>
                                 <TableCell className="font-medium">{product.name}</TableCell>
                                 <TableCell className="text-right">{item.quantity.toLocaleString()}</TableCell>
                                 <TableCell className="text-center">{importUnitInfo.name}</TableCell>
-                                <TableCell className="text-right">{formatCurrency(item.cost)} / {baseUnitForCost.name}</TableCell>
+                                <TableCell className="text-right">{formatCurrency(item.cost)} / {baseUnitForCost?.name}</TableCell>
                                 <TableCell className="text-right font-semibold">{formatCurrency(lineTotal)}</TableCell>
                             </TableRow>
                         )
