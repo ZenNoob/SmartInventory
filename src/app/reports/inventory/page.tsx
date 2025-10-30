@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useMemo, useCallback, useEffect } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Search, ArrowUp, ArrowDown, File, Calendar as CalendarIcon, Wrench } from "lucide-react"
 import * as xlsx from 'xlsx';
 import { DateRange } from "react-day-picker"
-import { format, startOfMonth, endOfMonth } from "date-fns"
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns"
 
 import {
   Card,
@@ -175,6 +175,28 @@ export default function InventoryReportPage() {
     }
   };
   
+  const setDatePreset = (preset: 'this_week' | 'this_month' | 'this_quarter' | 'this_year' | 'all') => {
+    const now = new Date();
+    if (preset === 'all') {
+      setDateRange(undefined);
+      return;
+    }
+    switch (preset) {
+      case 'this_week':
+        setDateRange({ from: startOfWeek(now, { weekStartsOn: 1 }), to: endOfWeek(now, { weekStartsOn: 1 }) });
+        break;
+      case 'this_month':
+        setDateRange({ from: startOfMonth(now), to: endOfMonth(now) });
+        break;
+      case 'this_quarter':
+        setDateRange({ from: startOfQuarter(now), to: endOfQuarter(now) });
+        break;
+      case 'this_year':
+        setDateRange({ from: startOfYear(now), to: endOfYear(now) });
+        break;
+    }
+  }
+
   const SortableHeader = ({ sortKey: key, children, className }: { sortKey: SortKey; children: React.ReactNode; className?: string }) => (
     <TableHead className={className}>
       <Button variant="ghost" onClick={() => handleSort(key)} className="px-2 py-1 h-auto">
@@ -241,6 +263,13 @@ export default function InventoryReportPage() {
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                    <Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} />
+                   <div className="p-2 border-t grid grid-cols-3 gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_week')}>Tuần này</Button>
+                      <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_month')}>Tháng này</Button>
+                      <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_quarter')}>Quý này</Button>
+                      <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_year')}>Năm nay</Button>
+                      <Button variant="ghost" size="sm" onClick={() => setDatePreset('all')}>Tất cả</Button>
+                  </div>
                 </PopoverContent>
               </Popover>
               <div className="relative ml-auto">
