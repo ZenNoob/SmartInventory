@@ -1,3 +1,4 @@
+
 'use client'
 
 import {
@@ -342,109 +343,6 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Inventory Dialog */}
-      <Dialog open={isInventoryDetailOpen} onOpenChange={setIsInventoryDetailOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Chi tiết tồn kho</DialogTitle>
-            <DialogDescription>
-              Danh sách sản phẩm trong kho được nhóm theo danh mục.
-            </DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="max-h-[60vh] pr-4">
-            {isLoading ? (
-              <p>Đang tải dữ liệu tồn kho...</p>
-            ) : (
-              <Accordion type="multiple" className="w-full" defaultValue={Array.from(inventoryByCategory.keys())}>
-                {categories?.filter(c => inventoryByCategory.has(c.id)).map(category => (
-                  <AccordionItem value={category.id} key={category.id}>
-                    <AccordionTrigger>{category.name} ({inventoryByCategory.get(category.id)?.length} sản phẩm)</AccordionTrigger>
-                    <AccordionContent>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Sản phẩm</TableHead>
-                            <TableHead className="text-right">Tồn kho</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {inventoryByCategory.get(category.id)?.map(({ product, stockDisplay }) => (
-                            <TableRow key={product.id}>
-                              <TableCell>
-                                <Link href={`/products?q=${product.name}`} className="font-medium hover:underline">
-                                  {product.name}
-                                </Link>
-                              </TableCell>
-                              <TableCell className="text-right">{stockDisplay}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
-            )}
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Debt Dialog */}
-      <Dialog open={isDebtDetailOpen} onOpenChange={setIsDebtDetailOpen}>
-         <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Chi tiết nợ phải thu</DialogTitle>
-            <DialogDescription>
-              Danh sách các khách hàng đang có công nợ.
-            </DialogDescription>
-          </DialogHeader>
-           <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                  type="search"
-                  placeholder="Tìm theo tên hoặc SĐT..."
-                  className="w-full rounded-lg bg-background pl-8"
-                  value={debtSearchTerm}
-                  onChange={(e) => setDebtSearchTerm(e.target.value)}
-              />
-          </div>
-          <ScrollArea className="max-h-[60vh] pr-4">
-             {isLoading ? (
-              <p>Đang tải dữ liệu công nợ...</p>
-            ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Khách hàng</TableHead>
-                      <TableHead>SĐT</TableHead>
-                      <TableHead className="text-right">Số nợ</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredCustomersWithDebt.map(customer => (
-                      <TableRow key={customer.customerId}>
-                        <TableCell>
-                          <Link href={`/customers/${customer.customerId}`} className="font-medium hover:underline">
-                            {customer.customerName}
-                          </Link>
-                        </TableCell>
-                        <TableCell>{customer.customerPhone || 'N/A'}</TableCell>
-                        <TableCell className="text-right font-semibold text-destructive">{formatCurrency(customer.debt)}</TableCell>
-                      </TableRow>
-                    ))}
-                    {filteredCustomersWithDebt.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={3} className="text-center h-24">Không có khách hàng nào đang nợ.</TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-            )}
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
-
-
       <div className="flex flex-wrap items-center gap-4">
         <h1 className="text-2xl font-semibold">Phân tích kinh doanh</h1>
         <div className="flex flex-wrap items-center gap-2 ml-auto">
@@ -495,34 +393,132 @@ export default function Dashboard() {
             </p>
           </CardContent>
         </Card>
-        <DialogTrigger asChild>
-           <Card className="cursor-pointer hover:bg-muted/50" onClick={() => setIsDebtDetailOpen(true)}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tổng nợ phải thu</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-destructive">{formatCurrency(totalDebt)}</div>
-              <p className="text-xs text-muted-foreground">
-                Trên tổng số {customersWithDebt.length} khách hàng
-              </p>
-            </CardContent>
-          </Card>
-        </DialogTrigger>
-        <DialogTrigger asChild>
-          <Card className="cursor-pointer hover:bg-muted/50" onClick={() => setIsInventoryDetailOpen(true)}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Sản phẩm trong kho</CardTitle>
-              <Boxes className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{products?.length || 0}</div>
-              <p className="text-xs text-muted-foreground">
-                Tổng số loại sản phẩm đang quản lý
-              </p>
-            </CardContent>
-          </Card>
-        </DialogTrigger>
+        <Dialog open={isDebtDetailOpen} onOpenChange={setIsDebtDetailOpen}>
+          <DialogTrigger asChild>
+            <Card className="cursor-pointer hover:bg-muted/50">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tổng nợ phải thu</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-destructive">{formatCurrency(totalDebt)}</div>
+                <p className="text-xs text-muted-foreground">
+                  Trên tổng số {customersWithDebt.length} khách hàng
+                </p>
+              </CardContent>
+            </Card>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Chi tiết nợ phải thu</DialogTitle>
+              <DialogDescription>
+                Danh sách các khách hàng đang có công nợ.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Tìm theo tên hoặc SĐT..."
+                className="w-full rounded-lg bg-background pl-8"
+                value={debtSearchTerm}
+                onChange={(e) => setDebtSearchTerm(e.target.value)}
+              />
+            </div>
+            <ScrollArea className="max-h-[60vh] pr-4">
+              {isLoading ? (
+                <p>Đang tải dữ liệu công nợ...</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Khách hàng</TableHead>
+                      <TableHead>SĐT</TableHead>
+                      <TableHead className="text-right">Số nợ</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredCustomersWithDebt.map(customer => (
+                      <TableRow key={customer.customerId}>
+                        <TableCell>
+                          <Link href={`/customers/${customer.customerId}`} className="font-medium hover:underline">
+                            {customer.customerName}
+                          </Link>
+                        </TableCell>
+                        <TableCell>{customer.customerPhone || 'N/A'}</TableCell>
+                        <TableCell className="text-right font-semibold text-destructive">{formatCurrency(customer.debt)}</TableCell>
+                      </TableRow>
+                    ))}
+                    {filteredCustomersWithDebt.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-center h-24">Không có khách hàng nào đang nợ.</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              )}
+            </ScrollArea>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={isInventoryDetailOpen} onOpenChange={setIsInventoryDetailOpen}>
+          <DialogTrigger asChild>
+            <Card className="cursor-pointer hover:bg-muted/50">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Sản phẩm trong kho</CardTitle>
+                <Boxes className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{products?.length || 0}</div>
+                <p className="text-xs text-muted-foreground">
+                  Tổng số loại sản phẩm đang quản lý
+                </p>
+              </CardContent>
+            </Card>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Chi tiết tồn kho</DialogTitle>
+              <DialogDescription>
+                Danh sách sản phẩm trong kho được nhóm theo danh mục.
+              </DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="max-h-[60vh] pr-4">
+              {isLoading ? (
+                <p>Đang tải dữ liệu tồn kho...</p>
+              ) : (
+                <Accordion type="multiple" className="w-full" defaultValue={Array.from(inventoryByCategory.keys())}>
+                  {categories?.filter(c => inventoryByCategory.has(c.id)).map(category => (
+                    <AccordionItem value={category.id} key={category.id}>
+                      <AccordionTrigger>{category.name} ({inventoryByCategory.get(category.id)?.length} sản phẩm)</AccordionTrigger>
+                      <AccordionContent>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Sản phẩm</TableHead>
+                              <TableHead className="text-right">Tồn kho</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {inventoryByCategory.get(category.id)?.map(({ product, stockDisplay }) => (
+                              <TableRow key={product.id}>
+                                <TableCell>
+                                  <Link href={`/products?q=${product.name}`} className="font-medium hover:underline">
+                                    {product.name}
+                                  </Link>
+                                </TableCell>
+                                <TableCell className="text-right">{stockDisplay}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              )}
+            </ScrollArea>
+          </DialogContent>
+        </Dialog>
       </div>
       <div className="grid gap-4 md:gap-8 lg:grid-cols-2">
         <Card className="lg:col-span-1">
