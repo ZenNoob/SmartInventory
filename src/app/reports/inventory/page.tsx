@@ -42,6 +42,8 @@ type InventoryReportItem = {
   importStock: number;
   exportStock: number;
   closingStock: number;
+  mainUnit?: Unit;
+  baseUnit?: Unit;
 };
 
 type SortKey = 'productName' | 'openingStock' | 'importStock' | 'exportStock' | 'closingStock';
@@ -109,7 +111,8 @@ export default function InventoryReportPage() {
     if (!products || !dateRange?.from) return [];
 
     return products.map(product => {
-      const { baseUnit: mainUnit } = getUnitInfo(product.unitId);
+      const unitInfo = getUnitInfo(product.unitId);
+      const baseUnit = unitInfo.baseUnit;
 
       const fromDate = dateRange.from!;
       const toDate = dateRange.to || fromDate;
@@ -139,14 +142,16 @@ export default function InventoryReportPage() {
       return {
         productId: product.id,
         productName: product.name,
-        unitName: mainUnit?.name || getUnitInfo(product.unitId).name,
+        unitName: baseUnit?.name || unitInfo.name,
         openingStock,
         importStock,
         exportStock,
         closingStock,
+        mainUnit: unitsMap.get(product.unitId),
+        baseUnit: baseUnit
       };
     });
-  }, [products, allSalesItems, salesMap, dateRange, getUnitInfo]);
+  }, [products, allSalesItems, salesMap, dateRange, getUnitInfo, unitsMap]);
 
 
   const filteredReportData = useMemo(() => {
@@ -239,13 +244,7 @@ export default function InventoryReportPage() {
   };
   
   const handleOpenAdjustment = (item: InventoryReportItem) => {
-    const product = products?.find(p => p.id === item.productId);
-    if (!product) return;
-    
-    const { baseUnit, name } = getUnitInfo(product.unitId);
-    const mainUnit = unitsMap.get(product.unitId);
-
-    setProductToAdjust({ ...item, mainUnit, baseUnit });
+    setProductToAdjust(item);
   };
 
 
@@ -257,7 +256,7 @@ export default function InventoryReportPage() {
         <InventoryAdjustmentForm
           isOpen={!!productToAdjust}
           onOpenChange={() => setProductToAdjust(null)}
-          productInfo={productToAdjust as any}
+          productInfo={productToAdjust}
         />
       )}
       <Card>

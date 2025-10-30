@@ -31,8 +31,7 @@ import { doc } from 'firebase/firestore'
 import { Product, PurchaseLot, Unit } from '@/lib/types'
 
 const adjustmentFormSchema = z.object({
-  mainUnitQty: z.coerce.number().min(0, "Số lượng phải là số không âm.").optional(),
-  baseUnitQty: z.coerce.number().min(0, "Số lượng phải là số không âm.").optional(),
+  actualStock: z.coerce.number().min(0, "Số lượng phải là số không âm.").optional(),
   notes: z.string().optional(),
 });
 
@@ -62,32 +61,23 @@ export function InventoryAdjustmentForm({ isOpen, onOpenChange, productInfo }: I
 
   const { data: productData } = useDoc<Product>(productRef);
   
-  const isComplexUnit = productInfo.mainUnit && productInfo.baseUnit && productInfo.mainUnit.id !== productInfo.baseUnit.id;
   const conversionFactor = productInfo.mainUnit?.conversionFactor || 1;
 
   const form = useForm<AdjustmentFormValues>({
     resolver: zodResolver(adjustmentFormSchema),
-    defaultValues: { mainUnitQty: 0, baseUnitQty: 0, notes: '' },
+    defaultValues: { actualStock: 0, notes: '' },
   });
 
   useEffect(() => {
     if (isOpen) {
-      let mainQty = 0;
-      let baseQty = 0;
-      if(isComplexUnit) {
-        mainQty = Math.floor(productInfo.closingStock / conversionFactor);
-        baseQty = productInfo.closingStock % conversionFactor;
-      } else {
-        baseQty = productInfo.closingStock;
-      }
+      const stockInMainUnit = productInfo.closingStock / conversionFactor;
 
       form.reset({
-        mainUnitQty: mainQty,
-        baseUnitQty: baseQty,
+        actualStock: stockInMainUnit,
         notes: `Điều chỉnh tồn kho cho ${productInfo.productName}`,
       });
     }
-  }, [isOpen, productInfo, form, isComplexUnit, conversionFactor]);
+  }, [isOpen, productInfo, form, conversionFactor]);
 
   const onSubmit = async (data: AdjustmentFormValues) => {
     if (!productData) {
@@ -95,26 +85,26 @@ export function InventoryAdjustmentForm({ isOpen, onOpenChange, productInfo }: I
         return;
     }
     
-    const mainQty = data.mainUnitQty || 0;
-    const baseQty = data.baseUnitQty || 0;
+    const actualStockInMainUnits = data.actualStock || 0;
     
-    const actualStockInBaseUnits = isComplexUnit
-        ? (mainQty * conversionFactor) + baseQty
-        : baseQty;
+    // Convert the user-entered stock (in main unit) to base units
+    const actualStockInBaseUnits = actualStockInMainUnits * conversionFactor;
+    
+    // Calculate the difference between the new actual stock and the system's stock, both in base units
+    const differenceInBaseUnits = actualStockInBaseUnits - productInfo.closingStock;
 
-    const difference = actualStockInBaseUnits - productInfo.closingStock;
-
-    if (Math.abs(difference) < 0.001) {
+    if (Math.abs(differenceInBaseUnits) < 0.001) {
         toast({ title: "Thông báo", description: "Không có sự thay đổi nào về tồn kho." });
         onOpenChange(false);
         return;
     }
 
+    // The adjustment lot should always represent the *difference* in base units
     const adjustmentLot: PurchaseLot = {
         importDate: new Date().toISOString(),
-        quantity: difference,
+        quantity: differenceInBaseUnits,
         cost: 0, // Điều chỉnh không làm thay đổi giá vốn
-        unitId: productData.unitId, // This should be base unit ID to be consistent
+        unitId: productInfo.baseUnit?.id || productData.unitId, // Use base unit ID for consistency
     };
 
     const result = await upsertProduct({
@@ -141,6 +131,13 @@ export function InventoryAdjustmentForm({ isOpen, onOpenChange, productInfo }: I
 
   const { mainUnit, baseUnit } = productInfo;
   
+  const displayUnitName = mainUnit
+  ? `${mainUnit.name}${mainUnit.id !== baseUnit?.id && baseUnit && mainUnit.conversionFactor ? ` (${mainUnit.conversionFactor}${baseUnit.name})` : ''}`
+  : baseUnit?.name || '';
+  
+  const systemStockInMainUnit = productInfo.closingStock / conversionFactor;
+
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -151,35 +148,23 @@ export function InventoryAdjustmentForm({ isOpen, onOpenChange, productInfo }: I
           </DialogDescription>
         </DialogHeader>
         <div className="text-sm">
-            Tồn kho trên hệ thống: <span className="font-bold">{productInfo.closingStock.toLocaleString()} {baseUnit?.name}</span>
+            Tồn kho trên hệ thống: <span className="font-bold">{systemStockInMainUnit.toLocaleString(undefined, {maximumFractionDigits: 2})} {mainUnit?.name}</span>
+            {mainUnit?.id !== baseUnit?.id && ` (tương đương ${productInfo.closingStock.toLocaleString()} ${baseUnit?.name})`}
         </div>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {isComplexUnit && mainUnit && (
-              <FormField
-                control={form.control}
-                name="mainUnitQty"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tồn kho thực tế ({mainUnit.name})</FormLabel>
-                    <FormControl>
-                      <Input type="number" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-            
             <FormField
               control={form.control}
-              name="baseUnitQty"
+              name="actualStock"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tồn kho thực tế ({baseUnit?.name})</FormLabel>
+                  <FormLabel>Tồn kho thực tế ({mainUnit?.name})</FormLabel>
                   <FormControl>
-                    <Input type="number" {...field} />
+                    <Input type="number" step="any" {...field} />
                   </FormControl>
+                  <FormDescription>
+                    Nhập số lượng thực tế theo đơn vị: {displayUnitName}.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
