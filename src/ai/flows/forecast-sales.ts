@@ -10,7 +10,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-export const ForecastSalesInputSchema = z.object({
+const ForecastSalesInputSchema = z.object({
   historicalSalesData: z
     .string()
     .describe(
@@ -36,7 +36,7 @@ const ForecastedProductSchema = z.object({
     suggestedReorderQuantity: z.number().describe('The suggested quantity to re-order. 0 if no re-order is needed.'),
 });
 
-export const ForecastSalesOutputSchema = z.object({
+const ForecastSalesOutputSchema = z.object({
     analysisSummary: z.string().describe('A brief, high-level summary of the sales trends and overall forecast.'),
     forecastedProducts: z.array(ForecastedProductSchema).describe('An array of products with their individual sales forecasts and re-order suggestions.'),
 });
