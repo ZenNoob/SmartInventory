@@ -1,5 +1,4 @@
 
-
 'use client'
 
 import {
@@ -251,7 +250,7 @@ export default function Dashboard() {
   const totalRevenue = useMemo(() => filteredSales.reduce((acc, sale) => acc + sale.finalAmount, 0), [filteredSales]);
   const totalSalesCount = filteredSales.length;
 
-  const customersWithDebt = useMemo((): CustomerDebtInfo[] => {
+  const allCustomerData = useMemo((): CustomerDebtInfo[] => {
     if (!customers || !sales || !payments) return [];
     return customers.map(customer => {
         const customerSales = sales.filter(s => s.customerId === customer.id).reduce((sum, s) => sum + (s.finalAmount || 0), 0);
@@ -261,15 +260,23 @@ export default function Dashboard() {
           customerId: customer.id, 
           customerName: customer.name, 
           customerPhone: customer.phone, 
-          debt,
           totalSales: customerSales,
           totalPayments: customerPayments,
           finalDebt: debt,
         };
-    }).filter(c => c.debt > 0).sort((a,b) => b.debt - a.debt);
+    });
   }, [customers, sales, payments]);
 
-  const totalDebt = useMemo(() => customersWithDebt.reduce((sum, c) => sum + c.debt, 0), [customersWithDebt]);
+
+  const customersWithDebt = useMemo(() => {
+    return allCustomerData.filter(c => c.finalDebt > 0).sort((a,b) => b.finalDebt - a.finalDebt);
+  }, [allCustomerData]);
+
+  const topCustomers = useMemo(() => {
+    return allCustomerData.sort((a,b) => b.totalSales - a.totalSales).slice(0, 5);
+  }, [allCustomerData]);
+
+  const totalDebt = useMemo(() => customersWithDebt.reduce((sum, c) => sum + c.finalDebt, 0), [customersWithDebt]);
 
   const filteredCustomersWithDebt = useMemo(() => {
     if (!debtSearchTerm) return customersWithDebt;
@@ -543,7 +550,7 @@ export default function Dashboard() {
                             </Link>
                             </TableCell>
                             <TableCell>{customer.customerPhone || 'N/A'}</TableCell>
-                            <TableCell className="text-right font-semibold text-destructive">{formatCurrency(customer.debt)}</TableCell>
+                            <TableCell className="text-right font-semibold text-destructive">{formatCurrency(customer.finalDebt)}</TableCell>
                         </TableRow>
                         ))}
                         {filteredCustomersWithDebt.length === 0 && (
@@ -628,30 +635,43 @@ export default function Dashboard() {
         </Card>
         <Card className="lg:col-span-1">
           <CardHeader>
-            <CardTitle>Sản phẩm bán chạy</CardTitle>
+            <CardTitle>Khách hàng hàng đầu</CardTitle>
             <CardDescription>
-              Top sản phẩm theo doanh thu trong khoảng thời gian đã chọn.
+              Top 5 khách hàng mua nhiều nhất.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Sản phẩm</TableHead>
-                  <TableHead className="text-right">Số lượng bán</TableHead>
-                  <TableHead className="text-right">Doanh thu</TableHead>
+                  <TableHead className="w-12">STT</TableHead>
+                  <TableHead>Khách hàng</TableHead>
+                  <TableHead className="text-right">Đã mua</TableHead>
+                  <TableHead className="text-right">Tiền nợ</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading && <TableRow><TableCell colSpan={3} className="h-24 text-center">Đang tải...</TableCell></TableRow>}
-                {!isLoading && soldProductsData.length === 0 && <TableRow><TableCell colSpan={3} className="h-24 text-center">Không có dữ liệu.</TableCell></TableRow>}
-                {!isLoading && soldProductsData.slice(0, 5).map((p) => (
-                  <TableRow key={p.productId}>
+                {isLoading && <TableRow><TableCell colSpan={4} className="h-24 text-center">Đang tải...</TableCell></TableRow>}
+                {!isLoading && topCustomers.length === 0 && <TableRow><TableCell colSpan={4} className="h-24 text-center">Không có dữ liệu.</TableCell></TableRow>}
+                {!isLoading && topCustomers.map((customer, index) => (
+                  <TableRow key={customer.customerId}>
+                    <TableCell className="font-medium">{index + 1}</TableCell>
                     <TableCell>
-                      <div className="font-medium">{p.productName}</div>
+                      <Link href={`/customers/${customer.customerId}`} className="font-medium hover:underline">
+                        {customer.customerName}
+                      </Link>
                     </TableCell>
-                    <TableCell className="text-right">{p.totalQuantity.toLocaleString()} {p.baseUnitName}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(p.totalRevenue)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(customer.totalSales)}</TableCell>
+                    <TableCell className="text-right">
+                       <Button 
+                         variant="link" 
+                         className={`h-auto p-0 ${customer.finalDebt > 0 ? 'text-destructive' : ''}`}
+                         onClick={() => customer.finalDebt > 0 && handleOpenPaymentForm(customer)}
+                         disabled={customer.finalDebt <= 0}
+                       >
+                         {formatCurrency(customer.finalDebt)}
+                       </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -659,41 +679,41 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
-      <Card>
+       <Card>
         <CardHeader>
-          <CardTitle>Tồn kho Hiện tại</CardTitle>
+          <CardTitle>Sản phẩm bán chạy</CardTitle>
           <CardDescription>
-            Danh sách các sản phẩm và số lượng tồn kho hiện tại.
+            Top sản phẩm theo doanh thu trong khoảng thời gian đã chọn.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-96">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Sản phẩm</TableHead>
-                  <TableHead className="text-right">Tồn kho</TableHead>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Sản phẩm</TableHead>
+                <TableHead className="text-right">Số lượng bán</TableHead>
+                <TableHead className="text-right">Doanh thu</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading && <TableRow><TableCell colSpan={3} className="h-24 text-center">Đang tải...</TableCell></TableRow>}
+              {!isLoading && soldProductsData.length === 0 && <TableRow><TableCell colSpan={3} className="h-24 text-center">Không có dữ liệu.</TableCell></TableRow>}
+              {!isLoading && soldProductsData.slice(0, 5).map((p) => (
+                <TableRow key={p.productId}>
+                  <TableCell>
+                    <div className="font-medium">{p.productName}</div>
+                  </TableCell>
+                  <TableCell className="text-right">{p.totalQuantity.toLocaleString()} {p.baseUnitName}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(p.totalRevenue)}</TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading && <TableRow><TableCell colSpan={2} className="h-24 text-center">Đang tải...</TableCell></TableRow>}
-                {!isLoading && inventoryData.length === 0 && <TableRow><TableCell colSpan={2} className="h-24 text-center">Không có sản phẩm nào.</TableCell></TableRow>}
-                {!isLoading && inventoryData.map(({ product, stockDisplay }) => (
-                  <TableRow key={product.id}>
-                    <TableCell>
-                      <Link href={`/products?q=${product.name}`} className="font-medium hover:underline">
-                        {product.name}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-right">{stockDisplay}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </ScrollArea>
+              ))}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>
     </>
   )
 }
+
+    
