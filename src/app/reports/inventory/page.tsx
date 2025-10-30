@@ -266,10 +266,10 @@ export default function InventoryReportPage() {
                 <TableHead className="w-16">STT</TableHead>
                 <SortableHeader sortKey="productName">Sản phẩm</SortableHeader>
                 <TableHead>ĐVT</TableHead>
-                <SortableHeader sortKey="openingStock" className="text-right">Tồn đầu kỳ (ĐVT)</SortableHeader>
-                <SortableHeader sortKey="importStock" className="text-right">Nhập trong kỳ (ĐVT)</SortableHeader>
-                <SortableHeader sortKey="exportStock" className="text-right">Xuất trong kỳ (ĐVT)</SortableHeader>
-                <SortableHeader sortKey="closingStock" className="text-right">Tồn cuối kỳ (ĐVT)</SortableHeader>
+                <SortableHeader sortKey="openingStock" className="text-right">Tồn đầu kỳ</SortableHeader>
+                <SortableHeader sortKey="importStock" className="text-right">Nhập trong kỳ</SortableHeader>
+                <SortableHeader sortKey="exportStock" className="text-right">Xuất trong kỳ</SortableHeader>
+                <SortableHeader sortKey="closingStock" className="text-right">Tồn cuối kỳ</SortableHeader>
                 <TableHead className="text-center">Hành động</TableHead>
               </TableRow>
             </TableHeader>
