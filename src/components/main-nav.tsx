@@ -198,6 +198,11 @@ export function MainNav() {
                                 <Link href="/reports/purchases">Chi tiết nhập hàng</Link>
                             </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive('/reports/inventory')}>
+                                <Link href="/reports/inventory">Tồn kho</Link>
+                            </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
                     </SidebarMenuSub>
                   </CollapsibleContent>
                 </SidebarMenuItem>

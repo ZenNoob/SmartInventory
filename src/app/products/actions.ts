@@ -1,6 +1,6 @@
 'use server'
 
-import { Product } from "@/lib/types";
+import { Product, PurchaseLot } from "@/lib/types";
 import { getAdminServices } from "@/lib/admin-actions";
 import { FieldValue } from "firebase-admin/firestore";
 import * as xlsx from 'xlsx';
@@ -12,7 +12,33 @@ export async function upsertProduct(product: Partial<Product>): Promise<{ succes
     if (product.id) {
       // Update existing product
       const productRef = firestore.collection('products').doc(product.id);
+      
+      // Special handling for inventory adjustments (cost = 0)
+      if (product.purchaseLots) {
+        const adjustmentLots = product.purchaseLots.filter(lot => lot.cost === 0 && lot.quantity !== 0);
+        if (adjustmentLots.length > 0) {
+            const existingProductDoc = await productRef.get();
+            const existingProductData = existingProductDoc.data() as Product;
+            const existingLots = existingProductData.purchaseLots || [];
+            
+            const newLots = product.purchaseLots.filter(lot => !existingLots.some(existingLot => 
+                existingLot.importDate === lot.importDate && 
+                existingLot.quantity === lot.quantity && 
+                existingLot.cost === lot.cost
+            ));
+
+            await productRef.update({
+                purchaseLots: FieldValue.arrayUnion(...newLots)
+            });
+            // remove other fields from product object to avoid overwriting them
+            delete product.purchaseLots;
+            delete product.name;
+            // etc for all fields except id
+        }
+      }
+
       await productRef.set(product, { merge: true });
+
     } else {
       // Create new product
       const productRef = firestore.collection('products').doc();
