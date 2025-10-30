@@ -64,7 +64,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { Calendar } from "@/components/ui/calendar"
 
-type SortKey = 'orderNumber' | 'importDate' | 'totalAmount' | 'itemCount';
+type SortKey = 'orderNumber' | 'importDate' | 'totalAmount' | 'itemCount' | 'notes';
 
 export default function PurchasesPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -155,6 +155,10 @@ export default function PurchasesPage() {
             case 'importDate':
                 valA = new Date(a.importDate).getTime();
                 valB = new Date(b.importDate).getTime();
+                break;
+            case 'notes':
+                valA = a.notes || '';
+                valB = b.notes || '';
                 break;
             default:
                 valA = a[sortKey];
@@ -328,13 +332,14 @@ export default function PurchasesPage() {
                 <SortableHeader sortKey="importDate">Ngày nhập</SortableHeader>
                 <SortableHeader sortKey="itemCount" className="text-right">Số SP</SortableHeader>
                 <SortableHeader sortKey="totalAmount" className="text-right">Tổng tiền</SortableHeader>
+                <SortableHeader sortKey="notes">Ghi chú</SortableHeader>
                 <TableHead>
                   <span className="sr-only">Hành động</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && <TableRow><TableCell colSpan={6} className="text-center">Đang tải...</TableCell></TableRow>}
+              {isLoading && <TableRow><TableCell colSpan={7} className="text-center">Đang tải...</TableCell></TableRow>}
               {!isLoading && sortedPurchases?.map((order, index) => (
                   <TableRow key={order.id}>
                     <TableCell className="font-medium hidden md:table-cell">{index + 1}</TableCell>
@@ -351,6 +356,9 @@ export default function PurchasesPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       {formatCurrency(order.totalAmount)}
+                    </TableCell>
+                    <TableCell>
+                      {order.notes}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -381,7 +389,7 @@ export default function PurchasesPage() {
                 ))}
                 {!isLoading && sortedPurchases?.length === 0 && (
                     <TableRow>
-                        <TableCell colSpan={6} className="text-center h-24">
+                        <TableCell colSpan={7} className="text-center h-24">
                            Chưa có đơn nhập hàng nào.
                         </TableCell>
                     </TableRow>
