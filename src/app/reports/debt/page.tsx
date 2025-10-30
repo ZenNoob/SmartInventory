@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useState, useMemo } from "react"
@@ -256,7 +257,7 @@ export default function DebtReportPage() {
               <div>
                   <CardTitle>Báo cáo công nợ khách hàng</CardTitle>
                   <CardDescription>
-                  Tổng hợp công nợ của tất cả các khách hàng.
+                  Tổng hợp công nợ và thực hiện ghi nhận thanh toán nhanh cho khách hàng.
                   </CardDescription>
               </div>
               <div className="text-right">
