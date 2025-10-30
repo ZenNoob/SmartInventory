@@ -318,8 +318,8 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <Dialog open={isInventoryDetailOpen} onOpenChange={setIsInventoryDetailOpen}>
+    <Dialog open={isInventoryDetailOpen} onOpenChange={setIsInventoryDetailOpen}>
+      <div className="flex flex-col gap-6">
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Chi tiết tồn kho</DialogTitle>
@@ -328,47 +328,46 @@ export default function Dashboard() {
             </DialogDescription>
           </DialogHeader>
           <ScrollArea className="max-h-[60vh] pr-4">
-             {isLoading ? (
-                 <p>Đang tải dữ liệu tồn kho...</p>
-             ) : (
-                <Accordion type="multiple" className="w-full" defaultValue={Array.from(inventoryByCategory.keys())}>
-                  {categories?.filter(c => inventoryByCategory.has(c.id)).map(category => (
-                    <AccordionItem value={category.id} key={category.id}>
-                      <AccordionTrigger>{category.name} ({inventoryByCategory.get(category.id)?.length} sản phẩm)</AccordionTrigger>
-                      <AccordionContent>
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Sản phẩm</TableHead>
-                              <TableHead className="text-right">Tồn kho</TableHead>
+            {isLoading ? (
+              <p>Đang tải dữ liệu tồn kho...</p>
+            ) : (
+              <Accordion type="multiple" className="w-full" defaultValue={Array.from(inventoryByCategory.keys())}>
+                {categories?.filter(c => inventoryByCategory.has(c.id)).map(category => (
+                  <AccordionItem value={category.id} key={category.id}>
+                    <AccordionTrigger>{category.name} ({inventoryByCategory.get(category.id)?.length} sản phẩm)</AccordionTrigger>
+                    <AccordionContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Sản phẩm</TableHead>
+                            <TableHead className="text-right">Tồn kho</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {inventoryByCategory.get(category.id)?.map(({ product, stockDisplay }) => (
+                            <TableRow key={product.id}>
+                              <TableCell>
+                                <Link href={`/products?q=${product.name}`} className="font-medium hover:underline">
+                                  {product.name}
+                                </Link>
+                              </TableCell>
+                              <TableCell className="text-right">{stockDisplay}</TableCell>
                             </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {inventoryByCategory.get(category.id)?.map(({ product, stockDisplay }) => (
-                              <TableRow key={product.id}>
-                                <TableCell>
-                                    <Link href={`/products?q=${product.name}`} className="font-medium hover:underline">
-                                        {product.name}
-                                    </Link>
-                                </TableCell>
-                                <TableCell className="text-right">{stockDisplay}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </AccordionContent>
-                    </AccordionItem>
-                  ))}
-                </Accordion>
-             )}
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            )}
           </ScrollArea>
         </DialogContent>
-      </Dialog>
 
 
-      <div className="flex flex-wrap items-center gap-4">
-        <h1 className="text-2xl font-semibold">Phân tích kinh doanh</h1>
-        <div className="flex flex-wrap items-center gap-2 ml-auto">
+        <div className="flex flex-wrap items-center gap-4">
+          <h1 className="text-2xl font-semibold">Phân tích kinh doanh</h1>
+          <div className="flex flex-wrap items-center gap-2 ml-auto">
             <Popover>
               <PopoverTrigger asChild>
                 <Button id="date" variant={"outline"} className={cn("w-[260px] justify-start text-left font-normal", !dateRange && "text-muted-foreground")}>
@@ -377,58 +376,58 @@ export default function Dashboard() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="end">
-                 <Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} />
-                 <div className="p-2 border-t flex justify-around">
-                    <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_week')}>Tuần này</Button>
-                    <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_month')}>Tháng này</Button>
-                    <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_year')}>Năm nay</Button>
-                 </div>
+                <Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} />
+                <div className="p-2 border-t flex justify-around">
+                  <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_week')}>Tuần này</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_month')}>Tháng này</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_year')}>Năm nay</Button>
+                </div>
               </PopoverContent>
             </Popover>
             <Button onClick={handleExportExcel} variant="outline" size="sm">
               <File className="mr-2 h-4 w-4" />
               Xuất Excel
             </Button>
+          </div>
         </div>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng doanh thu</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalRevenue)}</div>
-            <p className="text-xs text-muted-foreground">
-              Trong khoảng thời gian đã chọn
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng doanh số</CardTitle>
-            <CreditCard className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">+{totalSalesCount}</div>
-            <p className="text-xs text-muted-foreground">
-              Số đơn hàng trong khoảng thời gian đã chọn
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng nợ phải thu</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">{formatCurrency(totalDebt)}</div>
-            <p className="text-xs text-muted-foreground">
-              Tổng công nợ của tất cả khách hàng
-            </p>
-          </CardContent>
-        </Card>
-        <DialogTrigger asChild>
+        <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Tổng doanh thu</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatCurrency(totalRevenue)}</div>
+              <p className="text-xs text-muted-foreground">
+                Trong khoảng thời gian đã chọn
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Tổng doanh số</CardTitle>
+              <CreditCard className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">+{totalSalesCount}</div>
+              <p className="text-xs text-muted-foreground">
+                Số đơn hàng trong khoảng thời gian đã chọn
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Tổng nợ phải thu</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-destructive">{formatCurrency(totalDebt)}</div>
+              <p className="text-xs text-muted-foreground">
+                Tổng công nợ của tất cả khách hàng
+              </p>
+            </CardContent>
+          </Card>
+          <DialogTrigger asChild>
             <Card className="cursor-pointer hover:bg-muted/50">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Sản phẩm trong kho</CardTitle>
@@ -441,84 +440,85 @@ export default function Dashboard() {
                 </p>
               </CardContent>
             </Card>
-        </DialogTrigger>
-      </div>
-      <div className="grid gap-4 md:gap-8 lg:grid-cols-2">
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle>Biểu đồ Doanh thu</CardTitle>
-          </CardHeader>
-          <CardContent className="pl-2">
-             <RevenueChart data={monthlyData} />
-          </CardContent>
-        </Card>
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle>Sản phẩm bán chạy</CardTitle>
-            <CardDescription>
-              Top sản phẩm theo doanh thu trong khoảng thời gian đã chọn.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-             <Table>
+          </DialogTrigger>
+        </div>
+        <div className="grid gap-4 md:gap-8 lg:grid-cols-2">
+          <Card className="lg:col-span-1">
+            <CardHeader>
+              <CardTitle>Biểu đồ Doanh thu</CardTitle>
+            </CardHeader>
+            <CardContent className="pl-2">
+              <RevenueChart data={monthlyData} />
+            </CardContent>
+          </Card>
+          <Card className="lg:col-span-1">
+            <CardHeader>
+              <CardTitle>Sản phẩm bán chạy</CardTitle>
+              <CardDescription>
+                Top sản phẩm theo doanh thu trong khoảng thời gian đã chọn.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
                 <TableHeader>
-                    <TableRow>
+                  <TableRow>
                     <TableHead>Sản phẩm</TableHead>
                     <TableHead className="text-right">Số lượng bán</TableHead>
                     <TableHead className="text-right">Doanh thu</TableHead>
-                    </TableRow>
+                  </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {isLoading && <TableRow><TableCell colSpan={3} className="h-24 text-center">Đang tải...</TableCell></TableRow>}
-                    {!isLoading && soldProductsData.length === 0 && <TableRow><TableCell colSpan={3} className="h-24 text-center">Không có dữ liệu.</TableCell></TableRow>}
-                    {!isLoading && soldProductsData.slice(0, 5).map((p) => (
+                  {isLoading && <TableRow><TableCell colSpan={3} className="h-24 text-center">Đang tải...</TableCell></TableRow>}
+                  {!isLoading && soldProductsData.length === 0 && <TableRow><TableCell colSpan={3} className="h-24 text-center">Không có dữ liệu.</TableCell></TableRow>}
+                  {!isLoading && soldProductsData.slice(0, 5).map((p) => (
                     <TableRow key={p.productId}>
-                        <TableCell>
+                      <TableCell>
                         <div className="font-medium">{p.productName}</div>
-                        </TableCell>
-                        <TableCell className="text-right">{p.totalQuantity.toLocaleString()} {p.baseUnitName}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(p.totalRevenue)}</TableCell>
+                      </TableCell>
+                      <TableCell className="text-right">{p.totalQuantity.toLocaleString()} {p.baseUnitName}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(p.totalRevenue)}</TableCell>
                     </TableRow>
-                    ))}
+                  ))}
                 </TableBody>
-            </Table>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Tồn kho Hiện tại</CardTitle>
+            <CardDescription>
+              Danh sách các sản phẩm và số lượng tồn kho hiện tại.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-96">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Sản phẩm</TableHead>
+                    <TableHead className="text-right">Tồn kho</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading && <TableRow><TableCell colSpan={2} className="h-24 text-center">Đang tải...</TableCell></TableRow>}
+                  {!isLoading && inventoryData.length === 0 && <TableRow><TableCell colSpan={2} className="h-24 text-center">Không có sản phẩm nào.</TableCell></TableRow>}
+                  {!isLoading && inventoryData.map(({ product, stockDisplay }) => (
+                    <TableRow key={product.id}>
+                      <TableCell>
+                        <Link href={`/products?q=${product.name}`} className="font-medium hover:underline">
+                          {product.name}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-right">{stockDisplay}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
           </CardContent>
         </Card>
       </div>
-      <Card>
-        <CardHeader>
-            <CardTitle>Tồn kho Hiện tại</CardTitle>
-            <CardDescription>
-                Danh sách các sản phẩm và số lượng tồn kho hiện tại.
-            </CardDescription>
-        </CardHeader>
-        <CardContent>
-            <ScrollArea className="h-96">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                        <TableHead>Sản phẩm</TableHead>
-                        <TableHead className="text-right">Tồn kho</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {isLoading && <TableRow><TableCell colSpan={2} className="h-24 text-center">Đang tải...</TableCell></TableRow>}
-                        {!isLoading && inventoryData.length === 0 && <TableRow><TableCell colSpan={2} className="h-24 text-center">Không có sản phẩm nào.</TableCell></TableRow>}
-                        {!isLoading && inventoryData.map(({ product, stockDisplay }) => (
-                        <TableRow key={product.id}>
-                            <TableCell>
-                                <Link href={`/products?q=${product.name}`} className="font-medium hover:underline">
-                                    {product.name}
-                                </Link>
-                            </TableCell>
-                            <TableCell className="text-right">{stockDisplay}</TableCell>
-                        </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </ScrollArea>
-        </CardContent>
-      </Card>
-    </div>
+    </Dialog>
   )
 }
