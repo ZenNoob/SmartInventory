@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -28,10 +28,11 @@ import { useRouter } from 'next/navigation'
 import { upsertProduct } from '@/app/products/actions'
 import { useDoc, useFirestore, useMemoFirebase } from '@/firebase'
 import { doc } from 'firebase/firestore'
-import { Product, PurchaseLot } from '@/lib/types'
+import { Product, PurchaseLot, Unit } from '@/lib/types'
 
 const adjustmentFormSchema = z.object({
-  actualStock: z.coerce.number().min(0, "Tồn kho thực tế phải là số không âm."),
+  mainUnitQty: z.coerce.number().min(0, "Số lượng phải là số không âm.").optional(),
+  baseUnitQty: z.coerce.number().min(0, "Số lượng phải là số không âm.").optional(),
   notes: z.string().optional(),
 });
 
@@ -40,49 +41,70 @@ type AdjustmentFormValues = z.infer<typeof adjustmentFormSchema>;
 interface InventoryAdjustmentFormProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  product: {
+  productInfo: {
     productId: string;
     productName: string;
-    unitName: string;
-    closingStock: number;
+    closingStock: number; // in base units
+    mainUnit?: Unit;
+    baseUnit?: Unit;
   }
 }
 
-export function InventoryAdjustmentForm({ isOpen, onOpenChange, product }: InventoryAdjustmentFormProps) {
+export function InventoryAdjustmentForm({ isOpen, onOpenChange, productInfo }: InventoryAdjustmentFormProps) {
   const { toast } = useToast();
   const router = useRouter();
   const firestore = useFirestore();
 
   const productRef = useMemoFirebase(() => {
-    if (!firestore || !product) return null;
-    return doc(firestore, 'products', product.productId);
-  }, [firestore, product]);
+    if (!firestore || !productInfo) return null;
+    return doc(firestore, 'products', productInfo.productId);
+  }, [firestore, productInfo]);
 
   const { data: productData } = useDoc<Product>(productRef);
+  
+  const isComplexUnit = productInfo.mainUnit && productInfo.baseUnit && productInfo.mainUnit.id !== productInfo.baseUnit.id;
+  const conversionFactor = productInfo.mainUnit?.conversionFactor || 1;
 
   const form = useForm<AdjustmentFormValues>({
     resolver: zodResolver(adjustmentFormSchema),
-    defaultValues: { actualStock: product.closingStock, notes: '' },
+    defaultValues: { mainUnitQty: 0, baseUnitQty: 0, notes: '' },
   });
 
   useEffect(() => {
     if (isOpen) {
+      let mainQty = 0;
+      let baseQty = 0;
+      if(isComplexUnit) {
+        mainQty = Math.floor(productInfo.closingStock / conversionFactor);
+        baseQty = productInfo.closingStock % conversionFactor;
+      } else {
+        baseQty = productInfo.closingStock;
+      }
+
       form.reset({
-        actualStock: product.closingStock,
-        notes: `Điều chỉnh tồn kho cho ${product.productName}`,
+        mainUnitQty: mainQty,
+        baseUnitQty: baseQty,
+        notes: `Điều chỉnh tồn kho cho ${productInfo.productName}`,
       });
     }
-  }, [isOpen, product, form]);
+  }, [isOpen, productInfo, form, isComplexUnit, conversionFactor]);
 
   const onSubmit = async (data: AdjustmentFormValues) => {
     if (!productData) {
         toast({ variant: "destructive", title: "Lỗi", description: "Không tìm thấy dữ liệu sản phẩm." });
         return;
     }
+    
+    const mainQty = data.mainUnitQty || 0;
+    const baseQty = data.baseUnitQty || 0;
+    
+    const actualStockInBaseUnits = isComplexUnit
+        ? (mainQty * conversionFactor) + baseQty
+        : baseQty;
 
-    const difference = data.actualStock - product.closingStock;
+    const difference = actualStockInBaseUnits - productInfo.closingStock;
 
-    if (difference === 0) {
+    if (Math.abs(difference) < 0.001) {
         toast({ title: "Thông báo", description: "Không có sự thay đổi nào về tồn kho." });
         onOpenChange(false);
         return;
@@ -92,21 +114,19 @@ export function InventoryAdjustmentForm({ isOpen, onOpenChange, product }: Inven
         importDate: new Date().toISOString(),
         quantity: difference,
         cost: 0, // Điều chỉnh không làm thay đổi giá vốn
-        unitId: productData.unitId, // Sử dụng đơn vị cơ sở
+        unitId: productData.unitId, // This should be base unit ID to be consistent
     };
 
-    const updatedLots = [...(productData.purchaseLots || []), adjustmentLot];
-    
     const result = await upsertProduct({
         id: productData.id,
-        purchaseLots: updatedLots,
+        purchaseLots: [adjustmentLot],
     });
 
 
     if (result.success) {
       toast({
         title: "Thành công!",
-        description: `Đã điều chỉnh tồn kho cho sản phẩm ${product.productName}.`,
+        description: `Đã điều chỉnh tồn kho cho sản phẩm ${productInfo.productName}.`,
       });
       onOpenChange(false);
       router.refresh();
@@ -119,26 +139,44 @@ export function InventoryAdjustmentForm({ isOpen, onOpenChange, product }: Inven
     }
   };
 
+  const { mainUnit, baseUnit } = productInfo;
+  
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Điều chỉnh tồn kho</DialogTitle>
           <DialogDescription>
-            Cập nhật số lượng tồn kho thực tế cho sản phẩm <span className="font-semibold">{product.productName}</span>.
+            Cập nhật số lượng tồn kho thực tế cho sản phẩm <span className="font-semibold">{productInfo.productName}</span>.
           </DialogDescription>
         </DialogHeader>
         <div className="text-sm">
-            Tồn kho trên hệ thống: <span className="font-bold">{product.closingStock.toLocaleString()} {product.unitName}</span>
+            Tồn kho trên hệ thống: <span className="font-bold">{productInfo.closingStock.toLocaleString()} {baseUnit?.name}</span>
         </div>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {isComplexUnit && mainUnit && (
+              <FormField
+                control={form.control}
+                name="mainUnitQty"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tồn kho thực tế ({mainUnit.name})</FormLabel>
+                    <FormControl>
+                      <Input type="number" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            
             <FormField
               control={form.control}
-              name="actualStock"
+              name="baseUnitQty"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tồn kho thực tế ({product.unitName})</FormLabel>
+                  <FormLabel>Tồn kho thực tế ({baseUnit?.name})</FormLabel>
                   <FormControl>
                     <Input type="number" {...field} />
                   </FormControl>
@@ -146,6 +184,7 @@ export function InventoryAdjustmentForm({ isOpen, onOpenChange, product }: Inven
                 </FormItem>
               )}
             />
+            
             <FormField
               control={form.control}
               name="notes"

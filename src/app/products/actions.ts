@@ -17,23 +17,11 @@ export async function upsertProduct(product: Partial<Product>): Promise<{ succes
       if (product.purchaseLots) {
         const adjustmentLots = product.purchaseLots.filter(lot => lot.cost === 0 && lot.quantity !== 0);
         if (adjustmentLots.length > 0) {
-            const existingProductDoc = await productRef.get();
-            const existingProductData = existingProductDoc.data() as Product;
-            const existingLots = existingProductData.purchaseLots || [];
-            
-            const newLots = product.purchaseLots.filter(lot => !existingLots.some(existingLot => 
-                existingLot.importDate === lot.importDate && 
-                existingLot.quantity === lot.quantity && 
-                existingLot.cost === lot.cost
-            ));
-
             await productRef.update({
-                purchaseLots: FieldValue.arrayUnion(...newLots)
+                purchaseLots: FieldValue.arrayUnion(...adjustmentLots)
             });
-            // remove other fields from product object to avoid overwriting them
+            // remove purchaseLots from the object to avoid double-adding or other fields being overwritten
             delete product.purchaseLots;
-            delete product.name;
-            // etc for all fields except id
         }
       }
 

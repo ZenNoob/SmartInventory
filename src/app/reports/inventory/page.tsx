@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import { useState, useMemo, useEffect, useCallback } from "react"
@@ -236,6 +237,17 @@ export default function InventoryReportPage() {
 
     xlsx.writeFile(workbook, "bao_cao_ton_kho.xlsx");
   };
+  
+  const handleOpenAdjustment = (item: InventoryReportItem) => {
+    const product = products?.find(p => p.id === item.productId);
+    if (!product) return;
+    
+    const { baseUnit, name } = getUnitInfo(product.unitId);
+    const mainUnit = unitsMap.get(product.unitId);
+
+    setProductToAdjust({ ...item, mainUnit, baseUnit });
+  };
+
 
   const isLoading = productsLoading || salesLoading || unitsLoading || salesItemsLoading;
 
@@ -245,7 +257,7 @@ export default function InventoryReportPage() {
         <InventoryAdjustmentForm
           isOpen={!!productToAdjust}
           onOpenChange={() => setProductToAdjust(null)}
-          product={productToAdjust}
+          productInfo={productToAdjust as any}
         />
       )}
       <Card>
@@ -315,7 +327,7 @@ export default function InventoryReportPage() {
                   <TableCell className="text-right text-red-600">-{data.exportStock.toLocaleString()}</TableCell>
                   <TableCell className="text-right font-semibold">{data.closingStock.toLocaleString()}</TableCell>
                   <TableCell className="text-center">
-                    <Button variant="ghost" size="icon" onClick={() => setProductToAdjust(data)}>
+                    <Button variant="ghost" size="icon" onClick={() => handleOpenAdjustment(data)}>
                       <Wrench className="h-4 w-4" />
                     </Button>
                   </TableCell>
