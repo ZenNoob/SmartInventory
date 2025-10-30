@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
@@ -35,9 +36,10 @@ import { Product, Category, PurchaseLot, Unit } from '@/lib/types'
 import { upsertProduct } from '../actions'
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
-import { PlusCircle, Trash2 } from 'lucide-react'
+import { PlusCircle, Trash2, Wrench } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 // Helper component for formatted number input
 const FormattedNumberInput = ({ value, onChange, ...props }: { value: number; onChange: (value: number) => void; [key: string]: any }) => {
@@ -365,6 +367,8 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
                     const selectedLotUnit = lot ? unitsMap.get(lot.unitId) : undefined;
                     const { baseUnit, conversionFactor } = selectedLotUnit ? getBaseUnitInfo(selectedLotUnit.id) : { conversionFactor: 1 };
                     const convertedQuantity = lot ? lot.quantity * conversionFactor : 0;
+                    const isAdjustment = lot?.cost === 0;
+
                     return (
                         <div key={field.id} className="grid grid-cols-1 md:grid-cols-4 gap-3 p-3 border rounded-md relative">
                            <FormField
@@ -372,7 +376,21 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
                               name={`purchaseLots.${index}.importDate`}
                               render={({ field }) => (
                                 <FormItem>
-                                  <FormLabel>Ngày nhập</FormLabel>
+                                  <FormLabel className="flex items-center gap-2">
+                                    Ngày nhập
+                                    {isAdjustment && (
+                                       <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger>
+                                              <Wrench className="h-3.5 w-3.5 text-muted-foreground" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                              <p>Lô hàng điều chỉnh tồn kho</p>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                    )}
+                                  </FormLabel>
                                   <FormControl>
                                     <Input type="date" {...field} />
                                   </FormControl>
@@ -429,7 +447,7 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
                                 <FormItem>
                                   <FormLabel>Giá nhập (trên 1 {baseUnit?.name || selectedLotUnit?.name || 'ĐVT'})</FormLabel>
                                   <FormControl>
-                                    <FormattedNumberInput {...field} />
+                                    <FormattedNumberInput {...field} disabled={isAdjustment} />
                                   </FormControl>
                                   <FormMessage />
                                 </FormItem>

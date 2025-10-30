@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useState, useTransition, useMemo, useCallback, useEffect } from "react"
@@ -10,6 +11,7 @@ import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
+  Wrench,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -282,8 +284,11 @@ export default function ProductsPage() {
     product.purchaseLots.forEach(lot => {
         const { baseUnit, conversionFactor } = getUnitInfo(lot.unitId);
         const quantityInBaseUnit = lot.quantity * conversionFactor;
-        totalCost += lot.cost * quantityInBaseUnit;
-        totalQuantityInBaseUnit += quantityInBaseUnit;
+        // Do not include adjustment lots in cost calculation
+        if (lot.cost > 0) {
+          totalCost += lot.cost * quantityInBaseUnit;
+          totalQuantityInBaseUnit += quantityInBaseUnit;
+        }
         if (baseUnit) {
           costBaseUnit = baseUnit;
         } else if(unitsMap.has(lot.unitId)) {
@@ -447,9 +452,26 @@ export default function ProductsPage() {
                 viewingLotsFor.purchaseLots.map((lot, index) => {
                   const lotUnitInfo = getUnitInfo(lot.unitId);
                   const costBaseUnit = lotUnitInfo.baseUnit || unitsMap.get(lot.unitId);
+                  const isAdjustment = lot.cost === 0;
                   return (
                   <TableRow key={index}>
-                    <TableCell>{new Date(lot.importDate).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {isAdjustment && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <Wrench className="h-4 w-4 text-muted-foreground" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Lô hàng điều chỉnh tồn kho</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                        {new Date(lot.importDate).toLocaleDateString()}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-right">{lot.quantity}</TableCell>
                     <TableCell>{lotUnitInfo.name}</TableCell>
                     <TableCell className="text-right">{formatCurrency(lot.cost)}</TableCell>
