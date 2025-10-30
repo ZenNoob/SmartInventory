@@ -125,6 +125,7 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
         lowStockThreshold: product.lowStockThreshold,
         purchaseLots: product.purchaseLots.map(lot => ({
           ...lot,
+          importDate: lot.importDate.split('T')[0], // Format date for input
         })) || []
       }
     : { 
@@ -163,7 +164,9 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
                     sellingPrice: product.sellingPrice,
                     status: product.status,
                     lowStockThreshold: product.lowStockThreshold,
-                    purchaseLots: product.purchaseLots && product.purchaseLots.length > 0 ? product.purchaseLots.map(lot => ({...lot, unitId: lot.unitId })) : []
+                    purchaseLots: product.purchaseLots && product.purchaseLots.length > 0 
+                      ? product.purchaseLots.map(lot => ({...lot, importDate: lot.importDate.split('T')[0], unitId: lot.unitId })) 
+                      : []
                   }
                 : {
                     name: '',

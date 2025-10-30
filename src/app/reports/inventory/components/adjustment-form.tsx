@@ -88,24 +88,22 @@ export function InventoryAdjustmentForm({ isOpen, onOpenChange, productInfo }: I
     
     const actualStockInMainUnits = data.actualStock || 0;
     
-    // Convert the user-entered stock (in main unit) to base units
-    const actualStockInBaseUnits = actualStockInMainUnits * conversionFactor;
-    
-    // Calculate the difference between the new actual stock and the system's stock, both in base units
-    const differenceInBaseUnits = actualStockInBaseUnits - productInfo.closingStock;
+    // We calculate the difference in the MAIN unit of the product
+    const currentStockInMainUnits = productInfo.closingStock / conversionFactor;
+    const differenceInMainUnits = actualStockInMainUnits - currentStockInMainUnits;
 
-    if (Math.abs(differenceInBaseUnits) < 0.001) {
+    if (Math.abs(differenceInMainUnits) < 0.001) {
         toast({ title: "Thông báo", description: "Không có sự thay đổi nào về tồn kho." });
         onOpenChange(false);
         return;
     }
 
-    // The adjustment lot should always represent the *difference* in base units
+    // The adjustment lot should represent the difference in the product's main unit
     const adjustmentLot: PurchaseLot = {
         importDate: new Date().toISOString(),
-        quantity: differenceInBaseUnits,
-        cost: 0, // Điều chỉnh không làm thay đổi giá vốn
-        unitId: productInfo.baseUnit?.id || productData.unitId, // Use base unit ID for consistency
+        quantity: differenceInMainUnits,
+        cost: 0, 
+        unitId: productInfo.mainUnit?.id || productData.unitId, // Use MAIN unit ID
     };
 
     const result = await upsertProduct({
@@ -132,9 +130,7 @@ export function InventoryAdjustmentForm({ isOpen, onOpenChange, productInfo }: I
 
   const { mainUnit, baseUnit } = productInfo;
   
-  const displayUnitName = mainUnit
-  ? `${mainUnit.name}${mainUnit.id !== baseUnit?.id && baseUnit && mainUnit.conversionFactor ? ` (${mainUnit.conversionFactor}${baseUnit.name})` : ''}`
-  : baseUnit?.name || '';
+  const displayUnitName = mainUnit?.name || baseUnit?.name || '';
   
   const systemStockInMainUnit = productInfo.closingStock / conversionFactor;
 
@@ -150,7 +146,7 @@ export function InventoryAdjustmentForm({ isOpen, onOpenChange, productInfo }: I
         </DialogHeader>
         <div className="text-sm">
             Tồn kho trên hệ thống: <span className="font-bold">{systemStockInMainUnit.toLocaleString(undefined, {maximumFractionDigits: 2})} {mainUnit?.name}</span>
-            {mainUnit?.id !== baseUnit?.id && ` (tương đương ${productInfo.closingStock.toLocaleString()} ${baseUnit?.name})`}
+            {mainUnit?.id !== baseUnit?.id && ` (tương đương ${productInfo.closingStock.toLocaleString(undefined, {maximumFractionDigits: 2})} ${baseUnit?.name})`}
         </div>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -159,12 +155,12 @@ export function InventoryAdjustmentForm({ isOpen, onOpenChange, productInfo }: I
               name="actualStock"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tồn kho thực tế ({mainUnit?.name})</FormLabel>
+                  <FormLabel>Tồn kho thực tế ({displayUnitName})</FormLabel>
                   <FormControl>
                     <Input type="number" step="any" {...field} />
                   </FormControl>
                   <FormDescription>
-                    Nhập số lượng thực tế theo đơn vị: {displayUnitName}.
+                    Nhập số lượng thực tế theo đơn vị chính của sản phẩm.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
