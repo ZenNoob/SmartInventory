@@ -1,5 +1,3 @@
-
-
 'use client'
 
 import { useState, useMemo, useEffect, useCallback } from "react"
@@ -215,6 +213,21 @@ export default function InventoryReportPage() {
     </TableHead>
   );
 
+  const formatStockWithMainUnit = (quantityInBase: number, mainUnit?: Unit, baseUnit?: Unit) => {
+    if (quantityInBase === 0) return "0";
+    if (!mainUnit || !baseUnit) return quantityInBase.toLocaleString();
+
+    const formattedBase = `${quantityInBase.toLocaleString(undefined, {maximumFractionDigits: 2})}`;
+
+    if (mainUnit.id !== baseUnit.id && mainUnit.conversionFactor) {
+      const quantityInMain = quantityInBase / mainUnit.conversionFactor;
+      return `${formattedBase} ${baseUnit.name} (${quantityInMain.toLocaleString(undefined, {maximumFractionDigits: 2})} ${mainUnit.name})`;
+    }
+    
+    return `${formattedBase} ${baseUnit.name}`;
+  }
+
+
   const handleExportExcel = () => {
     const dataToExport = sortedReportData.map((data, index) => ({
       'STT': index + 1,
@@ -321,10 +334,14 @@ export default function InventoryReportPage() {
                   <TableCell>{index + 1}</TableCell>
                   <TableCell className="font-medium">{data.productName}</TableCell>
                   <TableCell>{data.unitName}</TableCell>
-                  <TableCell className="text-right">{data.openingStock.toLocaleString()}</TableCell>
-                  <TableCell className="text-right text-green-600">+{data.importStock.toLocaleString()}</TableCell>
-                  <TableCell className="text-right text-red-600">-{data.exportStock.toLocaleString()}</TableCell>
-                  <TableCell className="text-right font-semibold">{data.closingStock.toLocaleString()}</TableCell>
+                  <TableCell className="text-right">{formatStockWithMainUnit(data.openingStock, data.mainUnit, data.baseUnit)}</TableCell>
+                  <TableCell className="text-right text-green-600">
+                    {data.importStock > 0 ? `+${formatStockWithMainUnit(data.importStock, data.mainUnit, data.baseUnit)}` : 0}
+                  </TableCell>
+                  <TableCell className="text-right text-red-600">
+                    {data.exportStock > 0 ? `-${formatStockWithMainUnit(data.exportStock, data.mainUnit, data.baseUnit)}` : 0}
+                  </TableCell>
+                  <TableCell className="text-right font-semibold">{formatStockWithMainUnit(data.closingStock, data.mainUnit, data.baseUnit)}</TableCell>
                   <TableCell className="text-center">
                     <Button variant="ghost" size="icon" onClick={() => handleOpenAdjustment(data)}>
                       <Wrench className="h-4 w-4" />
