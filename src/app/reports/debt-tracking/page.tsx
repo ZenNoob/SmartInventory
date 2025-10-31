@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import Link from "next/link"
-import { Search, ArrowUp, ArrowDown, File, Calendar as CalendarIcon } from "lucide-react"
+import { Search, ArrowUp, ArrowDown, File, Calendar as CalendarIcon, ChevronDown, ChevronRight } from "lucide-react"
 import * as xlsx from 'xlsx';
 import { DateRange } from "react-day-picker"
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfYear, endOfYear, startOfQuarter, endOfQuarter } from "date-fns"
@@ -32,6 +32,7 @@ import { Customer, Sale, Payment } from "@/lib/types"
 import { formatCurrency, cn } from "@/lib/utils"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
 export type CustomerDebtTrackingInfo = {
   customerId: string;
@@ -41,6 +42,7 @@ export type CustomerDebtTrackingInfo = {
   incurredAmount: number;
   paidAmount: number;
   closingBalance: number;
+  paymentsDuring: Payment[];
 }
 
 type SortKey = 'customerName' | 'openingBalance' | 'incurredAmount' | 'paidAmount' | 'closingBalance';
@@ -49,6 +51,7 @@ export default function DebtTrackingReportPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>('closingBalance');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: startOfMonth(new Date()),
     to: endOfMonth(new Date()),
@@ -92,6 +95,7 @@ export default function DebtTrackingReportPage() {
         incurredAmount,
         paidAmount,
         closingBalance,
+        paymentsDuring: paymentsDuring.sort((a,b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime()),
       };
     }).filter(data => 
         data.openingBalance !== 0 || 
@@ -130,6 +134,18 @@ export default function DebtTrackingReportPage() {
     }
   };
 
+  const toggleRow = (customerId: string) => {
+    setExpandedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(customerId)) {
+        newSet.delete(customerId);
+      } else {
+        newSet.add(customerId);
+      }
+      return newSet;
+    });
+  };
+  
   const setDatePreset = (preset: 'this_week' | 'this_month' | 'this_quarter' | 'this_year' | 'all') => {
     const now = new Date();
     if (preset === 'all') {
@@ -262,7 +278,7 @@ export default function DebtTrackingReportPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-16">STT</TableHead>
+              <TableHead className="w-12"></TableHead>
               <SortableHeader sortKey="customerName">Khách hàng</SortableHeader>
               <SortableHeader sortKey="openingBalance" className="text-right">Nợ đầu kỳ</SortableHeader>
               <SortableHeader sortKey="incurredAmount" className="text-right">Phát sinh</SortableHeader>
@@ -272,20 +288,58 @@ export default function DebtTrackingReportPage() {
           </TableHeader>
           <TableBody>
             {isLoading && <TableRow><TableCell colSpan={6} className="text-center h-24">Đang tải dữ liệu...</TableCell></TableRow>}
-            {!isLoading && sortedData.map((data, index) => (
-              <TableRow key={data.customerId}>
-                <TableCell>{index + 1}</TableCell>
-                <TableCell className="font-medium">
-                  <Link href={`/customers/${data.customerId}`} className="hover:underline">
-                    {data.customerName}
-                  </Link>
-                </TableCell>
-                <TableCell className="text-right">{formatCurrency(data.openingBalance)}</TableCell>
-                <TableCell className="text-right text-blue-600">{formatCurrency(data.incurredAmount)}</TableCell>
-                <TableCell className="text-right text-green-600">{formatCurrency(data.paidAmount)}</TableCell>
-                <TableCell className={`text-right font-semibold ${data.closingBalance > 0 ? 'text-destructive' : ''}`}>{formatCurrency(data.closingBalance)}</TableCell>
-              </TableRow>
-            ))}
+            {!isLoading && sortedData.map((data) => {
+              const isExpanded = expandedRows.has(data.customerId);
+              return (
+                <React.Fragment key={data.customerId}>
+                  <TableRow className="cursor-pointer" onClick={() => toggleRow(data.customerId)}>
+                    <TableCell>
+                      {data.paymentsDuring.length > 0 && (
+                        <Button variant="ghost" size="icon" className="h-6 w-6">
+                            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </Button>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      <Link href={`/customers/${data.customerId}`} className="hover:underline" onClick={e => e.stopPropagation()}>
+                        {data.customerName}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-right">{formatCurrency(data.openingBalance)}</TableCell>
+                    <TableCell className="text-right text-blue-600">{formatCurrency(data.incurredAmount)}</TableCell>
+                    <TableCell className="text-right text-green-600">{formatCurrency(data.paidAmount)}</TableCell>
+                    <TableCell className={`text-right font-semibold ${data.closingBalance > 0 ? 'text-destructive' : ''}`}>{formatCurrency(data.closingBalance)}</TableCell>
+                  </TableRow>
+                  {isExpanded && data.paymentsDuring.length > 0 && (
+                     <TableRow className="bg-muted/50 hover:bg-muted/50">
+                        <TableCell colSpan={6}>
+                          <div className="p-4">
+                            <h4 className="font-semibold mb-2">Chi tiết thanh toán trong kỳ</h4>
+                             <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Ngày thanh toán</TableHead>
+                                  <TableHead>Ghi chú</TableHead>
+                                  <TableHead className="text-right">Số tiền</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {data.paymentsDuring.map(payment => (
+                                  <TableRow key={payment.id}>
+                                    <TableCell>{format(new Date(payment.paymentDate), 'dd/MM/yyyy')}</TableCell>
+                                    <TableCell>{payment.notes}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(payment.amount)}</TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                  )}
+                </React.Fragment>
+              )
+            })}
             {!isLoading && sortedData.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="text-center h-24">Không có dữ liệu công nợ trong kỳ.</TableCell>
