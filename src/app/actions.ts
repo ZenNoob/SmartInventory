@@ -4,6 +4,7 @@ import { predictDebtRisk, PredictDebtRiskInput } from '@/ai/flows/predict-debt-r
 import { predictInventoryShortage, PredictInventoryShortageInput } from '@/ai/flows/predict-inventory-shortage'
 import { forecastSales, ForecastSalesInput } from '@/ai/flows/forecast-sales';
 import { segmentCustomers, SegmentCustomersInput } from '@/ai/flows/segment-customers-flow';
+import { analyzeMarketBasket, MarketBasketAnalysisInput } from '@/ai/flows/analyze-market-basket';
 
 export async function getDebtRiskPrediction(input: PredictDebtRiskInput) {
   try {
@@ -42,5 +43,15 @@ export async function getCustomerSegments(input: SegmentCustomersInput) {
     } catch (error) {
         console.error("Error segmenting customers:", error);
         return { success: false, error: 'Không thể phân khúc khách hàng.' };
+    }
+}
+
+export async function getMarketBasketAnalysis(input: MarketBasketAnalysisInput) {
+    try {
+        const result = await analyzeMarketBasket(input);
+        return { success: true, data: result };
+    } catch (error) {
+        console.error("Error analyzing market basket:", error);
+        return { success: false, error: 'Không thể phân tích rổ hàng hóa.' };
     }
 }

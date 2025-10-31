@@ -14,6 +14,7 @@ import {
   Scale,
   Truck,
   Sparkles,
+  PackagePlus,
 } from 'lucide-react'
 
 import {
@@ -211,7 +212,12 @@ export function MainNav() {
                         </SidebarMenuSubItem>
                          <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive('/reports/customer-segments')}>
-                                <Link href="/reports/customer-segments"><Sparkles className="mr-2 h-4 w-4 text-yellow-500" />Phân khúc KH</Link>
+                                <Link href="/reports/customer-segments" className='flex items-center gap-2'><Sparkles className="h-4 w-4 text-yellow-500" />Phân khúc KH</Link>
+                            </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                         <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive('/reports/market-basket-analysis')}>
+                                <Link href="/reports/market-basket-analysis" className='flex items-center gap-2'><PackagePlus className="h-4 w-4 text-yellow-500" />Phân tích rổ hàng</Link>
                             </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                     </SidebarMenuSub>
