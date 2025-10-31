@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
-import { Bot, AlertTriangle } from 'lucide-react'
+import { Bot, AlertTriangle, FilePlus2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -13,7 +13,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { getSalesForecast } from '@/app/actions'
-import { type ForecastSalesOutput } from '@/ai/flows/forecast-sales'
+import { type ForecastSalesOutput, type ForecastedProduct } from '@/ai/flows/forecast-sales'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase'
 import { collection, query, getDocs } from 'firebase/firestore'
@@ -29,6 +29,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { useRouter } from 'next/navigation'
 
 export function PredictShortageForm() {
   const [open, setOpen] = useState(false)
@@ -37,6 +38,8 @@ export function PredictShortageForm() {
   const [error, setError] = useState<string | null>(null)
   const [marketContext, setMarketContext] = useState('');
   const firestore = useFirestore();
+  const router = useRouter();
+
 
   const productsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "products")) : null, [firestore]);
   const salesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "sales_transactions")) : null, [firestore]);
@@ -147,8 +150,43 @@ export function PredictShortageForm() {
     }
     setIsLoading(false)
   }
+  
+  const handleCreateDraftPurchaseOrder = () => {
+    if (!prediction) return;
+    
+    const itemsToOrder = prediction.forecastedProducts
+      .filter(p => p.suggestedReorderQuantity > 0)
+      .map(p => {
+        const product = productsMap.get(p.productId);
+        const { baseUnit } = getUnitInfo(product?.unitId || '');
+        return {
+          productId: p.productId,
+          productName: p.productName,
+          quantity: p.suggestedReorderQuantity,
+          cost: 0, // Default cost, user will fill this
+          unitId: baseUnit?.id || product?.unitId || '' // Use base unit for ordering
+        };
+    });
+    
+    if (itemsToOrder.length === 0) {
+      toast({
+        title: "Không có sản phẩm nào cần nhập",
+        description: "AI không đề xuất nhập thêm sản phẩm nào vào lúc này.",
+      });
+      return;
+    }
+    
+    // Store in localStorage to pass to the new page
+    localStorage.setItem('draftPurchaseOrderItems', JSON.stringify(itemsToOrder));
+    
+    // Close the dialog and navigate
+    setOpen(false);
+    router.push('/purchases/new?draft=true');
+  };
+
 
   const dataIsLoading = productsLoading || salesLoading || unitsLoading || salesItemsLoading;
+  const hasReorderSuggestion = prediction?.forecastedProducts.some(p => p.suggestedReorderQuantity > 0);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -249,12 +287,22 @@ export function PredictShortageForm() {
         </div>
         
         <DialogFooter className="sm:justify-between pt-4">
+           <div>
+            {hasReorderSuggestion && (
+              <Button type="button" variant="outline" onClick={handleCreateDraftPurchaseOrder}>
+                <FilePlus2 className="mr-2 h-4 w-4" />
+                Tạo đơn nhập hàng brouillon
+              </Button>
+            )}
+          </div>
+          <div className="flex gap-2">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
                 Đóng
             </Button>
             <Button type="button" onClick={handlePredict} disabled={isLoading || dataIsLoading}>
                 {isLoading ? 'Đang dự đoán...' : 'Chạy lại phân tích'}
             </Button>
+           </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

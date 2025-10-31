@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
@@ -62,6 +63,7 @@ interface PurchaseOrderFormProps {
   units: Unit[];
   allSalesItems: SalesItem[];
   purchaseOrder?: PurchaseOrder;
+  draftItems?: PurchaseOrderItem[];
 }
 
 const FormattedNumberInput = ({ value, onChange, ...props }: { value: number; onChange: (value: number) => void; [key: string]: any }) => {
@@ -88,7 +90,7 @@ const FormattedNumberInput = ({ value, onChange, ...props }: { value: number; on
 };
 
 
-export function PurchaseOrderForm({ products, units, allSalesItems, purchaseOrder }: PurchaseOrderFormProps) {
+export function PurchaseOrderForm({ products, units, allSalesItems, purchaseOrder, draftItems }: PurchaseOrderFormProps) {
   const { toast } = useToast();
   const router = useRouter();
   const [productSearchOpen, setProductSearchOpen] = useState(false);
@@ -116,7 +118,7 @@ export function PurchaseOrderForm({ products, units, allSalesItems, purchaseOrde
         items: purchaseOrder.items || []
     } : {
       importDate: new Date().toISOString().split('T')[0],
-      items: [],
+      items: draftItems || [],
       notes: '',
     },
   });
@@ -127,14 +129,20 @@ export function PurchaseOrderForm({ products, units, allSalesItems, purchaseOrde
   });
 
   useEffect(() => {
-    if(isEditMode && purchaseOrder) {
+    if (isEditMode && purchaseOrder) {
       form.reset({
         importDate: new Date(purchaseOrder.importDate).toISOString().split('T')[0],
         notes: purchaseOrder.notes || '',
-        items: purchaseOrder.items || []
-      })
+        items: purchaseOrder.items || [],
+      });
+    } else if (draftItems && draftItems.length > 0) {
+      form.reset({
+        importDate: new Date().toISOString().split('T')[0],
+        notes: 'Đơn hàng nháp tạo từ đề xuất của AI',
+        items: draftItems,
+      });
     }
-  }, [purchaseOrder, isEditMode, form])
+  }, [purchaseOrder, isEditMode, draftItems, form]);
   
   const getUnitInfo = useCallback((unitId: string): { baseUnit?: Unit; conversionFactor: number, name: string } => {
     const unit = unitsMap.get(unitId);

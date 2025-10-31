@@ -2,15 +2,18 @@
 
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, getDocs } from "firebase/firestore";
-import { Customer, Product, Unit, SalesItem } from "@/lib/types";
+import { Customer, Product, Unit, SalesItem, PurchaseOrderItem } from "@/lib/types";
 import { PurchaseOrderForm } from "../components/purchase-order-form";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 
 export default function NewPurchasePage() {
     const firestore = useFirestore();
+    const searchParams = useSearchParams();
     const [allSalesItems, setAllSalesItems] = useState<SalesItem[]>([]);
     const [salesItemsLoading, setSalesItemsLoading] = useState(true);
+    const [draftItems, setDraftItems] = useState<PurchaseOrderItem[]>([]);
 
     const productsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
@@ -58,6 +61,22 @@ export default function NewPurchasePage() {
         fetchAllSalesItems();
     }, [sales, firestore, salesLoading]);
 
+    useEffect(() => {
+        if (searchParams.get('draft') === 'true') {
+            const storedItems = localStorage.getItem('draftPurchaseOrderItems');
+            if (storedItems) {
+                try {
+                    const parsedItems = JSON.parse(storedItems);
+                    setDraftItems(parsedItems);
+                    // Clear the local storage after reading to avoid re-using old data
+                    localStorage.removeItem('draftPurchaseOrderItems');
+                } catch (error) {
+                    console.error("Failed to parse draft items from localStorage:", error);
+                }
+            }
+        }
+    }, [searchParams]);
+
 
     const isLoading = productsLoading || unitsLoading || salesItemsLoading;
 
@@ -74,6 +93,7 @@ export default function NewPurchasePage() {
             products={products || []}
             units={units || []}
             allSalesItems={allSalesItems || []}
+            draftItems={draftItems}
         />
     )
 }
