@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react"
 import Link from "next/link"
-import { Search, ArrowUp, ArrowDown, File, Calendar as CalendarIcon, ChevronRight, ChevronDown } from "lucide-react"
+import { Search, ArrowUp, ArrowDown, File, Calendar as CalendarIcon, ChevronRight, ChevronDown, Undo2 } from "lucide-react"
 import * as xlsx from 'xlsx';
 import { DateRange } from "react-day-picker"
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns"
@@ -25,6 +25,12 @@ import {
   TableRow,
   TableFooter as ShadcnTableFooter
 } from "@/components/ui/table"
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
@@ -333,75 +339,90 @@ export default function SoldProductsReportPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={6} className="text-center h-24">Đang tải dữ liệu...</TableCell></TableRow>}
-            {!isLoading && sortedSoldProducts.map((data) => {
-              const isExpanded = expandedRows.has(data.productId);
-              const salesForProduct = allSalesItems.filter(item => item.productId === data.productId);
-              
-              return (
-                <React.Fragment key={data.productId}>
-                  <TableRow className="cursor-pointer" onClick={() => toggleRow(data.productId)}>
-                    <TableCell>
-                      <Button variant="ghost" size="icon" className="h-6 w-6">
-                          {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                      </Button>
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      <Link href={`/products?q=${data.productName}`} className="hover:underline" onClick={e => e.stopPropagation()}>
-                        {data.productName}
-                      </Link>
-                    </TableCell>
-                    <TableCell>{data.categoryName}</TableCell>
-                    <TableCell className="text-right font-medium">{formatSoldQuantity(data)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(data.avgPrice)}</TableCell>
-                    <TableCell className="text-right font-semibold text-primary">{formatCurrency(data.totalRevenue)}</TableCell>
-                  </TableRow>
-                  {isExpanded && (
-                    <TableRow className="bg-muted/50 hover:bg-muted/50">
-                      <TableCell colSpan={6}>
-                        <div className="p-4">
-                          <h4 className="font-semibold mb-2">Chi tiết các lần bán</h4>
-                           <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Mã đơn hàng</TableHead>
-                                <TableHead>Ngày bán</TableHead>
-                                <TableHead>Khách hàng</TableHead>
-                                <TableHead className="text-right">Số lượng</TableHead>
-                                <TableHead className="text-right">Đơn giá</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {salesForProduct.map(item => {
-                                const sale = salesMap.get(item.salesTransactionId);
-                                return (
-                                  <TableRow key={item.id}>
-                                    <TableCell>
-                                      <Link href={`/sales/${sale?.id}`} className="hover:underline">
-                                        {sale?.invoiceNumber}
-                                      </Link>
-                                    </TableCell>
-                                    <TableCell>{sale ? format(new Date(sale.transactionDate), 'dd/MM/yyyy') : ''}</TableCell>
-                                    <TableCell>{sale ? customersMap.get(sale.customerId) : ''}</TableCell>
-                                    <TableCell className="text-right">{item.quantity.toLocaleString()} {data.baseUnitName}</TableCell>
-                                    <TableCell className="text-right">{formatCurrency(item.price)}</TableCell>
-                                  </TableRow>
-                                )
-                              })}
-                            </TableBody>
-                          </Table>
-                        </div>
+            <TooltipProvider>
+              {isLoading && <TableRow><TableCell colSpan={6} className="text-center h-24">Đang tải dữ liệu...</TableCell></TableRow>}
+              {!isLoading && sortedSoldProducts.map((data) => {
+                const isExpanded = expandedRows.has(data.productId);
+                const salesForProduct = allSalesItems.filter(item => item.productId === data.productId);
+                
+                return (
+                  <React.Fragment key={data.productId}>
+                    <TableRow className="cursor-pointer" onClick={() => toggleRow(data.productId)}>
+                      <TableCell>
+                        <Button variant="ghost" size="icon" className="h-6 w-6">
+                            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </Button>
                       </TableCell>
+                      <TableCell className="font-medium">
+                        <Link href={`/products?q=${data.productName}`} className="hover:underline" onClick={e => e.stopPropagation()}>
+                          {data.productName}
+                        </Link>
+                      </TableCell>
+                      <TableCell>{data.categoryName}</TableCell>
+                      <TableCell className="text-right font-medium">{formatSoldQuantity(data)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(data.avgPrice)}</TableCell>
+                      <TableCell className="text-right font-semibold text-primary">{formatCurrency(data.totalRevenue)}</TableCell>
                     </TableRow>
-                  )}
-                </React.Fragment>
-              )
-            })}
-            {!isLoading && sortedSoldProducts.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center h-24">Không có sản phẩm nào được bán trong khoảng thời gian đã chọn.</TableCell>
-              </TableRow>
-            )}
+                    {isExpanded && (
+                      <TableRow className="bg-muted/50 hover:bg-muted/50">
+                        <TableCell colSpan={6}>
+                          <div className="p-4">
+                            <h4 className="font-semibold mb-2">Chi tiết các lần bán</h4>
+                             <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Mã đơn hàng</TableHead>
+                                  <TableHead>Ngày bán</TableHead>
+                                  <TableHead>Khách hàng</TableHead>
+                                  <TableHead className="text-right">Số lượng</TableHead>
+                                  <TableHead className="text-right">Đơn giá</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {salesForProduct.map(item => {
+                                  const sale = salesMap.get(item.salesTransactionId);
+                                  const isReturnOrder = sale ? sale.finalAmount < 0 : false;
+                                  return (
+                                    <TableRow key={item.id}>
+                                      <TableCell>
+                                        <div className="flex items-center gap-2">
+                                          {isReturnOrder && (
+                                            <Tooltip>
+                                              <TooltipTrigger>
+                                                <Undo2 className="h-4 w-4 text-muted-foreground" />
+                                              </TooltipTrigger>
+                                              <TooltipContent>
+                                                <p>Đơn hàng trả</p>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          )}
+                                          <Link href={`/sales/${sale?.id}`} className="hover:underline">
+                                            {sale?.invoiceNumber}
+                                          </Link>
+                                        </div>
+                                      </TableCell>
+                                      <TableCell>{sale ? format(new Date(sale.transactionDate), 'dd/MM/yyyy') : ''}</TableCell>
+                                      <TableCell>{sale ? customersMap.get(sale.customerId) : ''}</TableCell>
+                                      <TableCell className="text-right">{item.quantity.toLocaleString()} {data.baseUnitName}</TableCell>
+                                      <TableCell className="text-right">{formatCurrency(item.price)}</TableCell>
+                                    </TableRow>
+                                  )
+                                })}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
+                )
+              })}
+              {!isLoading && sortedSoldProducts.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center h-24">Không có sản phẩm nào được bán trong khoảng thời gian đã chọn.</TableCell>
+                </TableRow>
+              )}
+            </TooltipProvider>
           </TableBody>
           <ShadcnTableFooter>
             <TableRow className="text-base font-bold">

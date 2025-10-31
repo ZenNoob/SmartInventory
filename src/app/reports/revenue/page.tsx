@@ -17,6 +17,12 @@ import {
   TableRow,
   TableFooter,
 } from "@/components/ui/table"
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -27,7 +33,7 @@ import { formatCurrency, cn } from "@/lib/utils"
 import { DateRange } from "react-day-picker"
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns"
 import { vi } from "date-fns/locale"
-import { Calendar as CalendarIcon, File } from "lucide-react"
+import { Calendar as CalendarIcon, File, Undo2 } from "lucide-react"
 import * as xlsx from 'xlsx';
 import { RevenueChart } from "./components/revenue-chart"
 import Link from "next/link"
@@ -235,39 +241,56 @@ export default function RevenueReportPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && (
-                <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
-                    Đang tải dữ liệu...
-                  </TableCell>
-                </TableRow>
-              )}
-              {!isLoading && filteredSales.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
-                    Không có dữ liệu trong khoảng thời gian này.
-                  </TableCell>
-                </TableRow>
-              )}
-              {!isLoading && filteredSales.map((sale, index) => (
-                <TableRow key={sale.id}>
-                  <TableCell>{index + 1}</TableCell>
-                  <TableCell className="font-medium">
-                     <Link href={`/sales/${sale.id}`} className="hover:underline">
-                        {sale.invoiceNumber}
-                     </Link>
-                  </TableCell>
-                  <TableCell>
-                    {customersMap.get(sale.customerId) || 'Khách lẻ'}
-                  </TableCell>
-                  <TableCell>
-                    {format(new Date(sale.transactionDate), "dd/MM/yyyy")}
-                  </TableCell>
-                  <TableCell className="text-right font-semibold text-primary">
-                    {formatCurrency(sale.finalAmount)}
-                  </TableCell>
-                </TableRow>
-              ))}
+              <TooltipProvider>
+                {isLoading && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                      Đang tải dữ liệu...
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!isLoading && filteredSales.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center">
+                      Không có dữ liệu trong khoảng thời gian này.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!isLoading && filteredSales.map((sale, index) => {
+                  const isReturnOrder = sale.finalAmount < 0;
+                  return (
+                    <TableRow key={sale.id}>
+                      <TableCell>{index + 1}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                           {isReturnOrder && (
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <Undo2 className="h-4 w-4 text-muted-foreground" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Đơn hàng trả</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                          <Link href={`/sales/${sale.id}`} className="hover:underline">
+                              {sale.invoiceNumber}
+                          </Link>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {customersMap.get(sale.customerId) || 'Khách lẻ'}
+                      </TableCell>
+                      <TableCell>
+                        {format(new Date(sale.transactionDate), "dd/MM/yyyy")}
+                      </TableCell>
+                      <TableCell className={`text-right font-semibold ${isReturnOrder ? 'text-destructive' : 'text-primary'}`}>
+                        {formatCurrency(sale.finalAmount)}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TooltipProvider>
             </TableBody>
             <TableFooter>
                 <TableRow className="text-base font-bold">
