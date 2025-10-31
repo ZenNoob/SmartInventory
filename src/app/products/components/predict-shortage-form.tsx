@@ -27,12 +27,15 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from '@/components/ui/badge'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
 
 export function PredictShortageForm() {
   const [open, setOpen] = useState(false)
   const [prediction, setPrediction] = useState<ForecastSalesOutput | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [marketContext, setMarketContext] = useState('');
   const firestore = useFirestore();
 
   const productsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "products")) : null, [firestore]);
@@ -134,6 +137,7 @@ export function PredictShortageForm() {
         historicalSalesData: JSON.stringify(historicalSalesData),
         currentInventoryLevels: JSON.stringify(currentInventoryLevels),
         forecastPeriodDays: 30,
+        marketContext: marketContext,
     })
 
     if (result.success && result.data) {
@@ -156,67 +160,95 @@ export function PredictShortageForm() {
           </span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>Dự báo doanh số và Đề xuất nhập hàng</DialogTitle>
           <DialogDescription>
             Sử dụng AI để phân tích dữ liệu bán hàng, dự báo nhu cầu và đưa ra khuyến nghị nhập hàng cho 30 ngày tới.
           </DialogDescription>
         </DialogHeader>
-        {!prediction && !isLoading && !error && (
-            <div className="flex items-center space-x-2 p-4">
-                <p>Nhấp vào nút bên dưới để bắt đầu phân tích của AI.</p>
-            </div>
-        )}
-        
-        {isLoading && <div className="flex justify-center items-center p-8"><Bot className="h-8 w-8 animate-spin" /> <span className="ml-2">Đang phân tích dữ liệu...</span></div>}
-        
-        {error && <div className="text-destructive p-4 bg-destructive/10 rounded-md">{error}</div>}
 
-        {prediction && (
-            <div className='space-y-4'>
-                <div>
-                    <h4 className="font-semibold mb-2">Tóm tắt phân tích</h4>
-                    <p className='text-sm text-muted-foreground bg-muted p-3 rounded-md'>{prediction.analysisSummary}</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+            <div className="space-y-4">
+                <div className="grid w-full gap-1.5">
+                    <Label htmlFor="market-context">Thêm bối cảnh thị trường (Tùy chọn)</Label>
+                    <Textarea 
+                        id="market-context"
+                        placeholder="Ví dụ: Sắp có đợt khuyến mãi lớn cho sản phẩm X, Tuần tới dự báo mưa nhiều, nhu cầu phân bón lá sẽ tăng..."
+                        value={marketContext}
+                        onChange={(e) => setMarketContext(e.target.value)}
+                        className="min-h-[100px]"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                        Cung cấp thông tin về khuyến mãi, thời tiết, dịch bệnh... để AI dự báo chính xác hơn.
+                    </p>
                 </div>
-                <ScrollArea className="max-h-96 border rounded-md">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Sản phẩm</TableHead>
-                                <TableHead className="text-right">Tồn kho</TableHead>
-                                <TableHead className="text-right">Dự báo bán</TableHead>
-                                <TableHead className="text-center">Đề xuất</TableHead>
-                                <TableHead className="text-right">SL cần nhập</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {prediction.forecastedProducts.map(p => {
-                                const product = productsMap.get(p.productId);
-                                const mainUnit = product ? unitsMap.get(product.unitId) : undefined;
-                                const baseUnit = mainUnit?.baseUnitId ? unitsMap.get(mainUnit.baseUnitId) : mainUnit;
-                                return (
-                                <TableRow key={p.productId}>
-                                    <TableCell className="font-medium">{p.productName}</TableCell>
-                                    <TableCell className="text-right">{p.currentStock.toLocaleString()}</TableCell>
-                                    <TableCell className="text-right">{p.forecastedSales.toLocaleString()}</TableCell>
-                                    <TableCell className="text-center">
-                                        <Badge variant={p.suggestion === 'Re-order' || p.suggestion === 'Cần nhập' ? 'destructive' : 'default'}>
-                                            {p.suggestion === 'Re-order' ? 'Cần nhập' : p.suggestion}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell className="text-right font-semibold">
-                                        {p.suggestedReorderQuantity > 0 ? `${p.suggestedReorderQuantity.toLocaleString()} ${baseUnit?.name || ''}` : '-'}
-                                    </TableCell>
-                                </TableRow>
-                            )})}
-                        </TableBody>
-                    </Table>
-                </ScrollArea>
+                {!prediction && !isLoading && !error && (
+                    <div className="flex items-center justify-center space-x-2 p-4 h-48 border rounded-md bg-muted/50">
+                        <p className="text-center text-muted-foreground">Nhấp vào nút "Chạy phân tích" để bắt đầu.</p>
+                    </div>
+                )}
+                
+                {isLoading && <div className="flex justify-center items-center p-8 h-48 border rounded-md"><Bot className="h-8 w-8 animate-spin" /> <span className="ml-2">Đang phân tích dữ liệu...</span></div>}
+                
+                {error && <div className="text-destructive p-4 bg-destructive/10 rounded-md h-48">{error}</div>}
+
+                {prediction && (
+                    <div className='space-y-4'>
+                        <div>
+                            <h4 className="font-semibold mb-2">Tóm tắt phân tích</h4>
+                            <p className='text-sm text-muted-foreground bg-muted p-3 rounded-md'>{prediction.analysisSummary}</p>
+                        </div>
+                    </div>
+                )}
             </div>
-        )}
+
+            <div className="space-y-4">
+                 <h4 className="font-semibold">Kết quả dự báo & Đề xuất</h4>
+                 {prediction ? (
+                     <ScrollArea className="h-[400px] border rounded-md">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Sản phẩm</TableHead>
+                                    <TableHead className="text-right">Tồn kho</TableHead>
+                                    <TableHead className="text-right">Dự báo bán</TableHead>
+                                    <TableHead className="text-center">Đề xuất</TableHead>
+                                    <TableHead className="text-right">SL cần nhập</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {prediction.forecastedProducts.map(p => {
+                                    const product = productsMap.get(p.productId);
+                                    const mainUnit = product ? unitsMap.get(product.unitId) : undefined;
+                                    const baseUnit = mainUnit?.baseUnitId ? unitsMap.get(mainUnit.baseUnitId) : mainUnit;
+                                    return (
+                                    <TableRow key={p.productId}>
+                                        <TableCell className="font-medium">{p.productName}</TableCell>
+                                        <TableCell className="text-right">{p.currentStock.toLocaleString()}</TableCell>
+                                        <TableCell className="text-right">{p.forecastedSales.toLocaleString()}</TableCell>
+                                        <TableCell className="text-center">
+                                            <Badge variant={p.suggestion === 'Re-order' || p.suggestion === 'Cần nhập' ? 'destructive' : 'default'}>
+                                                {p.suggestion === 'Re-order' ? 'Cần nhập' : p.suggestion}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell className="text-right font-semibold">
+                                            {p.suggestedReorderQuantity > 0 ? `${p.suggestedReorderQuantity.toLocaleString()} ${baseUnit?.name || ''}` : '-'}
+                                        </TableCell>
+                                    </TableRow>
+                                )})}
+                            </TableBody>
+                        </Table>
+                    </ScrollArea>
+                 ) : (
+                    <div className="flex items-center justify-center h-[400px] border rounded-md bg-muted/50">
+                       <p className="text-muted-foreground">Kết quả sẽ hiển thị ở đây.</p>
+                    </div>
+                 )}
+            </div>
+        </div>
         
-        <DialogFooter className="sm:justify-between">
+        <DialogFooter className="sm:justify-between pt-4">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
                 Đóng
             </Button>

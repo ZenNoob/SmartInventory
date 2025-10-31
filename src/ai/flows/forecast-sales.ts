@@ -24,6 +24,12 @@ const ForecastSalesInputSchema = z.object({
   forecastPeriodDays: z
     .number()
     .describe('The number of days into the future to forecast sales for.'),
+  marketContext: z
+    .string()
+    .optional()
+    .describe(
+      'Additional context about the market, promotions, or external factors (e.g., "Upcoming promotion for product A", "Heavy rain expected next week affecting crop B", "Pest outbreak reported in the region").'
+    ),
 });
 export type ForecastSalesInput = z.infer<typeof ForecastSalesInputSchema>;
 
@@ -53,7 +59,7 @@ const prompt = ai.definePrompt({
   name: 'forecastSalesPrompt',
   input: {schema: ForecastSalesInputSchema},
   output: {schema: ForecastSalesOutputSchema},
-  prompt: `You are a data scientist for a retail company. Your task is to analyze historical sales data and current inventory levels to forecast future sales and provide re-ordering recommendations.
+  prompt: `You are a data scientist for a retail company. Your task is to analyze historical sales data, current inventory levels, and market context to forecast future sales and provide re-ordering recommendations.
 
   **IMPORTANT: All output text must be in Vietnamese.**
 
@@ -67,13 +73,18 @@ const prompt = ai.definePrompt({
       \`\`\`json
       {{{currentInventoryLevels}}}
       \`\`\`
+  
+  3.  **Market Context (Crucial):** Additional information about upcoming events, weather, or market conditions. You must heavily weigh this context in your forecast, as it can override historical trends.
+      \`\`\`text
+      {{{marketContext}}}
+      \`\`\`
 
   **Your Task:**
-  1.  **Forecast Sales:** Predict the sales for each product for the next {{{forecastPeriodDays}}} days. Use time-series analysis principles. Consider recent sales velocity more heavily.
+  1.  **Forecast Sales:** Predict the sales for each product for the next {{{forecastPeriodDays}}} days. Use time-series analysis principles, but adjust heavily based on the provided 'Market Context'. For example, if a promotion is mentioned for a product, its forecast should increase significantly, even if historical sales are low.
   2.  **Provide Re-order Suggestions:** For each product, compare the forecasted sales with the current stock.
       - If forecasted sales exceed current stock, set 'suggestion' to "Cần nhập" and calculate a 'suggestedReorderQuantity'. The re-order quantity should be enough to cover the forecasted deficit plus a safety buffer (e.g., 20% of the forecasted sales).
       - If stock is sufficient, set 'suggestion' to "Ổn định" and 'suggestedReorderQuantity' to 0.
-  3.  **Summarize Findings:** Provide a brief 'analysisSummary' of the overall sales trends you observed (e.g., "Doanh số bán hàng tổng thể đang có xu hướng tăng, với sự tăng trưởng mạnh ở sản phẩm X, nhưng sản phẩm Y đang chậm lại.").
+  3.  **Summarize Findings:** Provide a brief 'analysisSummary' that reflects the market context. For example: "Dự báo doanh số tăng mạnh cho sản phẩm X do có chương trình khuyến mãi sắp tới. Cần chú ý nhập hàng để đáp ứng nhu cầu."
 
   **Output Format:**
   Return a JSON object that strictly adheres to the 'ForecastSalesOutputSchema'.
