@@ -543,10 +543,12 @@ export default function POSPage() {
 
   return (
     <>
-    <CustomerForm 
-      isOpen={isCustomerFormOpen} 
-      onOpenChange={handleNewCustomerCreated} 
-    />
+    {canAddCustomers && (
+      <CustomerForm 
+        isOpen={isCustomerFormOpen} 
+        onOpenChange={handleNewCustomerCreated} 
+      />
+    )}
     <div className="flex flex-col h-[calc(100vh-5rem)] -m-6 bg-muted/30">
       <header className="p-4 border-b bg-background flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={toggleSidebar} className='shrink-0'>

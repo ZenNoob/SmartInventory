@@ -74,6 +74,7 @@ import { Input } from "@/components/ui/input"
 import { formatCurrency } from "@/lib/utils"
 import { ImportCustomers } from "./components/import-customers"
 import { DebtPaymentDialog } from "./components/debt-payment-dialog"
+import { useUserRole } from "@/hooks/use-user-role"
 
 type CustomerTypeFilter = 'all' | 'personal' | 'business';
 type GenderFilter = 'all' | 'male' | 'female' | 'other';
@@ -135,6 +136,7 @@ export default function CustomersPage() {
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [loyaltyTierFilter, setLoyaltyTierFilter] = useState<LoyaltyTierFilter>('all');
+  const { permissions, isLoading: isRoleLoading } = useUserRole();
 
 
   const firestore = useFirestore();
@@ -323,10 +325,31 @@ export default function CustomersPage() {
   );
 
 
-  const isLoading = customersLoading || salesLoading || paymentsLoading;
+  const isLoading = customersLoading || salesLoading || paymentsLoading || isRoleLoading;
+
+  if (isLoading) {
+    return <p>Đang tải dữ liệu khách hàng...</p>;
+  }
+
+  if (!permissions?.customers?.includes('view')) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Truy cập bị từ chối</CardTitle>
+          <CardDescription>
+            Bạn không có quyền xem danh sách khách hàng.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
   
   const customerPayments = viewingPaymentsFor ? customerDebts.get(viewingPaymentsFor.id)?.payments || [] : [];
   const currentDebtInfo = customerForPayment ? customerDebts.get(customerForPayment.id) : undefined;
+  
+  const canAddCustomer = permissions?.customers?.includes('add');
+  const canEditCustomer = permissions?.customers?.includes('edit');
+  const canDeleteCustomer = permissions?.customers?.includes('delete');
 
   return (
     <>
@@ -445,19 +468,23 @@ export default function CustomersPage() {
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
             </DropdownMenu>
-          <Button size="sm" variant="outline" className="h-8 gap-1" onClick={handleExportTemplate} disabled={isExporting}>
-            <File className="h-3.5 w-3.5" />
-            <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-              {isExporting ? 'Đang xuất...' : 'Xuất Template'}
-            </span>
-          </Button>
-          <ImportCustomers />
-          <Button size="sm" className="h-8 gap-1" onClick={handleAddCustomer}>
-            <PlusCircle className="h-3.5 w-3.5" />
-            <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-              Thêm khách hàng
-            </span>
-          </Button>
+            {canAddCustomer && (
+            <>
+              <Button size="sm" variant="outline" className="h-8 gap-1" onClick={handleExportTemplate} disabled={isExporting}>
+                <File className="h-3.5 w-3.5" />
+                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                  {isExporting ? 'Đang xuất...' : 'Xuất Template'}
+                </span>
+              </Button>
+              <ImportCustomers />
+              <Button size="sm" className="h-8 gap-1" onClick={handleAddCustomer}>
+                <PlusCircle className="h-3.5 w-3.5" />
+                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                  Thêm khách hàng
+                </span>
+              </Button>
+            </>
+            )}
         </div>
       </div>
       <Card>
@@ -590,8 +617,12 @@ export default function CustomersPage() {
                            <DropdownMenuItem asChild>
                              <Link href={`/customers/${customer.id}`}>Xem chi tiết</Link>
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleEditCustomer(customer)}>Sửa</DropdownMenuItem>
+                          {canEditCustomer && (
+                            <DropdownMenuItem onClick={() => handleEditCustomer(customer)}>Sửa</DropdownMenuItem>
+                          )}
+                          {canDeleteCustomer && (
                           <DropdownMenuItem className="text-destructive" onClick={() => setCustomerToDelete(customer)} disabled={hasDebt}>Xóa</DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
