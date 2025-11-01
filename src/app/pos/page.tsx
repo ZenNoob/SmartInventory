@@ -124,7 +124,7 @@ const FormattedNumberInput = ({ value, onChange, ...props }: { value: number; on
 };
 
 export default function POSPage() {
-  const { user } = useUser()
+  const { user, isUserLoading } = useUser()
   const router = useRouter()
   const firestore = useFirestore()
   const { toast } = useToast()
@@ -470,6 +470,14 @@ export default function POSPage() {
     barcodeInputRef.current?.focus();
   }, [cart]);
 
+  // Redirect if not logged in
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/login');
+    }
+  }, [isUserLoading, user, router]);
+
+
   const handleCustomerPaymentChange = (value: number) => {
     setCustomerPayment(value);
     if (value > 0) {
@@ -503,9 +511,9 @@ export default function POSPage() {
   }
 
 
-  const isLoading = customersLoading || productsLoading || unitsLoading || salesLoading || salesItemsLoading || settingsLoading || shiftsLoading;
+  const isLoading = customersLoading || productsLoading || unitsLoading || salesLoading || salesItemsLoading || settingsLoading || shiftsLoading || isUserLoading;
   
-  if (isLoading) {
+  if (isLoading || !user) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p>Đang tải dữ liệu cho quầy POS...</p>
@@ -513,11 +521,6 @@ export default function POSPage() {
     );
   }
 
-  if (!user) {
-    router.push('/login');
-    return null;
-  }
-  
   if (!activeShift) {
     return <StartShiftDialog user={user} onShiftStarted={() => router.refresh()} />;
   }
