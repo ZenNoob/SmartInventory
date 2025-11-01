@@ -71,7 +71,8 @@ export type Customer = {
   createdAt: string; // ISO 8601 date string
   updatedAt: string; // ISO 8601 date string
   status: 'active' | 'inactive';
-  loyaltyPoints?: number;
+  loyaltyPoints?: number; // Spendable points
+  lifetimePoints?: number; // Total earned points for tier calculation
   loyaltyTier?: 'bronze' | 'silver' | 'gold' | 'diamond';
 }
 
@@ -95,6 +96,8 @@ export type Sale = {
   discount?: number;
   discountType?: 'percentage' | 'amount';
   discountValue?: number;
+  pointsUsed?: number; // New field
+  pointsDiscount?: number; // New field
   customerPayment?: number;
   previousDebt?: number;
   remainingDebt?: number;
@@ -124,6 +127,7 @@ export type LoyaltyTierConfig = {
 
 export type LoyaltySettings = {
   pointsPerAmount: number; // How much money to spend to get 1 point
+  pointsToVndRate: number; // How much 1 point is worth in VND
   tiers: LoyaltyTierConfig[];
 }
 

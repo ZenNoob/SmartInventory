@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import { useEffect, useTransition } from 'react'
@@ -43,6 +44,7 @@ const loyaltyTierSchema = z.object({
 
 const loyaltySettingsSchema = z.object({
   pointsPerAmount: z.coerce.number().min(1, "Giá trị phải lớn hơn 0."),
+  pointsToVndRate: z.coerce.number().min(0, "Giá trị phải là số không âm."),
   tiers: z.array(loyaltyTierSchema),
 });
 
@@ -80,6 +82,7 @@ export default function SettingsPage() {
   
   const defaultLoyaltySettings: LoyaltySettings = {
     pointsPerAmount: 100000, // 100,000 VND for 1 point
+    pointsToVndRate: 1000, // 1 point = 1,000 VND
     tiers: [
       { name: 'bronze', vietnameseName: 'Đồng', threshold: 0 },
       { name: 'silver', vietnameseName: 'Bạc', threshold: 50 },
@@ -342,24 +345,42 @@ export default function SettingsPage() {
                     <h3 className="text-lg font-medium">Chương trình khách hàng thân thiết</h3>
                     <p className="text-sm text-muted-foreground mb-6">Cấu hình cách tích điểm và phân hạng thành viên.</p>
                     <div className="space-y-6">
-                      <FormField
-                        control={form.control}
-                        name="loyalty.pointsPerAmount"
-                        render={({ field }) => (
-                          <FormItem className="max-w-xs">
-                            <FormLabel>Tỷ lệ tích điểm</FormLabel>
-                            <FormControl>
-                              <Input type="number" {...field} />
-                            </FormControl>
-                            <FormDescription>
-                              Số tiền (VNĐ) cần chi tiêu để nhận được 1 điểm.
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                       <div className="grid md:grid-cols-2 gap-6">
+                          <FormField
+                            control={form.control}
+                            name="loyalty.pointsPerAmount"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Tỷ lệ tích điểm</FormLabel>
+                                <FormControl>
+                                  <Input type="number" {...field} />
+                                </FormControl>
+                                <FormDescription>
+                                  Số tiền (VNĐ) cần chi tiêu để nhận được 1 điểm.
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="loyalty.pointsToVndRate"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Tỷ lệ quy đổi điểm</FormLabel>
+                                <FormControl>
+                                  <Input type="number" {...field} />
+                                </FormControl>
+                                <FormDescription>
+                                  Giá trị của 1 điểm khi khách hàng sử dụng (VNĐ).
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                       </div>
                       <div>
-                        <h4 className="font-medium mb-2">Ngưỡng lên hạng</h4>
+                        <h4 className="font-medium mb-2">Ngưỡng lên hạng (dựa trên tổng điểm đã tích lũy)</h4>
                         <div className="space-y-4">
                             {tierFields.map((field, index) => (
                                <FormField
@@ -373,7 +394,7 @@ export default function SettingsPage() {
                                             <Input type="number" {...field} />
                                         </FormControl>
                                         <FormDescription>
-                                            Số điểm tối thiểu để đạt hạng này.
+                                            Tổng điểm tích lũy tối thiểu để đạt hạng này.
                                         </FormDescription>
                                         <FormMessage />
                                     </FormItem>
