@@ -199,7 +199,7 @@ export function MainNav() {
                   <SidebarMenuSub>
                       <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive('/reports/income-statement')}>
-                              <Link href="/reports/income-statement">Báo cáo Thu chi</Link>
+                              <Link href="/reports/income-statement" className='flex items-center gap-2'><LineChart className="h-4 w-4" />Báo cáo Thu chi</Link>
                           </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                        <SidebarMenuSubItem>
@@ -209,7 +209,7 @@ export function MainNav() {
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive('/reports/debt')}>
-                              <Link href="/reports/debt">Công nợ</Link>
+                              <Link href="/reports/debt" className='flex items-center gap-2'><BookUser className="h-4 w-4" />Công nợ</Link>
                           </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
@@ -219,22 +219,22 @@ export function MainNav() {
                       </SidebarMenuSubItem>
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive('/reports/revenue')}>
-                              <Link href="/reports/revenue">Doanh thu</Link>
+                              <Link href="/reports/revenue" className='flex items-center gap-2'><FileText className="h-4 w-4" />Doanh thu</Link>
                           </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive('/reports/sold-products')}>
-                              <Link href="/reports/sold-products">Sản phẩm đã bán</Link>
+                              <Link href="/reports/sold-products" className='flex items-center gap-2'><FileBox className="h-4 w-4" />Sản phẩm đã bán</Link>
                           </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive('/reports/purchases')}>
-                                <Link href="/reports/purchases">Chi tiết nhập hàng</Link>
+                                <Link href="/reports/purchases" className='flex items-center gap-2'><Truck className="h-4 w-4" />Chi tiết nhập hàng</Link>
                             </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive('/reports/inventory')}>
-                              <Link href="/reports/inventory">Tồn kho</Link>
+                              <Link href="/reports/inventory" className='flex items-center gap-2'><Warehouse className="h-4 w-4" />Tồn kho</Link>
                           </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                         <SidebarMenuSubItem>
