@@ -1,5 +1,6 @@
 
 
+
 'use client'
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
@@ -37,7 +38,7 @@ import { Input } from "@/components/ui/input"
 import { Customer, Product, Unit, SalesItem, Sale, Payment, ThemeSettings } from '@/lib/types'
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
-import { Check, ChevronsUpDown, PlusCircle, Trash2, Barcode, Sparkles, AlertTriangle } from 'lucide-react'
+import { Check, ChevronsUpDown, PlusCircle, Trash2, Barcode, Sparkles, AlertTriangle, UserPlus } from 'lucide-react'
 import { cn, formatCurrency } from '@/lib/utils'
 import { upsertSaleTransaction } from '../actions'
 import { Label } from '@/components/ui/label'
@@ -46,6 +47,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { getRelatedProductsSuggestion } from '@/app/actions'
 import type { SuggestRelatedProductsOutput } from '@/ai/flows/suggest-related-products-flow'
 import { Checkbox } from '@/components/ui/checkbox'
+import { CustomerForm } from '@/app/customers/components/customer-form'
+
 
 const saleItemSchema = z.object({
   productId: z.string().min(1, "Vui lòng chọn sản phẩm."),
@@ -114,6 +117,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const [suggestions, setSuggestions] = useState<SuggestRelatedProductsOutput['suggestions']>([]);
   const [isSuggesting, setIsSuggesting] = useState(false);
+  const [isCustomerFormOpen, setIsCustomerFormOpen] = useState(false);
 
   const unitsMap = useMemo(() => new Map(units.map(u => [u.id, u])), [units]);
   const productsMap = useMemo(() => new Map(products.map(p => [p.id, p])), [products]);
@@ -193,13 +197,10 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
     if (!customers || !sales || !payments) return new Map<string, number>();
 
     const debtMap = new Map<string, number>();
-
-    const salesForDebtCalc = sale ? sales.filter(s => s.id !== sale.id) : sales;
-    const paymentsForDebtCalc = sale ? payments.filter(p => !p.notes?.includes(sale.invoiceNumber)) : payments;
-
+    
     customers.forEach(customer => {
-        const customerSales = salesForDebtCalc.filter(s => s.customerId === customer.id);
-        const customerPayments = paymentsForDebtCalc.filter(p => p.customerId === customer.id);
+        const customerSales = sales.filter(s => s.customerId === customer.id);
+        const customerPayments = payments.filter(p => p.customerId === customer.id);
         
         const totalRevenue = customerSales.reduce((sum, s) => sum + (s.finalAmount || 0), 0);
         const totalPaid = customerPayments.reduce((sum, p) => sum + p.amount, 0);
@@ -207,7 +208,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
         debtMap.set(customer.id, totalRevenue - totalPaid);
     });
     return debtMap;
-  }, [customers, sales, payments, sale]);
+  }, [customers, sales, payments]);
 
 
   const refinedSaleFormSchema = useMemo(() => saleFormSchema.superRefine((data, ctx) => {
@@ -490,408 +491,431 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
     }
     setIsSuggesting(false);
   };
+  
+  const handleNewCustomerCreated = (newCustomerId?: string) => {
+    setIsCustomerFormOpen(false);
+    if(newCustomerId){
+        form.setValue("customerId", newCustomerId);
+    }
+  }
 
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { onOpenChange(open); if(!open) form.reset(); }}>
-      <DialogContent className="sm:max-w-7xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>{sale ? 'Sửa đơn hàng' : 'Tạo đơn hàng mới'}</DialogTitle>
-          <DialogDescription>
-            Điền thông tin chi tiết của đơn hàng dưới đây.
-          </DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid md:grid-cols-4 gap-x-8 flex-grow overflow-hidden">
-            {/* Left Column */}
-            <div className="md:col-span-3 flex flex-col gap-4 overflow-hidden">
-              <div className="grid grid-cols-2 gap-4">
-                 <FormField
-                  control={form.control}
-                  name="customerId"
-                  render={({ field }) => (
-                     <FormItem className="flex flex-col">
-                      <FormLabel>Khách hàng</FormLabel>
-                      <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant="outline"
-                              role="combobox"
-                              className={cn(
-                                "w-full justify-between",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              {field.value
-                                ? customers.find(
-                                    (c) => c.id === field.value
-                                  )?.name
-                                : "Chọn khách hàng..."}
-                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                           <Command>
-                                <CommandInput placeholder="Tìm khách hàng theo tên hoặc SĐT..." />
-                                <CommandList>
-                                <CommandEmpty>Không tìm thấy khách hàng.</CommandEmpty>
-                                <CommandGroup>
-                                    {customers.map((customer) => {
-                                      const debt = customerDebts.get(customer.id) || 0;
-                                      return (
-                                        <CommandItem
-                                            value={`${customer.name} ${customer.phone}`}
-                                            key={customer.id}
-                                            onSelect={() => {
-                                                form.setValue("customerId", customer.id)
-                                                setCustomerSearchOpen(false)
-                                            }}
-                                        >
-                                            <Check
-                                            className={cn(
-                                                "mr-2 h-4 w-4",
-                                                customer.id === field.value
-                                                ? "opacity-100"
-                                                : "opacity-0"
-                                            )}
-                                            />
-                                            <div className="flex justify-between w-full">
-                                                <div>
-                                                  <p>{customer.name}</p>
-                                                  <p className="text-xs text-muted-foreground">{customer.phone}</p>
-                                                </div>
-                                                {debt > 0 && <p className="text-xs text-destructive">Nợ: {formatCurrency(debt)}</p>}
-                                            </div>
-                                        </CommandItem>
-                                      )
-                                    })}
-                                </CommandGroup>
-                                </CommandList>
-                            </Command>
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="transactionDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Ngày bán</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="flex items-center gap-4">
-                <div className="relative flex-grow">
-                  <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                  <Input
-                    ref={barcodeInputRef}
-                    placeholder="Quét mã vạch sản phẩm..."
-                    className="pl-10"
-                    value={barcode}
-                    onChange={(e) => setBarcode(e.target.value)}
-                    onKeyDown={handleBarcodeScan}
+    <>
+      <CustomerForm 
+        isOpen={isCustomerFormOpen} 
+        onOpenChange={handleNewCustomerCreated} 
+      />
+      <Dialog open={isOpen} onOpenChange={(open) => { onOpenChange(open); if(!open) form.reset(); }}>
+        <DialogContent className="sm:max-w-7xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>{sale ? 'Sửa đơn hàng' : 'Tạo đơn hàng mới'}</DialogTitle>
+            <DialogDescription>
+              Điền thông tin chi tiết của đơn hàng dưới đây.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="grid md:grid-cols-4 gap-x-8 flex-grow overflow-hidden">
+              {/* Left Column */}
+              <div className="md:col-span-3 flex flex-col gap-4 overflow-hidden">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="customerId"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Khách hàng</FormLabel>
+                        <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className={cn(
+                                  "w-full justify-between",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value
+                                  ? customers.find(
+                                      (c) => c.id === field.value
+                                    )?.name
+                                  : "Chọn khách hàng..."}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                            <Command>
+                                  <CommandInput placeholder="Tìm khách hàng theo tên hoặc SĐT..." />
+                                  <CommandList>
+                                  <CommandEmpty>Không tìm thấy khách hàng.</CommandEmpty>
+                                  <CommandGroup>
+                                      {customers.map((customer) => {
+                                        const debt = customerDebts.get(customer.id) || 0;
+                                        return (
+                                          <CommandItem
+                                              value={`${customer.name} ${customer.phone}`}
+                                              key={customer.id}
+                                              onSelect={() => {
+                                                  form.setValue("customerId", customer.id)
+                                                  setCustomerSearchOpen(false)
+                                              }}
+                                          >
+                                              <Check
+                                              className={cn(
+                                                  "mr-2 h-4 w-4",
+                                                  customer.id === field.value
+                                                  ? "opacity-100"
+                                                  : "opacity-0"
+                                              )}
+                                              />
+                                              <div className="flex justify-between w-full">
+                                                  <div>
+                                                    <p>{customer.name}</p>
+                                                    <p className="text-xs text-muted-foreground">{customer.phone}</p>
+                                                  </div>
+                                                  {debt > 0 && <p className="text-xs text-destructive">Nợ: {formatCurrency(debt)}</p>}
+                                              </div>
+                                          </CommandItem>
+                                        )
+                                      })}
+                                  </CommandGroup>
+                                  <CommandSeparator />
+                                   <CommandItem
+                                      onSelect={() => {
+                                        setCustomerSearchOpen(false);
+                                        setIsCustomerFormOpen(true);
+                                      }}
+                                    >
+                                      <UserPlus className="mr-2 h-4 w-4" />
+                                      Thêm khách hàng mới
+                                    </CommandItem>
+                                  </CommandList>
+                              </Command>
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="transactionDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Ngày bán</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
                 </div>
-                 <Popover open={productSearchOpen} onOpenChange={setProductSearchOpen}>
-                    <PopoverTrigger asChild>
-                        <Button type="button" variant="outline" size="sm" className="shrink-0">
-                            <PlusCircle className="mr-2 h-4 w-4" />
-                            Thêm thủ công
+
+                <div className="flex items-center gap-4">
+                  <div className="relative flex-grow">
+                    <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                    <Input
+                      ref={barcodeInputRef}
+                      placeholder="Quét mã vạch sản phẩm..."
+                      className="pl-10"
+                      value={barcode}
+                      onChange={(e) => setBarcode(e.target.value)}
+                      onKeyDown={handleBarcodeScan}
+                    />
+                  </div>
+                  <Popover open={productSearchOpen} onOpenChange={setProductSearchOpen}>
+                      <PopoverTrigger asChild>
+                          <Button type="button" variant="outline" size="sm" className="shrink-0">
+                              <PlusCircle className="mr-2 h-4 w-4" />
+                              Thêm thủ công
+                          </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[400px] p-0" align="start">
+                          <Command>
+                              <CommandInput placeholder="Tìm kiếm sản phẩm..." />
+                              <CommandList>
+                                  <CommandEmpty>Không tìm thấy sản phẩm.</CommandEmpty>
+                                  <CommandGroup>
+                                      {products.map((product) => (
+                                      <CommandItem
+                                          key={product.id}
+                                          value={product.name}
+                                          onSelect={() => {
+                                              addProductToSale(product.id);
+                                              setProductSearchOpen(false);
+                                          }}
+                                      >
+                                          <Check
+                                              className={cn(
+                                                  "mr-2 h-4 w-4",
+                                                  watchedItems.some(i => i.productId === product.id) ? "opacity-100" : "opacity-0"
+                                              )}
+                                          />
+                                          {product.name}
+                                      </CommandItem>
+                                      ))}
+                                  </CommandGroup>
+                              </CommandList>
+                          </Command>
+                      </PopoverContent>
+                  </Popover>
+                  <Button type="button" variant="outline" size="sm" onClick={handleGetSuggestions} disabled={isSuggesting}>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      {isSuggesting ? 'Đang tìm...' : 'Gợi ý sản phẩm'}
+                    </Button>
+                </div>
+
+                {suggestions.length > 0 && (
+                  <div className="p-3 border rounded-md bg-muted/50">
+                    <h4 className="text-sm font-semibold mb-2">Gợi ý từ AI</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {suggestions.map(s => (
+                        <Button key={s.productId} variant="outline" size="sm" className="h-auto py-1" onClick={() => addProductToSale(s.productId)}>
+                          <PlusCircle className="mr-2 h-4 w-4" />
+                          <div>
+                            <p>{s.productName}</p>
+                            <p className="text-xs text-muted-foreground font-normal">{s.reason}</p>
+                          </div>
                         </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[400px] p-0" align="start">
-                         <Command>
-                            <CommandInput placeholder="Tìm kiếm sản phẩm..." />
-                            <CommandList>
-                                <CommandEmpty>Không tìm thấy sản phẩm.</CommandEmpty>
-                                <CommandGroup>
-                                    {products.map((product) => (
-                                    <CommandItem
-                                        key={product.id}
-                                        value={product.name}
-                                        onSelect={() => {
-                                            addProductToSale(product.id);
-                                            setProductSearchOpen(false);
-                                        }}
-                                    >
-                                        <Check
-                                            className={cn(
-                                                "mr-2 h-4 w-4",
-                                                watchedItems.some(i => i.productId === product.id) ? "opacity-100" : "opacity-0"
-                                            )}
-                                        />
-                                        {product.name}
-                                    </CommandItem>
-                                    ))}
-                                </CommandGroup>
-                            </CommandList>
-                        </Command>
-                    </PopoverContent>
-                 </Popover>
-                 <Button type="button" variant="outline" size="sm" onClick={handleGetSuggestions} disabled={isSuggesting}>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    {isSuggesting ? 'Đang tìm...' : 'Gợi ý sản phẩm'}
-                  </Button>
-              </div>
-
-              {suggestions.length > 0 && (
-                <div className="p-3 border rounded-md bg-muted/50">
-                  <h4 className="text-sm font-semibold mb-2">Gợi ý từ AI</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {suggestions.map(s => (
-                      <Button key={s.productId} variant="outline" size="sm" className="h-auto py-1" onClick={() => addProductToSale(s.productId)}>
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        <div>
-                          <p>{s.productName}</p>
-                          <p className="text-xs text-muted-foreground font-normal">{s.reason}</p>
-                        </div>
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <Separator />
-
-              <div className='flex-grow space-y-4 overflow-y-auto pr-6 -mr-6'>
-                <h3 className="text-md font-medium">Chi tiết đơn hàng</h3>
-                <div className="space-y-3">
-                  {fields.map((field, index) => {
-                    const product = productsMap.get(watchedItems[index]?.productId);
-                    if (!product) return null;
-
-                    const saleUnitInfo = getUnitInfo(product.unitId);
-                    const baseUnit = saleUnitInfo.baseUnit || unitsMap.get(product.unitId);
-                    
-                    const itemValues = watchedItems[index];
-                    const quantityInBaseUnit = (itemValues?.quantity || 0) * (saleUnitInfo.conversionFactor || 1);
-                    const lineTotal = quantityInBaseUnit * (itemValues?.price || 0);
-
-                    const stockInfo = getStockInfo(product.id);
-                    const avgCostInfo = getAverageCost(product.id);
-                    
-                    return (
-                        <div key={field.id} className="p-3 border rounded-md relative">
-                            <p className="font-medium mb-2">{product?.name || 'Sản phẩm không xác định'}</p>
-                            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                               <FormField
-                                  control={form.control}
-                                  name={`items.${index}.quantity`}
-                                  render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>SL ({saleUnitInfo.name || 'ĐVT'})</FormLabel>
-                                        <FormControl>
-                                            <Input type="number" step="any" {...field} />
-                                        </FormControl>
-                                        <FormDescription>
-                                            Tồn: {stockInfo.stock.toLocaleString('en-US', { maximumFractionDigits: 2 })} {stockInfo.mainUnit?.name}
-                                        </FormDescription>
-                                        <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                                <div className="space-y-2">
-                                  <FormLabel>SL ({baseUnit?.name || 'ĐVT cơ sở'})</FormLabel>
-                                  <Input value={quantityInBaseUnit.toLocaleString()} readOnly />
-                                  <FormDescription>&nbsp;</FormDescription>
-                                </div>
-                               <FormField
-                                  control={form.control}
-                                  name={`items.${index}.price`}
-                                  render={({ field }) => (
-                                     <FormItem>
-                                        <FormLabel>Giá bán (VNĐ / {baseUnit?.name || saleUnitInfo.name})</FormLabel>
-                                        <FormControl>
-                                            <FormattedNumberInput {...field} />
-                                        </FormControl>
-                                         <FormDescription>
-                                            Giá nhập TB: {formatCurrency(avgCostInfo.avgCost)}
-                                        </FormDescription>
-                                         <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                                <div className="space-y-2">
-                                  <FormLabel>Thành tiền</FormLabel>
-                                  <Input value={formatCurrency(lineTotal)} readOnly className="font-semibold" />
-                                   <FormDescription>&nbsp;</FormDescription>
-                                </div>
-                            </div>
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="absolute top-1 right-1 h-6 w-6"
-                                onClick={() => remove(index)}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                        </div>
-                    )
-                  })}
-                </div>
-                 <FormMessage>{form.formState.errors.items?.message || form.formState.errors.items?.root?.message}</FormMessage>
-
-              </div>
-            </div>
-
-            {/* Right Column */}
-            <div className='md:col-span-1 flex flex-col justify-between border-l pl-8'>
-              <div className="space-y-4">
-                  <h3 className="text-md font-medium">Tóm tắt thanh toán</h3>
-                    <div className="space-y-4 text-sm">
-                         <div className="flex justify-between items-center">
-                            <Label>Tổng tiền hàng</Label>
-                            <p className="font-semibold text-base">{formatCurrency(totalAmount)}</p>
-                        </div>
-                         <FormField
-                            control={form.control}
-                            name="discountValue"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <div className="flex justify-between items-center">
-                                        <FormLabel>Giảm giá (VNĐ)</FormLabel>
-                                        <FormattedNumberInput {...field} id="discountValue" className="w-32"/>
-                                    </div>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                         {selectedCustomer && selectedCustomer.id !== 'walk-in-customer' && settings?.loyalty && (
-                            <FormField
-                                control={form.control}
-                                name="pointsUsed"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <div className="flex justify-between items-center">
-                                            <FormLabel>Sử dụng điểm</FormLabel>
-                                            <FormattedNumberInput {...field} id="pointsUsed" className="w-32"/>
-                                        </div>
-                                        <FormDescription>
-                                            Có thể dùng: {selectedCustomer.loyaltyPoints || 0} điểm (giảm {formatCurrency(pointsDiscount)})
-                                        </FormDescription>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                         )}
-                          {pointsDiscount > 0 && (
-                            <div className="flex justify-between items-center text-xs text-muted-foreground">
-                                <span>Giảm giá điểm thưởng ({pointsUsed} điểm):</span>
-                                <span className="font-semibold">-{formatCurrency(pointsDiscount)}</span>
-                            </div>
-                        )}
-                        {vatRate > 0 && (
-                        <div className="flex justify-between items-center">
-                            <span>Thuế VAT ({vatRate}%):</span>
-                            <span className="font-semibold">{formatCurrency(vatAmount)}</span>
-                        </div>
-                        )}
-                        <div className="flex justify-between items-center font-bold text-lg text-primary">
-                          <span>Tổng cộng:</span>
-                          <span>{formatCurrency(finalAmount)}</span>
-                      </div>
+                      ))}
                     </div>
-                  <Separator/>
-                   <div className="space-y-4 text-sm">
-                      <div className="flex justify-between items-center">
-                          <Label>Nợ cũ:</Label>
-                          <span className="font-semibold">{formatCurrency(previousDebt)}</span>
-                      </div>
-                      <div className="flex justify-between items-center font-bold text-base">
-                          <span>Tổng phải trả:</span>
-                          <span>{formatCurrency(totalPayable)}</span>
-                      </div>
-                      <FormField
-                            control={form.control}
-                            name="customerPayment"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <div className="flex justify-between items-center">
-                                        <FormLabel>Khách thanh toán:</FormLabel>
-                                        <FormattedNumberInput {...field} id="customerPayment" className="w-32"/>
-                                    </div>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                      <Separator/>
-                       <div className={`flex justify-between items-center font-bold text-base ${isChange ? 'text-green-600' : 'text-destructive'}`}>
-                          <span>{isChange ? 'Tiền thối lại:' : 'Còn nợ lại:'}</span>
-                          <span>{formatCurrency(Math.abs(remainingDebt))}</span>
-                      </div>
-                      {isChange && (
-                        <FormField
-                            control={form.control}
-                            name="isChangeReturned"
-                            render={({ field }) => (
-                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                                    <div className="space-y-0.5">
-                                        <FormLabel>Đã thối tiền</FormLabel>
-                                        <FormDescription>
-                                            Bỏ chọn nếu muốn ghi nợ âm.
-                                        </FormDescription>
-                                    </div>
-                                    <FormControl>
-                                        <Checkbox
-                                            checked={field.value}
-                                            onCheckedChange={field.onChange}
-                                        />
-                                    </FormControl>
-                                </FormItem>
-                            )}
-                        />
-                      )}
                   </div>
-                  {sale && (
-                    <>
-                      <Separator />
-                      <FormField
-                        control={form.control}
-                        name="status"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Trạng thái</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Chọn trạng thái" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="pending">Chờ xử lý</SelectItem>
-                                <SelectItem value="unprinted">Chưa in</SelectItem>
-                                <SelectItem value="printed">Đã in</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </>
-                  )}
+                )}
+
+                <Separator />
+
+                <div className='flex-grow space-y-4 overflow-y-auto pr-6 -mr-6'>
+                  <h3 className="text-md font-medium">Chi tiết đơn hàng</h3>
+                  <div className="space-y-3">
+                    {fields.map((field, index) => {
+                      const product = productsMap.get(watchedItems[index]?.productId);
+                      if (!product) return null;
+
+                      const saleUnitInfo = getUnitInfo(product.unitId);
+                      const baseUnit = saleUnitInfo.baseUnit || unitsMap.get(product.unitId);
+                      
+                      const itemValues = watchedItems[index];
+                      const quantityInBaseUnit = (itemValues?.quantity || 0) * (saleUnitInfo.conversionFactor || 1);
+                      const lineTotal = quantityInBaseUnit * (itemValues?.price || 0);
+
+                      const stockInfo = getStockInfo(product.id);
+                      const avgCostInfo = getAverageCost(product.id);
+                      
+                      return (
+                          <div key={field.id} className="p-3 border rounded-md relative">
+                              <p className="font-medium mb-2">{product?.name || 'Sản phẩm không xác định'}</p>
+                              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                                <FormField
+                                    control={form.control}
+                                    name={`items.${index}.quantity`}
+                                    render={({ field }) => (
+                                      <FormItem>
+                                          <FormLabel>SL ({saleUnitInfo.name || 'ĐVT'})</FormLabel>
+                                          <FormControl>
+                                              <Input type="number" step="any" {...field} />
+                                          </FormControl>
+                                          <FormDescription>
+                                              Tồn: {stockInfo.stock.toLocaleString('en-US', { maximumFractionDigits: 2 })} {stockInfo.mainUnit?.name}
+                                          </FormDescription>
+                                          <FormMessage />
+                                      </FormItem>
+                                    )}
+                                  />
+                                  <div className="space-y-2">
+                                    <FormLabel>SL ({baseUnit?.name || 'ĐVT cơ sở'})</FormLabel>
+                                    <Input value={quantityInBaseUnit.toLocaleString()} readOnly />
+                                    <FormDescription>&nbsp;</FormDescription>
+                                  </div>
+                                <FormField
+                                    control={form.control}
+                                    name={`items.${index}.price`}
+                                    render={({ field }) => (
+                                      <FormItem>
+                                          <FormLabel>Giá bán (VNĐ / {baseUnit?.name || saleUnitInfo.name})</FormLabel>
+                                          <FormControl>
+                                              <FormattedNumberInput {...field} />
+                                          </FormControl>
+                                          <FormDescription>
+                                              Giá nhập TB: {formatCurrency(avgCostInfo.avgCost)}
+                                          </FormDescription>
+                                          <FormMessage />
+                                      </FormItem>
+                                    )}
+                                  />
+                                  <div className="space-y-2">
+                                    <FormLabel>Thành tiền</FormLabel>
+                                    <Input value={formatCurrency(lineTotal)} readOnly className="font-semibold" />
+                                    <FormDescription>&nbsp;</FormDescription>
+                                  </div>
+                              </div>
+                              <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="absolute top-1 right-1 h-6 w-6"
+                                  onClick={() => remove(index)}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                          </div>
+                      )
+                    })}
+                  </div>
+                  <FormMessage>{form.formState.errors.items?.message || form.formState.errors.items?.root?.message}</FormMessage>
+
+                </div>
               </div>
-              <DialogFooter className="pt-4 border-t mt-4 flex-col gap-2">
-                <Button type="submit" disabled={form.formState.isSubmitting} className="w-full">
-                  {form.formState.isSubmitting ? (sale ? 'Đang cập nhật...' : 'Đang tạo...') : (sale ? 'Cập nhật đơn hàng' : 'Tạo đơn hàng')}
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="w-full">Hủy</Button>
-              </DialogFooter>
-            </div>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+
+              {/* Right Column */}
+              <div className='md:col-span-1 flex flex-col justify-between border-l pl-8'>
+                <div className="space-y-4">
+                    <h3 className="text-md font-medium">Tóm tắt thanh toán</h3>
+                      <div className="space-y-4 text-sm">
+                          <div className="flex justify-between items-center">
+                              <Label>Tổng tiền hàng</Label>
+                              <p className="font-semibold text-base">{formatCurrency(totalAmount)}</p>
+                          </div>
+                          <FormField
+                              control={form.control}
+                              name="discountValue"
+                              render={({ field }) => (
+                                  <FormItem>
+                                      <div className="flex justify-between items-center">
+                                          <FormLabel>Giảm giá (VNĐ)</FormLabel>
+                                          <FormattedNumberInput {...field} id="discountValue" className="w-32"/>
+                                      </div>
+                                      <FormMessage />
+                                  </FormItem>
+                              )}
+                          />
+                          {selectedCustomer && selectedCustomer.id !== 'walk-in-customer' && settings?.loyalty && (
+                              <FormField
+                                  control={form.control}
+                                  name="pointsUsed"
+                                  render={({ field }) => (
+                                      <FormItem>
+                                          <div className="flex justify-between items-center">
+                                              <FormLabel>Sử dụng điểm</FormLabel>
+                                              <FormattedNumberInput {...field} id="pointsUsed" className="w-32"/>
+                                          </div>
+                                          <FormDescription>
+                                              Có thể dùng: {selectedCustomer.loyaltyPoints || 0} điểm (giảm {formatCurrency(pointsDiscount)})
+                                          </FormDescription>
+                                          <FormMessage />
+                                      </FormItem>
+                                  )}
+                              />
+                          )}
+                          {pointsDiscount > 0 && (
+                              <div className="flex justify-between items-center text-xs text-muted-foreground">
+                                  <span>Giảm giá điểm thưởng ({pointsUsed} điểm):</span>
+                                  <span className="font-semibold">-{formatCurrency(pointsDiscount)}</span>
+                              </div>
+                          )}
+                          {vatRate > 0 && (
+                          <div className="flex justify-between items-center">
+                              <span>Thuế VAT ({vatRate}%):</span>
+                              <span className="font-semibold">{formatCurrency(vatAmount)}</span>
+                          </div>
+                          )}
+                          <div className="flex justify-between items-center font-bold text-lg text-primary">
+                            <span>Tổng cộng:</span>
+                            <span>{formatCurrency(finalAmount)}</span>
+                        </div>
+                      </div>
+                    <Separator/>
+                    <div className="space-y-4 text-sm">
+                        <div className="flex justify-between items-center">
+                            <Label>Nợ cũ:</Label>
+                            <span className="font-semibold">{formatCurrency(previousDebt)}</span>
+                        </div>
+                        <div className="flex justify-between items-center font-bold text-base">
+                            <span>Tổng phải trả:</span>
+                            <span>{formatCurrency(totalPayable)}</span>
+                        </div>
+                        <FormField
+                              control={form.control}
+                              name="customerPayment"
+                              render={({ field }) => (
+                                  <FormItem>
+                                      <div className="flex justify-between items-center">
+                                          <FormLabel>Khách thanh toán:</FormLabel>
+                                          <FormattedNumberInput {...field} id="customerPayment" className="w-32"/>
+                                      </div>
+                                      <FormMessage />
+                                  </FormItem>
+                              )}
+                          />
+                        <Separator/>
+                        <div className={`flex justify-between items-center font-bold text-base ${isChange ? 'text-green-600' : 'text-destructive'}`}>
+                            <span>{isChange ? 'Tiền thối lại:' : 'Còn nợ lại:'}</span>
+                            <span>{formatCurrency(Math.abs(remainingDebt))}</span>
+                        </div>
+                        {isChange && (
+                          <FormField
+                              control={form.control}
+                              name="isChangeReturned"
+                              render={({ field }) => (
+                                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                      <div className="space-y-0.5">
+                                          <FormLabel>Đã thối tiền</FormLabel>
+                                          <FormDescription>
+                                              Bỏ chọn nếu muốn ghi nợ âm.
+                                          </FormDescription>
+                                      </div>
+                                      <FormControl>
+                                          <Checkbox
+                                              checked={field.value}
+                                              onCheckedChange={field.onChange}
+                                          />
+                                      </FormControl>
+                                  </FormItem>
+                              )}
+                          />
+                        )}
+                    </div>
+                    {sale && (
+                      <>
+                        <Separator />
+                        <FormField
+                          control={form.control}
+                          name="status"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Trạng thái</FormLabel>
+                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Chọn trạng thái" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="pending">Chờ xử lý</SelectItem>
+                                  <SelectItem value="unprinted">Chưa in</SelectItem>
+                                  <SelectItem value="printed">Đã in</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </>
+                    )}
+                </div>
+                <DialogFooter className="pt-4 border-t mt-4 flex-col gap-2">
+                  <Button type="submit" disabled={form.formState.isSubmitting} className="w-full">
+                    {form.formState.isSubmitting ? (sale ? 'Đang cập nhật...' : 'Đang tạo...') : (sale ? 'Cập nhật đơn hàng' : 'Tạo đơn hàng')}
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="w-full">Hủy</Button>
+                </DialogFooter>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
