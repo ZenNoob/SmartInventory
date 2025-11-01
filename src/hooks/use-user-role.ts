@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useDoc, useFirestore, useUser, useMemoFirebase } from "@/firebase";
@@ -17,11 +18,19 @@ const defaultPermissions: Record<string, Permissions> = {
         sales: ['view', 'add', 'edit', 'delete'],
         customers: ['view', 'add', 'edit', 'delete'],
         'cash-flow': ['view', 'add', 'edit', 'delete'],
-        shifts: ['view'],
-        reports: ['view'],
+        reports_shifts: ['view'],
+        reports_income_statement: ['view'],
+        reports_profit: ['view'],
+        reports_debt: ['view'],
+        reports_supplier_debt: ['view'],
+        reports_transactions: ['view'],
+        reports_supplier_debt_tracking: ['view'],
+        reports_revenue: ['view'],
+        reports_sold_products: ['view'],
+        reports_inventory: ['view'],
+        reports_ai_segmentation: ['view'],
+        reports_ai_basket_analysis: ['view'],
         ai_forecast: ['view'],
-        ai_segmentation: ['view'],
-        ai_basket_analysis: ['view'],
         users: ['view', 'add', 'edit', 'delete'],
         settings: ['view', 'edit'],
     },
@@ -30,7 +39,12 @@ const defaultPermissions: Record<string, Permissions> = {
         sales: ['view', 'add', 'edit'],
         customers: ['view', 'add', 'edit'],
         'cash-flow': ['view', 'add', 'edit', 'delete'],
-        reports: ['view'],
+        reports_income_statement: ['view'],
+        reports_profit: ['view'],
+        reports_debt: ['view'],
+        reports_transactions: ['view'],
+        reports_revenue: ['view'],
+        reports_sold_products: ['view'],
     },
     inventory_manager: {
         dashboard: ['view'],
@@ -39,6 +53,7 @@ const defaultPermissions: Record<string, Permissions> = {
         suppliers: ['view', 'add', 'edit', 'delete'],
         products: ['view', 'add', 'edit'],
         purchases: ['view', 'add', 'edit'],
+        reports_inventory: ['view'],
     },
     salesperson: {
         pos: ['view', 'add'],

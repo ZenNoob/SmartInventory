@@ -1,7 +1,10 @@
+
 'use server'
 
 import { AppUser, Permissions } from "@/lib/types";
 import { getAdminServices } from "@/lib/admin-actions";
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 export async function upsertUser(user: Partial<Omit<AppUser, 'id'>> & { id?: string; password?: string }): Promise<{ success: boolean; error?: string }> {
   try {
@@ -57,5 +60,35 @@ export async function deleteUser(userId: string): Promise<{ success: boolean; er
     } catch (error: any) {
         console.error("Error deleting user:", error);
         return { success: false, error: error.message || 'Không thể xóa người dùng.' };
+    }
+}
+
+export async function saveDefaultPermissionsForRole(role: string, permissions: Permissions): Promise<{ success: boolean; error?: string }> {
+    if (role === 'custom' || role === 'admin') {
+        return { success: false, error: "Không thể ghi đè quyền cho vai trò 'custom' hoặc 'admin'." };
+    }
+    
+    try {
+        const filePath = path.join(process.cwd(), 'src', 'hooks', 'use-user-role.ts');
+        const fileContent = await fs.readFile(filePath, 'utf-8');
+
+        // This is a simplified and potentially fragile way to update the file.
+        // It relies on a specific structure of the defaultPermissions object.
+        const permissionsString = JSON.stringify(permissions, null, 8).replace(/"/g, "'");
+
+        const regex = new RegExp(`(\\s*${role}:\\s*)\{[^]*?\\}`, 'm');
+        
+        if (!regex.test(fileContent)) {
+            return { success: false, error: `Không tìm thấy cấu hình mặc định cho vai trò '${role}' trong file.` };
+        }
+
+        const newFileContent = fileContent.replace(regex, `$1${permissionsString},`);
+
+        await fs.writeFile(filePath, newFileContent, 'utf-8');
+        
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error saving default permissions:", error);
+        return { success: false, error: error.message || "Không thể lưu quyền mặc định." };
     }
 }
