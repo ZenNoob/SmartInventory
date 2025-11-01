@@ -106,33 +106,37 @@ export default function InventoryReportPage() {
   }, [unitsMap]);
 
   const inventoryReportData = useMemo((): InventoryReportItem[] => {
-    if (!products || !dateRange?.from) return [];
+    if (!products) return [];
 
     return products.map(product => {
       const unitInfo = getUnitInfo(product.unitId);
       const baseUnit = unitInfo.baseUnit;
 
-      const fromDate = dateRange.from!;
-      const toDate = dateRange.to || fromDate;
+      const fromDate = dateRange?.from;
+      const toDate = dateRange?.to;
 
       // Calculate Opening Stock
-      const openingImports = (product.purchaseLots || []).filter(lot => new Date(lot.importDate) < fromDate)
+      const openingImports = (product.purchaseLots || []).filter(lot => fromDate && new Date(lot.importDate) < fromDate)
         .reduce((sum, lot) => sum + (lot.quantity * getUnitInfo(lot.unitId).conversionFactor), 0);
       const openingExports = allSalesItems.filter(item => {
         const sale = salesMap.get(item.salesTransactionId);
-        return item.productId === product.id && sale && new Date(sale.transactionDate) < fromDate;
+        return item.productId === product.id && sale && fromDate && new Date(sale.transactionDate) < fromDate;
       }).reduce((sum, item) => sum + item.quantity, 0);
       const openingStock = openingImports - openingExports;
 
       // Calculate movements within the period
       const importStock = (product.purchaseLots || []).filter(lot => {
         const importDate = new Date(lot.importDate);
+        if(!fromDate || !toDate) return true;
         return importDate >= fromDate && importDate <= toDate;
       }).reduce((sum, lot) => sum + (lot.quantity * getUnitInfo(lot.unitId).conversionFactor), 0);
 
       const exportStock = allSalesItems.filter(item => {
         const sale = salesMap.get(item.salesTransactionId);
-        return item.productId === product.id && sale && new Date(sale.transactionDate) >= fromDate && new Date(sale.transactionDate) <= toDate;
+        if (!sale) return false;
+        const saleDate = new Date(sale.transactionDate);
+        if(!fromDate || !toDate) return item.productId === product.id;
+        return item.productId === product.id && saleDate >= fromDate && saleDate <= toDate;
       }).reduce((sum, item) => sum + item.quantity, 0);
 
       const closingStock = openingStock + importStock - exportStock;
@@ -283,7 +287,7 @@ export default function InventoryReportPage() {
                 <PopoverTrigger asChild>
                   <Button id="date" variant={"outline"} className={cn("w-[300px] justify-start text-left font-normal", !dateRange && "text-muted-foreground")}>
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}</>) : format(dateRange.from, "dd/MM/yyyy")) : (<span>Chọn ngày</span>)}
+                    {dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}</>) : format(dateRange.from, "dd/MM/yyyy")) : (<span>Tất cả thời gian</span>)}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">

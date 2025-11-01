@@ -120,7 +120,7 @@ export default function Dashboard() {
 
   const filteredSales = useMemo(() => {
     if (!sales) return [];
-    if (!dateRange?.from) return sales;
+    if (!dateRange || !dateRange.from) return sales;
 
     const fromDate = dateRange.from;
     const toDate = dateRange.to || fromDate;
@@ -306,7 +306,10 @@ export default function Dashboard() {
   const soldProductsData = useMemo((): SoldProductInfo[] => {
     const itemsInDateRange = allSalesItems.filter(item => {
         const sale = sales?.find(s => s.id === item.salesTransactionId);
-        if (!sale || !dateRange?.from) return false;
+        if (!sale || !dateRange?.from) {
+          // If no date range, consider all items
+          return !dateRange;
+        }
         const saleDate = new Date(sale.transactionDate);
         const toDate = dateRange.to || dateRange.from;
         return saleDate >= dateRange.from && saleDate <= toDate;
@@ -343,8 +346,12 @@ export default function Dashboard() {
   }, [allSalesItems, productsMap, unitsMap, sales, dateRange]);
 
 
-  const setDatePreset = (preset: 'this_week' | 'this_month' | 'this_year') => {
+  const setDatePreset = (preset: 'this_week' | 'this_month' | 'this_year' | 'all') => {
     const now = new Date();
+    if (preset === 'all') {
+      setDateRange(undefined);
+      return;
+    }
     switch (preset) {
       case 'this_week':
         setDateRange({ from: startOfWeek(now, { weekStartsOn: 1 }), to: endOfWeek(now, { weekStartsOn: 1 }) });
@@ -377,7 +384,7 @@ export default function Dashboard() {
     const ws2 = xlsx.utils.json_to_sheet(productsData);
     xlsx.utils.book_append_sheet(wb, ws2, "SPBanChay");
 
-    xlsx.writeFile(wb, `Report_${format(dateRange?.from || new Date(), 'yyyy-MM-dd')}_${format(dateRange?.to || new Date(), 'yyyy-MM-dd')}.xlsx`);
+    xlsx.writeFile(wb, `Report_${dateRange?.from ? format(dateRange.from, 'yyyy-MM-dd') : 'all'}_${dateRange?.to ? format(dateRange.to, 'yyyy-MM-dd') : ''}.xlsx`);
   }
 
   return (
@@ -397,7 +404,7 @@ export default function Dashboard() {
             <PopoverTrigger asChild>
               <Button id="date" variant={"outline"} className={cn("w-[260px] justify-start text-left font-normal", !dateRange && "text-muted-foreground")}>
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}</>) : format(dateRange.from, "dd/MM/yyyy")) : (<span>Chọn ngày</span>)}
+                {dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}</>) : format(dateRange.from, "dd/MM/yyyy")) : (<span>Tất cả thời gian</span>)}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="end">
@@ -406,6 +413,7 @@ export default function Dashboard() {
                 <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_week')}>Tuần này</Button>
                 <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_month')}>Tháng này</Button>
                 <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_year')}>Năm nay</Button>
+                <Button variant="ghost" size="sm" onClick={() => setDatePreset('all')}>Tất cả</Button>
               </div>
             </PopoverContent>
           </Popover>

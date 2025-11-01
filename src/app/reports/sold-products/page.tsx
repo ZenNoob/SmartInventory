@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Search, ArrowUp, ArrowDown, File, Calendar as CalendarIcon, ChevronRight, ChevronDown, Undo2 } from "lucide-react"
 import * as xlsx from 'xlsx';
 import { DateRange } from "react-day-picker"
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns"
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, startOfQuarter, endOfQuarter } from "date-fns"
 import * as React from "react"
 
 import {
@@ -99,7 +99,7 @@ export default function SoldProductsReportPage() {
       const items: SalesItem[] = [];
       try {
         const salesToFetch = sales.filter(sale => {
-          if (!dateRange?.from) return true;
+          if (!dateRange || !dateRange.from) return true; // Fetch all if no date range
           const saleDate = new Date(sale.transactionDate);
           const toDate = dateRange.to || dateRange.from;
           return saleDate >= dateRange.from && saleDate <= toDate;
@@ -227,8 +227,12 @@ export default function SoldProductsReportPage() {
     </TableHead>
   );
 
-  const setDatePreset = (preset: 'this_week' | 'this_month' | 'this_year') => {
+  const setDatePreset = (preset: 'this_week' | 'this_month' | 'this_year' | 'all') => {
     const now = new Date();
+    if (preset === 'all') {
+      setDateRange(undefined);
+      return;
+    }
     switch (preset) {
       case 'this_week':
         setDateRange({ from: startOfWeek(now, { weekStartsOn: 1 }), to: endOfWeek(now, { weekStartsOn: 1 }) });
@@ -298,18 +302,19 @@ export default function SoldProductsReportPage() {
               <PopoverTrigger asChild>
                 <Button id="date" variant={"outline"} className={cn("w-[300px] justify-start text-left font-normal", !dateRange && "text-muted-foreground")}>
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}</>) : format(dateRange.from, "dd/MM/yyyy")) : (<span>Chọn ngày</span>)}
+                  {dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}</>) : format(dateRange.from, "dd/MM/yyyy")) : (<span>Tất cả thời gian</span>)}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                  <Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} />
+                  <div className="p-2 border-t flex justify-around">
+                    <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_week')}>Tuần này</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_month')}>Tháng này</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_year')}>Năm nay</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setDatePreset('all')}>Tất cả</Button>
+                 </div>
               </PopoverContent>
             </Popover>
-             <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_week')}>Tuần này</Button>
-                <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_month')}>Tháng này</Button>
-                <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_year')}>Năm nay</Button>
-            </div>
             <div className="relative ml-auto">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
