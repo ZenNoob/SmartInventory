@@ -2,11 +2,13 @@
 
 
 
+
 'use server'
 
 import { Sale, SalesItem, LoyaltySettings, Customer } from "@/lib/types";
 import { getAdminServices } from "@/lib/admin-actions";
 import { FieldValue } from "firebase-admin/firestore";
+import { toPlainObject } from "@/lib/utils";
 
 async function getNextInvoiceNumber(firestore: FirebaseFirestore.Firestore, transaction?: FirebaseFirestore.Transaction): Promise<string> {
     const today = new Date();
@@ -84,12 +86,12 @@ async function updateLoyalty(
 export async function upsertSaleTransaction(
   sale: Partial<Omit<Sale, 'id' | 'invoiceNumber'>> & { id?: string; isChangeReturned?: boolean }, 
   items: Omit<SalesItem, 'id' | 'salesTransactionId'>[]
-): Promise<{ success: boolean; error?: string; saleId?: string }> {
+): Promise<{ success: boolean; error?: string; saleData?: Sale }> {
   const { firestore } = await getAdminServices();
   const isUpdate = !!sale.id;
   
   try {
-    const saleId = await firestore.runTransaction(async (transaction) => {
+    const finalSaleData = await firestore.runTransaction(async (transaction) => {
         // --- READS ---
         const settingsDoc = await transaction.get(firestore.collection('settings').doc('theme'));
         const customerRef = (sale.customerId && sale.customerId !== 'walk-in-customer') ? firestore.collection('customers').doc(sale.customerId) : null;
@@ -138,9 +140,13 @@ export async function upsertSaleTransaction(
         };
         delete (saleDataForDb as any).isChangeReturned;
 
+        let saleId: string;
+        let finalData: Sale;
+
         // --- WRITES ---
         if (isUpdate) {
-            const saleRef = firestore.collection('sales_transactions').doc(sale.id!);
+            saleId = sale.id!;
+            const saleRef = firestore.collection('sales_transactions').doc(saleId);
             const oldSaleDoc = await transaction.get(saleRef);
             if (!oldSaleDoc.exists) throw new Error("Đơn hàng không tồn tại.");
             
@@ -148,7 +154,6 @@ export async function upsertSaleTransaction(
             const oldItemsSnapshot = await transaction.get(oldItemsQuery);
             oldItemsSnapshot.docs.forEach(doc => transaction.delete(doc.ref));
 
-            // Revert points from old sale
             if (customerDoc && customerDoc.exists) {
                 await updateLoyalty(transaction, settingsDoc, customerDoc, -(oldSaleDoc.data() as Sale).finalAmount, -((oldSaleDoc.data() as Sale).pointsUsed || 0));
             }
@@ -160,23 +165,23 @@ export async function upsertSaleTransaction(
                 transaction.set(saleItemRef, { ...item, id: saleItemRef.id, salesTransactionId: saleRef.id });
             });
 
-            // Apply new points
             if (customerDoc && customerDoc.exists && saleDataForDb.finalAmount) {
                 const freshCustomerDoc = await transaction.get(customerDoc.ref);
                 await updateLoyalty(transaction, settingsDoc, freshCustomerDoc, saleDataForDb.finalAmount, saleDataForDb.pointsUsed);
             }
-            return sale.id!;
+             finalData = { ...oldSaleDoc.data(), ...saleDataForDb } as Sale;
         } else {
             const saleRef = firestore.collection('sales_transactions').doc();
+            saleId = saleRef.id;
             const invoiceNumber = await getNextInvoiceNumber(firestore, transaction);
             
-            const saleDataToCreate = { 
+            finalData = { 
                 ...saleDataForDb, 
-                id: saleRef.id, 
+                id: saleId, 
                 invoiceNumber,
                 status: sale.status || 'unprinted',
-            };
-            transaction.set(saleRef, saleDataToCreate);
+            } as Sale;
+            transaction.set(saleRef, finalData);
 
             for (const item of items) {
                 const saleItemRef = saleRef.collection('sales_items').doc();
@@ -196,11 +201,11 @@ export async function upsertSaleTransaction(
             if (customerDoc && customerDoc.exists && saleDataForDb.finalAmount) {
                 await updateLoyalty(transaction, settingsDoc, customerDoc, saleDataForDb.finalAmount, saleDataForDb.pointsUsed);
             }
-            return saleRef.id;
         }
+        return finalData;
     });
 
-    return { success: true, saleId };
+    return { success: true, saleData: toPlainObject(finalSaleData) };
     
   } catch (error: any) {
     console.error(`Error ${isUpdate ? 'updating' : 'creating'} sale transaction:`, error);

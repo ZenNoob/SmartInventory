@@ -1,5 +1,6 @@
 
 
+
 'use client'
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
@@ -19,6 +20,8 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useReactToPrint } from 'react-to-print';
+
 
 import {
   useCollection,
@@ -38,7 +41,7 @@ import {
   Unit,
   Shift,
 } from '@/lib/types'
-import { upsertSaleTransaction } from '@/app/sales/actions'
+import { upsertSaleTransaction, updateSaleStatus } from '@/app/sales/actions'
 import { useToast } from '@/hooks/use-toast'
 import { cn, formatCurrency } from '@/lib/utils'
 import { useUserRole } from '@/hooks/use-user-role'
@@ -84,6 +87,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { CustomerForm } from '@/app/customers/components/customer-form'
 import { StartShiftDialog } from './components/start-shift-dialog'
 import { ShiftControls } from './components/shift-controls'
+import { ThermalReceipt } from '../sales/[id]/components/thermal-receipt'
 
 
 type CartItem = {
@@ -149,6 +153,21 @@ export default function POSPage() {
   const [paymentSuggestions, setPaymentSuggestions] = useState<number[]>([]);
   const [isChangeReturned, setIsChangeReturned] = useState(true);
   const [isCustomerFormOpen, setIsCustomerFormOpen] = useState(false);
+  
+  // State for printing
+  const [receiptData, setReceiptData] = useState<{ sale: Sale; items: SalesItem[] } | null>(null);
+  const receiptRef = useRef<HTMLDivElement>(null);
+  const handlePrint = useReactToPrint({
+      content: () => receiptRef.current,
+      onAfterPrint: async () => {
+          if (receiptData) {
+              await updateSaleStatus(receiptData.sale.id, 'printed');
+          }
+          setReceiptData(null); // Clear data after printing
+      },
+      removeAfterPrint: true,
+  });
+
 
   // #region Data Fetching
   const activeShiftQuery = useMemoFirebase(() => 
@@ -411,6 +430,13 @@ export default function POSPage() {
       setCustomerPayment(0);
     }
   }, [finalAmount]);
+  
+  // Trigger print when receiptData is set
+  useEffect(() => {
+      if (receiptData && receiptRef.current) {
+          handlePrint();
+      }
+  }, [receiptData, handlePrint]);
 
   // #region Form Submission
   const handleCreateSale = async () => {
@@ -452,13 +478,23 @@ export default function POSPage() {
     }
 
     const result = await upsertSaleTransaction(saleData, itemsData)
-    setIsSubmitting(false)
 
-    if (result.success && result.saleId) {
+    if (result.success && result.saleData) {
       toast({
         title: 'Thành công!',
-        description: `Đã tạo đơn hàng ${result.saleId.slice(-6).toUpperCase()}.`,
-      })
+        description: `Đã tạo đơn hàng ${result.saleData.invoiceNumber}.`,
+      });
+
+      // Handle printing
+      if (settings?.printerType && settings.printerType !== 'none') {
+        const fullItemsData = itemsData.map(item => ({
+            ...item,
+            id: '', // dummy id
+            salesTransactionId: result.saleData!.id,
+        }));
+        setReceiptData({ sale: result.saleData, items: fullItemsData });
+      }
+
       // Reset state for new sale
       setCart([])
       setCustomerPayment(0)
@@ -466,7 +502,7 @@ export default function POSPage() {
       setDiscountValue(0)
       setDiscountType('amount')
       setPointsUsed(0);
-      router.push(`/sales/${result.saleId}?print=true`)
+      router.refresh();
     } else {
       toast({
         variant: 'destructive',
@@ -474,6 +510,7 @@ export default function POSPage() {
         description: result.error,
       })
     }
+     setIsSubmitting(false)
   }
 
   // Auto-focus barcode input
@@ -549,6 +586,19 @@ export default function POSPage() {
         onOpenChange={handleNewCustomerCreated} 
       />
     )}
+     <div style={{ display: 'none' }}>
+        {receiptData && (
+            <ThermalReceipt
+                ref={receiptRef}
+                sale={receiptData.sale}
+                items={receiptData.items}
+                customer={customers.find(c => c.id === receiptData.sale.customerId) || null}
+                productsMap={productsMap}
+                unitsMap={unitsMap}
+                settings={settings}
+            />
+        )}
+    </div>
     <div className="flex flex-col h-[calc(100vh-5rem)] -m-6 bg-muted/30">
       <header className="p-4 border-b bg-background flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={toggleSidebar} className='shrink-0'>
