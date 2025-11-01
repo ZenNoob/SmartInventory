@@ -137,6 +137,7 @@ export default function POSPage() {
   const barcodeInputRef = useRef<HTMLInputElement>(null)
   const [discountType, setDiscountType] = useState<'percentage' | 'amount'>('amount');
   const [discountValue, setDiscountValue] = useState(0);
+  const [pointsUsed, setPointsUsed] = useState(0);
   const [paymentSuggestions, setPaymentSuggestions] = useState<number[]>([]);
   const [isChangeReturned, setIsChangeReturned] = useState(true);
 
@@ -201,6 +202,7 @@ export default function POSPage() {
     status: 'active',
   }
   const customers = useMemo(() => (customersData ? [walkInCustomer, ...customersData] : [walkInCustomer]), [customersData])
+  const selectedCustomer = useMemo(() => customers.find(c => c.id === selectedCustomerId), [customers, selectedCustomerId]);
   // #endregion
 
   // #region Sales Items Fetching Effect
@@ -332,7 +334,11 @@ export default function POSPage() {
     discountType === 'percentage' ? (totalAmount * discountValue) / 100 : discountValue,
     [totalAmount, discountType, discountValue]
   );
-  const amountAfterDiscount = totalAmount - calculatedDiscount;
+  
+  const pointsToVndRate = settings?.loyalty?.pointsToVndRate || 0;
+  const pointsDiscount = pointsUsed * pointsToVndRate;
+
+  const amountAfterDiscount = totalAmount - calculatedDiscount - pointsDiscount;
   const vatRate = settings?.vatRate || 0;
   const vatAmount = (amountAfterDiscount * vatRate) / 100;
   const finalAmount = amountAfterDiscount + vatAmount;
@@ -365,6 +371,8 @@ export default function POSPage() {
       discount: calculatedDiscount,
       discountType,
       discountValue,
+      pointsUsed,
+      pointsDiscount,
       vatAmount: vatAmount,
       finalAmount: finalAmount,
       customerPayment: customerPayment,
@@ -388,6 +396,7 @@ export default function POSPage() {
       setSelectedCustomerId(WALK_IN_CUSTOMER_ID)
       setDiscountValue(0)
       setDiscountType('amount')
+      setPointsUsed(0);
       router.push(`/sales/${result.saleId}?print=true`)
     } else {
       toast({
@@ -554,6 +563,7 @@ export default function POSPage() {
               setCart([])
               setCustomerPayment(0)
               setDiscountValue(0)
+              setPointsUsed(0);
             }}
             disabled={isSubmitting}
           >
@@ -670,6 +680,28 @@ export default function POSPage() {
                 </div>
               )}
               
+              {selectedCustomer && selectedCustomer.id !== 'walk-in-customer' && settings?.loyalty && (
+                <div className="space-y-2 pt-2">
+                    <Label htmlFor="pointsUsed">Sử dụng điểm ({selectedCustomer.loyaltyPoints || 0} điểm khả dụng)</Label>
+                    <div className="flex items-center gap-2">
+                      <FormattedNumberInput
+                          id="pointsUsed"
+                          value={pointsUsed}
+                          onChange={setPointsUsed}
+                          className="h-9 text-right"
+                          max={selectedCustomer.loyaltyPoints || 0}
+                      />
+                    </div>
+                </div>
+              )}
+
+              {pointsDiscount > 0 && (
+                <div className="flex justify-between items-center text-xs text-muted-foreground">
+                    <span>Giảm giá điểm thưởng ({pointsUsed} điểm):</span>
+                    <span className="font-semibold">-{formatCurrency(pointsDiscount)}</span>
+                </div>
+              )}
+
               {vatRate > 0 && (
                 <div className="flex justify-between items-center">
                     <Label>Thuế VAT ({vatRate}%):</Label>

@@ -342,23 +342,8 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
   
   const previousDebt = useMemo(() => {
     if (!selectedCustomerId) return 0;
-    
-    // If we are editing a sale, calculate the debt *before* this sale
-    if (sale) {
-      const customerSales = sales.filter(s => s.customerId === selectedCustomerId && s.id !== sale.id);
-      const customerPayments = payments.filter(p => p.customerId === selectedCustomerId && p.notes !== `Thanh toán cho đơn hàng ${sale.invoiceNumber}`);
-
-      const totalRevenue = customerSales.filter(s => s.finalAmount >= 0).reduce((sum, s) => sum + (s.finalAmount || 0), 0);
-      const totalReturns = customerSales.filter(s => s.finalAmount < 0).reduce((sum, s) => sum + (s.finalAmount || 0), 0);
-      const totalPaid = customerPayments.reduce((sum, p) => sum + p.amount, 0);
-      
-      return totalRevenue + totalReturns - totalPaid;
-    }
-    
-    // If creating a new sale, use the pre-calculated total current debt
     return customerDebts.get(selectedCustomerId) || 0;
-
-  }, [selectedCustomerId, customerDebts, sales, payments, sale]);
+  }, [selectedCustomerId, customerDebts, sale]); // Removed sale from deps to always get current debt
 
 
   const totalPayable = finalAmount + previousDebt;
@@ -783,23 +768,29 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
                             )}
                         />
                          {selectedCustomer && selectedCustomer.id !== 'walk-in-customer' && settings?.loyalty && (
-                          <FormField
-                            control={form.control}
-                            name="pointsUsed"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <div className="flex justify-between items-center">
-                                        <FormLabel>Sử dụng điểm</FormLabel>
-                                        <FormattedNumberInput {...field} id="pointsUsed" className="w-32"/>
-                                    </div>
-                                     <FormDescription>
-                                        Có thể dùng: {selectedCustomer.loyaltyPoints || 0} điểm (giảm {formatCurrency(pointsDiscount)})
-                                    </FormDescription>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                            <FormField
+                                control={form.control}
+                                name="pointsUsed"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <div className="flex justify-between items-center">
+                                            <FormLabel>Sử dụng điểm</FormLabel>
+                                            <FormattedNumberInput {...field} id="pointsUsed" className="w-32"/>
+                                        </div>
+                                        <FormDescription>
+                                            Có thể dùng: {selectedCustomer.loyaltyPoints || 0} điểm (giảm {formatCurrency(pointsDiscount)})
+                                        </FormDescription>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
                          )}
+                          {pointsDiscount > 0 && (
+                            <div className="flex justify-between items-center text-xs text-muted-foreground">
+                                <span>Giảm giá điểm thưởng ({pointsUsed} điểm):</span>
+                                <span className="font-semibold">-{formatCurrency(pointsDiscount)}</span>
+                            </div>
+                        )}
                         {vatRate > 0 && (
                         <div className="flex justify-between items-center">
                             <span>Thuế VAT ({vatRate}%):</span>
@@ -903,4 +894,3 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
     </Dialog>
   )
 }
-
