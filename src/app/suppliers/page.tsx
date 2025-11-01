@@ -54,6 +54,8 @@ import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { formatCurrency } from "@/lib/utils"
 import { SupplierPaymentForm } from "./components/supplier-payment-form"
+import { useUserRole } from "@/hooks/use-user-role"
+import Link from "next/link"
 
 type SortKey = 'name' | 'contactPerson' | 'email' | 'phone' | 'debt';
 
@@ -70,6 +72,7 @@ export default function SuppliersPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
+  const { permissions, isLoading: isRoleLoading } = useUserRole();
 
   const suppliersQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "suppliers")) : null, [firestore]);
   const purchasesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "purchase_orders")) : null, [firestore]);
@@ -177,8 +180,35 @@ export default function SuppliersPage() {
     setSupplierToDelete(null);
   }
   
-  const isLoading = suppliersLoading || purchasesLoading || paymentsLoading;
+  const isLoading = suppliersLoading || purchasesLoading || paymentsLoading || isRoleLoading;
   const currentDebtInfo = supplierForPayment ? supplierDebts.get(supplierForPayment.id) : undefined;
+  
+  const canView = permissions?.suppliers?.includes('view');
+  const canAdd = permissions?.suppliers?.includes('add');
+  const canEdit = permissions?.suppliers?.includes('edit');
+  const canDelete = permissions?.suppliers?.includes('delete');
+  
+  if (isLoading) {
+    return <p>Đang tải dữ liệu...</p>;
+  }
+
+  if (!canView) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Truy cập bị từ chối</CardTitle>
+          <CardDescription>
+            Bạn không có quyền xem danh sách nhà cung cấp.
+          </CardDescription>
+        </CardHeader>
+         <CardContent>
+          <Button asChild>
+            <Link href="/dashboard">Quay lại Bảng điều khiển</Link>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
 
   return (
@@ -224,14 +254,16 @@ export default function SuppliersPage() {
                 Thêm, sửa, xóa và tìm kiếm các nhà cung cấp của bạn.
             </p>
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          <Button size="sm" className="h-8 gap-1" onClick={handleAddSupplier}>
-            <PlusCircle className="h-3.5 w-3.5" />
-            <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-              Thêm NCC
-            </span>
-          </Button>
-        </div>
+        {canAdd && (
+          <div className="ml-auto flex items-center gap-2">
+            <Button size="sm" className="h-8 gap-1" onClick={handleAddSupplier}>
+              <PlusCircle className="h-3.5 w-3.5" />
+              <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                Thêm NCC
+              </span>
+            </Button>
+          </div>
+        )}
       </div>
       <Card>
         <CardHeader>
@@ -305,8 +337,10 @@ export default function SuppliersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Hành động</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => handleEditSupplier(supplier)}>Sửa</DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive" onClick={() => setSupplierToDelete(supplier)}>Xóa</DropdownMenuItem>
+                          {canEdit && <DropdownMenuItem onClick={() => handleEditSupplier(supplier)}>Sửa</DropdownMenuItem>}
+                          {canDelete && (
+                            <DropdownMenuItem className="text-destructive" onClick={() => setSupplierToDelete(supplier)}>Xóa</DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
