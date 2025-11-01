@@ -173,6 +173,10 @@ export function CommandMenu() {
               <History className="mr-2 h-4 w-4" />
               <span>Lịch sử Giao dịch</span>
             </CommandItem>
+             <CommandItem onSelect={() => runCommand(() => router.push('/reports/supplier-debt-tracking'))}>
+              <History className="mr-2 h-4 w-4" />
+              <span>Theo dõi Công nợ NCC</span>
+            </CommandItem>
              <CommandItem onSelect={() => runCommand(() => router.push('/reports/revenue'))}>
               <FileText className="mr-2 h-4 w-4" />
               <span>Báo cáo Doanh thu</span>

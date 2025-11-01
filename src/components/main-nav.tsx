@@ -247,7 +247,12 @@ export function MainNav() {
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive('/reports/transactions')}>
-                              <Link href="/reports/transactions" className='flex items-center gap-2'><History className="h-4 w-4" />Lịch sử giao dịch</Link>
+                              <Link href="/reports/transactions" className='flex items-center gap-2'><History className="h-4 w-4" />Lịch sử Giao dịch</Link>
+                          </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive('/reports/supplier-debt-tracking')}>
+                              <Link href="/reports/supplier-debt-tracking" className='flex items-center gap-2'><History className="h-4 w-4" />Theo dõi Công nợ NCC</Link>
                           </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                         <SidebarMenuSubItem>
