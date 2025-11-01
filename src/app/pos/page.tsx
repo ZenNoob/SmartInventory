@@ -264,6 +264,23 @@ export default function POSPage() {
     },[allSalesItems, getUnitInfo, productsMap])
   // #endregion
 
+    const customerDebts = useMemo(() => {
+    if (!customersData || !sales || !payments) return new Map<string, number>();
+
+    const debtMap = new Map<string, number>();
+
+    customersData.forEach(customer => {
+        const customerSales = sales.filter(s => s.customerId === customer.id);
+        const customerPayments = payments.filter(p => p.customerId === customer.id);
+        
+        const totalRevenue = customerSales.reduce((sum, s) => sum + (s.finalAmount || 0), 0);
+        const totalPaid = customerPayments.reduce((sum, p) => sum + p.amount, 0);
+        
+        debtMap.set(customer.id, totalRevenue - totalPaid);
+    });
+    return debtMap;
+  }, [customersData, sales, payments]);
+
   // #region Cart Management
   const addProductToCart = useCallback((product: Product) => {
       const existingItemIndex = cart.findIndex((item) => item.productId === product.id)
@@ -343,6 +360,13 @@ export default function POSPage() {
   const vatAmount = (amountAfterDiscount * vatRate) / 100;
   const finalAmount = amountAfterDiscount + vatAmount;
 
+  const previousDebt = useMemo(() => {
+    if (!selectedCustomerId || selectedCustomerId === WALK_IN_CUSTOMER_ID) return 0;
+    return customerDebts.get(selectedCustomerId) || 0;
+  }, [selectedCustomerId, customerDebts]);
+
+  const totalPayable = finalAmount + previousDebt;
+  const remainingDebt = totalPayable - customerPayment;
   const changeAmount = customerPayment - finalAmount;
   // #endregion
 
@@ -376,8 +400,8 @@ export default function POSPage() {
       vatAmount: vatAmount,
       finalAmount: finalAmount,
       customerPayment: customerPayment,
-      previousDebt: 0, // Not tracking debt for POS for simplicity
-      remainingDebt: finalAmount - customerPayment,
+      previousDebt: previousDebt, 
+      remainingDebt: remainingDebt,
       status: 'printed',
       isChangeReturned: isChangeReturned,
     }
@@ -526,7 +550,9 @@ export default function POSPage() {
                 <CommandList>
                   <CommandEmpty>Không tìm thấy khách hàng.</CommandEmpty>
                   <CommandGroup>
-                    {customers.map((customer) => (
+                    {customers.map((customer) => {
+                      const debt = customerDebts.get(customer.id) || 0;
+                      return (
                       <CommandItem
                         value={`${customer.name} ${customer.phone}`}
                         key={customer.id}
@@ -548,9 +574,13 @@ export default function POSPage() {
                           <p className="text-xs text-muted-foreground">
                             {customer.phone}
                           </p>
+                           {debt > 0 && (
+                            <p className="text-xs text-destructive">Nợ: {formatCurrency(debt)}</p>
+                           )}
                         </div>
                       </CommandItem>
-                    ))}
+                      )
+                    })}
                   </CommandGroup>
                 </CommandList>
               </Command>
@@ -723,6 +753,20 @@ export default function POSPage() {
                   <Label className="font-bold">Khách cần trả</Label>
                   <p className="font-bold text-base text-primary">{formatCurrency(finalAmount)}</p>
               </div>
+
+               {previousDebt > 0 && (
+                <div className="flex justify-between items-center text-sm text-destructive">
+                  <Label>Nợ cũ</Label>
+                  <p className="font-semibold">{formatCurrency(previousDebt)}</p>
+                </div>
+              )}
+
+              <div className="flex justify-between items-center font-bold text-base">
+                <Label>Tổng phải trả</Label>
+                <p className="">{formatCurrency(totalPayable)}</p>
+              </div>
+
+
               <div className="space-y-2">
                 <Label htmlFor="customerPayment">
                   Tiền khách đưa
@@ -758,11 +802,11 @@ export default function POSPage() {
                   </div>
                 )}
               <div className="flex justify-between items-center">
-                  <Label className={`font-semibold ${changeAmount >= 0 ? 'text-green-600' : 'text-destructive'}`}>
-                      {changeAmount >= 0 ? 'Tiền thối lại' : 'Còn thiếu'}
+                  <Label className={`font-semibold ${remainingDebt <= 0 ? 'text-green-600' : 'text-destructive'}`}>
+                      {remainingDebt <= 0 ? 'Tiền thối lại' : 'Còn thiếu'}
                   </Label>
-                  <p className={`font-bold text-base ${changeAmount >= 0 ? 'text-green-600' : 'text-destructive'}`}>
-                      {formatCurrency(Math.abs(changeAmount))}
+                  <p className={`font-bold text-base ${remainingDebt <= 0 ? 'text-green-600' : 'text-destructive'}`}>
+                      {formatCurrency(Math.abs(remainingDebt))}
                   </p>
               </div>
               {changeAmount > 0 && (
