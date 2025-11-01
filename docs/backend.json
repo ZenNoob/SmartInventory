@@ -394,7 +394,19 @@
         },
         "role": {
           "type": "string",
-          "description": "Role of the user (e.g., admin, accountant, inventory_manager)."
+          "description": "The user's role.",
+          "enum": ["admin", "accountant", "inventory_manager", "custom"]
+        },
+        "permissions": {
+            "type": "object",
+            "description": "A map of module names to an array of allowed permissions.",
+            "additionalProperties": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "enum": ["view", "add", "edit", "delete"]
+                }
+            }
         }
       },
       "required": [

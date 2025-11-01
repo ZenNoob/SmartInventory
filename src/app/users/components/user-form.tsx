@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -28,18 +28,75 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from "@/components/ui/input"
-import { AppUser } from '@/lib/types'
+import { AppUser, Module, Permission, Permissions } from '@/lib/types'
 import { upsertUser } from '../actions'
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
+import { Separator } from '@/components/ui/separator'
+
+const permissionsSchema = z.record(z.array(z.enum(['view', 'add', 'edit', 'delete'])))
 
 const userFormSchemaBase = z.object({
   email: z.string().email({ message: "Email không hợp lệ." }),
   displayName: z.string().optional(),
-  role: z.enum(['admin', 'accountant', 'inventory_manager']),
+  role: z.enum(['admin', 'accountant', 'inventory_manager', 'custom']),
   password: z.string().optional(),
+  permissions: permissionsSchema.optional(),
 });
+
+
+const modules: { id: Module; name: string }[] = [
+    { id: 'dashboard', name: 'Bảng điều khiển' },
+    { id: 'pos', name: 'POS - Bán tại quầy' },
+    { id: 'categories', name: 'Danh mục' },
+    { id: 'units', name: 'Đơn vị tính' },
+    { id: 'products', name: 'Sản phẩm' },
+    { id: 'purchases', name: 'Nhập hàng' },
+    { id: 'sales', name: 'Bán hàng' },
+    { id: 'customers', name: 'Khách hàng' },
+    { id: 'reports', name: 'Báo cáo' },
+    { id: 'users', name: 'Người dùng' },
+    { id: 'settings', name: 'Cài đặt' },
+]
+
+const permissions: { id: Permission; name: string }[] = [
+    { id: 'view', name: 'Xem' },
+    { id: 'add', name: 'Thêm' },
+    { id: 'edit', name: 'Sửa' },
+    { id: 'delete', name: 'Xóa' },
+]
+
+const defaultPermissions: Record<AppUser['role'], Permissions> = {
+  admin: {
+    dashboard: ['view'],
+    pos: ['view', 'add', 'edit', 'delete'],
+    categories: ['view', 'add', 'edit', 'delete'],
+    units: ['view', 'add', 'edit', 'delete'],
+    products: ['view', 'add', 'edit', 'delete'],
+    purchases: ['view', 'add', 'edit', 'delete'],
+    sales: ['view', 'add', 'edit', 'delete'],
+    customers: ['view', 'add', 'edit', 'delete'],
+    reports: ['view'],
+    users: ['view', 'add', 'edit', 'delete'],
+    settings: ['view', 'edit'],
+  },
+  accountant: {
+    dashboard: ['view'],
+    sales: ['view', 'add', 'edit'],
+    customers: ['view', 'add', 'edit'],
+    reports: ['view'],
+  },
+  inventory_manager: {
+    dashboard: ['view'],
+    categories: ['view', 'add', 'edit'],
+    units: ['view', 'add', 'edit'],
+    products: ['view', 'add', 'edit'],
+    purchases: ['view', 'add', 'edit'],
+  },
+  custom: {},
+};
 
 
 interface UserFormProps {
@@ -71,31 +128,44 @@ export function UserForm({ isOpen, onOpenChange, user }: UserFormProps) {
 
   type UserFormValues = z.infer<typeof userFormSchema>;
 
-  const defaultValues: Partial<UserFormValues> = user
-    ? { email: user.email, displayName: user.displayName || '', role: user.role }
-    : { role: 'inventory_manager', displayName: '', email: '' };
-  
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userFormSchema),
-    defaultValues,
-  });
-
-  useEffect(() => {
-    if (user) {
-      form.reset({
-        email: user.email,
-        displayName: user.displayName || '',
-        role: user.role,
-      });
-    } else {
-      form.reset({
+    defaultValues: {
         email: '',
         displayName: '',
-        role: 'inventory_manager',
-        password: '',
-      });
+        role: 'custom',
+        permissions: {},
     }
-  }, [user, form, isOpen]);
+  });
+  
+  const role = form.watch('role');
+
+  useEffect(() => {
+    if(isOpen) {
+      if (user) {
+        form.reset({
+          email: user.email,
+          displayName: user.displayName || '',
+          role: user.role,
+          permissions: user.permissions || defaultPermissions[user.role] || {},
+        });
+      } else {
+        form.reset({
+          email: '',
+          displayName: '',
+          role: 'custom',
+          password: '',
+          permissions: {},
+        });
+      }
+    }
+  }, [user, isOpen, form]);
+
+  useEffect(() => {
+    if (role && role !== 'custom') {
+      form.setValue('permissions', defaultPermissions[role]);
+    }
+  }, [role, form]);
 
 
   const onSubmit = async (data: UserFormValues) => {
@@ -119,79 +189,142 @@ export function UserForm({ isOpen, onOpenChange, user }: UserFormProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-4xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>{user ? 'Chỉnh sửa người dùng' : 'Thêm người dùng mới'}</DialogTitle>
           <DialogDescription>
-            {user ? 'Cập nhật chi tiết cho người dùng này.' : 'Tạo tài khoản mới và gán vai trò.'}
+            {user ? 'Cập nhật chi tiết cho người dùng này.' : 'Tạo tài khoản mới, gán vai trò và phân quyền chi tiết.'}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input placeholder="example@email.com" {...field} disabled={!!user} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-             {!user && (
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Mật khẩu</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-            <FormField
-              control={form.control}
-              name="displayName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Tên hiển thị</FormLabel>
-                  <FormControl>
-                    <Input placeholder="John Doe" {...field} value={field.value || ''} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="role"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Vai trò</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Chọn một vai trò" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="admin">Quản trị viên</SelectItem>
-                      <SelectItem value="accountant">Kế toán</SelectItem>
-                      <SelectItem value="inventory_manager">Quản lý kho</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <DialogFooter>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto pr-6 max-h-[calc(80vh-150px)]">
+                <div className="space-y-4">
+                     <FormField
+                      control={form.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input placeholder="example@email.com" {...field} disabled={!!user} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                     {!user && (
+                      <FormField
+                        control={form.control}
+                        name="password"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Mật khẩu</FormLabel>
+                            <FormControl>
+                              <Input type="password" placeholder="••••••••" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                    <FormField
+                      control={form.control}
+                      name="displayName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tên hiển thị</FormLabel>
+                          <FormControl>
+                            <Input placeholder="John Doe" {...field} value={field.value || ''} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="role"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Vai trò</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Chọn một vai trò" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="admin">Quản trị viên</SelectItem>
+                              <SelectItem value="accountant">Kế toán</SelectItem>
+                              <SelectItem value="inventory_manager">Quản lý kho</SelectItem>
+                              <SelectItem value="custom">Tùy chỉnh</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                </div>
+                <div className="space-y-4">
+                    <h3 className="font-medium">Phân quyền chi tiết</h3>
+                    <div className="space-y-2">
+                        {modules.map((module) => (
+                           <FormField
+                            key={module.id}
+                            control={form.control}
+                            name={`permissions.${module.id}`}
+                            render={() => (
+                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                    <div className="space-y-0.5">
+                                        <FormLabel>{module.name}</FormLabel>
+                                    </div>
+                                    <div className="flex items-center space-x-4">
+                                        {permissions.map((permission) => (
+                                             <FormField
+                                                key={permission.id}
+                                                control={form.control}
+                                                name={`permissions.${module.id}`}
+                                                render={({ field }) => {
+                                                    return (
+                                                    <FormItem
+                                                        key={permission.id}
+                                                        className="flex flex-col items-center space-y-1"
+                                                    >
+                                                        <FormControl>
+                                                        <Checkbox
+                                                            checked={field.value?.includes(permission.id)}
+                                                            onCheckedChange={(checked) => {
+                                                            const isCustomRole = form.getValues('role') === 'custom';
+                                                            if (!isCustomRole) {
+                                                                form.setValue('role', 'custom');
+                                                            }
+                                                            return checked
+                                                                ? field.onChange([...(field.value || []), permission.id])
+                                                                : field.onChange(
+                                                                    field.value?.filter(
+                                                                    (value) => value !== permission.id
+                                                                    )
+                                                                )
+                                                            }}
+                                                        />
+                                                        </FormControl>
+                                                        <FormLabel className="text-xs font-normal">
+                                                           {permission.name}
+                                                        </FormLabel>
+                                                    </FormItem>
+                                                    )
+                                                }}
+                                             />
+                                        ))}
+                                    </div>
+                                </FormItem>
+                            )}
+                           />
+                        ))}
+                    </div>
+                </div>
+            </div>
+            <DialogFooter className='pt-4'>
               <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Hủy</Button>
               <Button type="submit" disabled={form.formState.isSubmitting}>
                 {form.formState.isSubmitting ? 'Đang lưu...' : 'Lưu'}

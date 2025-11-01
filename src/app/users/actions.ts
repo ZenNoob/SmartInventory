@@ -1,12 +1,18 @@
 'use server'
 
-import { AppUser } from "@/lib/types";
+import { AppUser, Permissions } from "@/lib/types";
 import { getAdminServices } from "@/lib/admin-actions";
 
-export async function upsertUser(user: AppUser & { password?: string }): Promise<{ success: boolean; error?: string }> {
+export async function upsertUser(user: Omit<AppUser, 'id'> & { id?: string; password?: string }): Promise<{ success: boolean; error?: string }> {
   try {
     const { auth, firestore } = await getAdminServices();
-    const userRole = user.role || 'inventory_manager';
+
+    const userDataForDb: AppUser = {
+        email: user.email,
+        displayName: user.displayName,
+        role: user.role,
+        permissions: user.permissions || {},
+    };
 
     if (user.id) {
       // Update existing user
@@ -14,11 +20,7 @@ export async function upsertUser(user: AppUser & { password?: string }): Promise
         email: user.email,
         displayName: user.displayName,
       });
-      await firestore.collection('users').doc(user.id).set({
-        role: userRole,
-        displayName: user.displayName,
-        email: user.email,
-      }, { merge: true });
+      await firestore.collection('users').doc(user.id).set(userDataForDb, { merge: true });
 
     } else {
       // Create new user
@@ -30,11 +32,7 @@ export async function upsertUser(user: AppUser & { password?: string }): Promise
         password: user.password,
         displayName: user.displayName,
       });
-      await firestore.collection('users').doc(userRecord.uid).set({
-        role: userRole,
-        displayName: user.displayName,
-        email: user.email,
-      });
+      await firestore.collection('users').doc(userRecord.uid).set({ id: userRecord.uid, ...userDataForDb });
     }
 
     return { success: true };

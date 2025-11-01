@@ -17,5 +17,9 @@ export function useUserRole() {
 
   const isLoading = isUserLoading || isProfileLoading;
 
-  return { role: userProfile?.role, isLoading };
+  return { 
+    role: userProfile?.role, 
+    permissions: userProfile?.permissions,
+    isLoading 
+  };
 }

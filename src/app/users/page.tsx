@@ -48,7 +48,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase"
-import { collection, query, where } from "firebase/firestore"
+import { collection, query } from "firebase/firestore"
 import { AppUser } from "@/lib/types"
 import { UserForm } from "./components/user-form"
 import { useState, useMemo } from "react"
@@ -66,6 +66,8 @@ function getRoleVietnamese(role: string) {
       return 'Kế toán';
     case 'inventory_manager':
       return 'Quản lý kho';
+    case 'custom':
+        return 'Tùy chỉnh';
     default:
       return role;
   }
@@ -73,7 +75,7 @@ function getRoleVietnamese(role: string) {
 
 export default function UsersPage() {
   const { user: currentUser } = useUser();
-  const { role, isLoading: isRoleLoading } = useUserRole();
+  const { permissions, isLoading: isRoleLoading } = useUserRole();
   const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
@@ -84,14 +86,7 @@ export default function UsersPage() {
     }, [firestore]
   );
   
-  const adminsQuery = useMemoFirebase(() => {
-      if (!firestore) return null;
-      return query(collection(firestore, "users"), where("role", "==", "admin"))
-    }, [firestore]
-  );
-
   const { data: users, isLoading: isUsersLoading } = useCollection<AppUser>(usersQuery);
-  const { data: admins, isLoading: isAdminLoading } = useCollection<AppUser>(adminsQuery);
   
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<AppUser | undefined>(undefined);
@@ -100,7 +95,7 @@ export default function UsersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState<AppUser['role'] | 'all'>('all');
 
-  const isLoading = isUsersLoading || isAdminLoading || isRoleLoading;
+  const isLoading = isUsersLoading || isRoleLoading;
   
   const filteredUsers = useMemo(() => {
     return users?.filter(user => {
@@ -113,7 +108,10 @@ export default function UsersPage() {
     });
   }, [users, searchTerm, roleFilter]);
 
-  const canAccess = role === 'admin' || (!isLoading && admins?.length === 0);
+  const canAccess = permissions?.users?.includes('view');
+  const canAdd = permissions?.users?.includes('add');
+  const canEdit = permissions?.users?.includes('edit');
+  const canDelete = permissions?.users?.includes('delete');
   
   const handleAddUser = () => {
     setSelectedUser(undefined);
@@ -165,7 +163,7 @@ export default function UsersPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p>Chỉ những người dùng có vai trò 'Quản trị viên' mới có thể quản lý người dùng.</p>
+          <p>Chỉ những người dùng có quyền 'Xem người dùng' mới có thể truy cập trang này.</p>
           <Button asChild className="mt-4">
             <Link href="/dashboard">Quay lại Bảng điều khiển</Link>
           </Button>
@@ -205,11 +203,6 @@ export default function UsersPage() {
           <CardTitle>Người dùng</CardTitle>
           <CardDescription>
             Quản lý người dùng trong hệ thống của bạn.
-            {admins?.length === 0 && (
-               <p className="text-destructive text-sm mt-2">
-                 Chưa có quản trị viên nào. Hãy thêm một người dùng có vai trò 'Quản trị viên' để bảo mật trang này.
-               </p>
-            )}
           </CardDescription>
           <div className="flex items-center gap-4 pt-4">
             <div className="relative">
@@ -239,16 +232,19 @@ export default function UsersPage() {
                   <DropdownMenuRadioItem value="admin">Quản trị viên</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="accountant">Kế toán</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="inventory_manager">Quản lý kho</DropdownMenuRadioItem>
+                   <DropdownMenuRadioItem value="custom">Tùy chỉnh</DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
             </DropdownMenu>
             <div className="ml-auto flex items-center gap-2">
-              <Button size="sm" className="h-10 gap-1" onClick={handleAddUser}>
-                <PlusCircle className="h-3.5 w-3.5" />
-                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                  Thêm người dùng
-                </span>
-              </Button>
+              {canAdd && (
+                <Button size="sm" className="h-10 gap-1" onClick={handleAddUser}>
+                    <PlusCircle className="h-3.5 w-3.5" />
+                    <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                    Thêm người dùng
+                    </span>
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -297,17 +293,19 @@ export default function UsersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Hành động</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => handleEditUser(user)}>
-                            Sửa
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => setUserToDelete(user)}
-                            disabled={isCurrentUser || (user.role === 'admin' && admins?.length === 1)}
-                          >
-                            Xóa
-                          </DropdownMenuItem>
+                          {canEdit && <DropdownMenuItem onClick={() => handleEditUser(user)}>Sửa</DropdownMenuItem>}
+                          {canDelete && (
+                            <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                    className="text-destructive"
+                                    onClick={() => setUserToDelete(user)}
+                                    disabled={isCurrentUser}
+                                >
+                                    Xóa
+                                </DropdownMenuItem>
+                            </>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

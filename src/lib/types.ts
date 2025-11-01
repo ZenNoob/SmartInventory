@@ -1,5 +1,25 @@
 
 
+export type Permission = 'view' | 'add' | 'edit' | 'delete';
+
+export type Module = 
+  | 'dashboard'
+  | 'categories'
+  | 'units'
+  | 'products'
+  | 'purchases'
+  | 'sales'
+  | 'customers'
+  | 'reports'
+  | 'users'
+  | 'settings'
+  | 'pos';
+
+export type Permissions = {
+  [key in Module]?: Permission[];
+};
+
+
 export type Category = {
   id: string
   name: string
@@ -90,7 +110,8 @@ export type AppUser = {
   id?: string;
   email: string;
   displayName?: string;
-  role: 'admin' | 'accountant' | 'inventory_manager';
+  role: 'admin' | 'accountant' | 'inventory_manager' | 'custom';
+  permissions?: Permissions;
 }
 
 export type ThemeSettings = {
