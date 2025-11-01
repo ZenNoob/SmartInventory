@@ -31,7 +31,7 @@ import { collection, query } from "firebase/firestore"
 import { Sale, Customer } from "@/lib/types"
 import { formatCurrency, cn } from "@/lib/utils"
 import { DateRange } from "react-day-picker"
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns"
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, startOfQuarter, endOfQuarter } from "date-fns"
 import { vi } from "date-fns/locale"
 import { Calendar as CalendarIcon, File, Undo2 } from "lucide-react"
 import * as xlsx from 'xlsx';
@@ -112,7 +112,7 @@ export default function RevenueReportPage() {
     
   const totalSalesCount = filteredSales.length;
 
-  const setDatePreset = (preset: 'this_week' | 'this_month' | 'this_year') => {
+  const setDatePreset = (preset: 'this_week' | 'this_month' | 'this_quarter' | 'this_year') => {
     const now = new Date();
     switch (preset) {
       case 'this_week':
@@ -120,6 +120,9 @@ export default function RevenueReportPage() {
         break;
       case 'this_month':
         setDateRange({ from: startOfMonth(now), to: endOfMonth(now) });
+        break;
+      case 'this_quarter':
+        setDateRange({ from: startOfQuarter(now), to: endOfQuarter(now) });
         break;
       case 'this_year':
         setDateRange({ from: startOfYear(now), to: endOfYear(now) });
@@ -214,6 +217,7 @@ export default function RevenueReportPage() {
                  <div className="p-2 border-t flex justify-around">
                     <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_week')}>Tuần này</Button>
                     <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_month')}>Tháng này</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_quarter')}>Quý này</Button>
                     <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_year')}>Năm nay</Button>
                  </div>
               </PopoverContent>

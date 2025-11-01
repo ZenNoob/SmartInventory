@@ -3,6 +3,7 @@
 import {
   Bar,
   BarChart,
+  Line,
   CartesianGrid,
   XAxis,
   YAxis,
@@ -31,6 +32,7 @@ export function RevenueChart({ data }: RevenueChartProps) {
     const chartData = data.map(item => ({
         name: format(parseISO(item.month + '-01'), "MMM", { locale: vi }),
         "Doanh Thu": item.revenue,
+        "Doanh Số": item.salesCount,
     }));
 
   return (
@@ -40,11 +42,21 @@ export function RevenueChart({ data }: RevenueChartProps) {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis
+                    yAxisId="left"
                     stroke="#888888"
                     fontSize={12}
                     tickLine={false}
                     axisLine={false}
                     tickFormatter={(value) => `${formatCurrency(Number(value))}`}
+                />
+                <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    stroke="#888888"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(value) => `${value}`}
                 />
                 <Tooltip
                     contentStyle={{
@@ -52,11 +64,19 @@ export function RevenueChart({ data }: RevenueChartProps) {
                         border: "1px solid hsl(var(--border))",
                     }}
                     labelStyle={{ color: "hsl(var(--foreground))" }}
-                    itemStyle={{ color: "hsl(var(--primary))" }}
-                    formatter={(value, name) => [formatCurrency(Number(value)), name]}
+                    formatter={(value, name, props) => {
+                        if (name === "Doanh Thu") {
+                            return [formatCurrency(Number(value)), "Doanh thu"];
+                        }
+                        if (name === "Doanh Số") {
+                            return [value, "Doanh số (đơn hàng)"];
+                        }
+                        return [value, name];
+                    }}
                 />
                 <Legend iconType="circle" />
-                <Bar dataKey="Doanh Thu" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                <Bar yAxisId="left" dataKey="Doanh Thu" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                <Line yAxisId="right" type="monotone" dataKey="Doanh Số" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={{ r: 4 }} />
             </BarChart>
         </ResponsiveContainer>
     </div>
