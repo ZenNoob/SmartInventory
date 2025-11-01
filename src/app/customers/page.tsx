@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import { useState, useMemo, useTransition } from "react"
@@ -238,14 +239,38 @@ export default function CustomersPage() {
   const customerDebts = useMemo(() => {
     if (!customers || !sales || !payments) return new Map();
 
-    const debtMap = new Map<string, { paid: number; debt: number; payments: Payment[] }>();
+    const debtData: Map<string, { totalSales: number; payments: Payment[] }> = new Map();
+
+    // Initialize with all customers
     customers.forEach(customer => {
-        const customerSales = sales.filter(s => s.customerId === customer.id).reduce((sum, s) => sum + (s.finalAmount || 0), 0);
-        const customerPayments = payments.filter(p => p.customerId === customer.id);
-        const totalPaid = customerPayments.reduce((sum, p) => sum + p.amount, 0);
-        const totalDebt = customerSales - totalPaid;
-        debtMap.set(customer.id, { paid: totalPaid, debt: totalDebt, payments: customerPayments });
+        debtData.set(customer.id, { totalSales: 0, payments: [] });
     });
+
+    // Aggregate sales
+    sales.forEach(sale => {
+        const current = debtData.get(sale.customerId) || { totalSales: 0, payments: [] };
+        current.totalSales += sale.finalAmount || 0;
+        debtData.set(sale.customerId, current);
+    });
+
+    // Aggregate payments
+    payments.forEach(payment => {
+        const current = debtData.get(payment.customerId) || { totalSales: 0, payments: [] };
+        current.payments.push(payment);
+        debtData.set(payment.customerId, current);
+    });
+
+    // Calculate final debt map
+    const debtMap = new Map<string, { paid: number; debt: number; payments: Payment[] }>();
+    debtData.forEach((data, customerId) => {
+        const totalPaid = data.payments.reduce((sum, p) => sum + p.amount, 0);
+        debtMap.set(customerId, {
+            paid: totalPaid,
+            debt: data.totalSales - totalPaid,
+            payments: data.payments,
+        });
+    });
+
     return debtMap;
   }, [customers, sales, payments]);
 
