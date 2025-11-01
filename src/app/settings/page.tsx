@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import * as React from 'react'
@@ -79,6 +80,30 @@ const themeFormSchema = z.object({
 });
 
 type ThemeFormValues = z.infer<typeof themeFormSchema>;
+
+const FormattedNumberInput = ({ value, onChange, ...props }: { value: number; onChange: (value: number) => void; [key: string]: any }) => {
+  const [displayValue, setDisplayValue] = React.useState(value?.toLocaleString('en-US') || '');
+
+  useEffect(() => {
+    setDisplayValue(value?.toLocaleString('en-US') || '0');
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value.replace(/,/g, '');
+    const numberValue = parseInt(rawValue, 10);
+
+    if (!isNaN(numberValue)) {
+      setDisplayValue(numberValue.toLocaleString('en-US'));
+      onChange(numberValue);
+    } else if (rawValue === '') {
+      setDisplayValue('');
+      onChange(0);
+    }
+  };
+
+  return <Input type="text" value={displayValue} onChange={handleChange} {...props} />;
+};
+
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -402,7 +427,7 @@ export default function SettingsPage() {
                               <FormItem className="max-w-xs">
                               <FormLabel>Ngưỡng cảnh báo tồn kho</FormLabel>
                               <FormControl>
-                                  <Input type="number" placeholder="Ví dụ: 10" {...field} />
+                                  <FormattedNumberInput {...field} />
                               </FormControl>
                               <FormMessage />
                               </FormItem>
@@ -466,7 +491,7 @@ export default function SettingsPage() {
                                   <FormItem>
                                     <FormLabel>Tỷ lệ tích điểm</FormLabel>
                                     <FormControl>
-                                      <Input type="number" {...field} />
+                                      <FormattedNumberInput {...field} />
                                     </FormControl>
                                     <FormDescription>
                                       Số tiền (VNĐ) cần chi tiêu để nhận được 1 điểm.
@@ -482,7 +507,7 @@ export default function SettingsPage() {
                                   <FormItem>
                                     <FormLabel>Tỷ lệ quy đổi điểm</FormLabel>
                                     <FormControl>
-                                      <Input type="number" {...field} />
+                                      <FormattedNumberInput {...field} />
                                     </FormControl>
                                     <FormDescription>
                                       Giá trị của 1 điểm khi khách hàng sử dụng (VNĐ).
@@ -504,7 +529,7 @@ export default function SettingsPage() {
                                           <FormItem>
                                               <FormLabel>Hạng {tierFields[index].vietnameseName}</FormLabel>
                                               <FormControl>
-                                                  <Input type="number" {...field} />
+                                                  <FormattedNumberInput {...field} />
                                               </FormControl>
                                               <FormDescription>
                                                   Tổng điểm tích lũy tối thiểu để đạt hạng này.
