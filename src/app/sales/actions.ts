@@ -1,3 +1,4 @@
+
 'use server'
 
 import { Sale, SalesItem } from "@/lib/types";
@@ -17,8 +18,8 @@ async function getNextInvoiceNumber(firestore: FirebaseFirestore.Firestore, tran
         .orderBy('invoiceNumber', 'desc')
         .limit(1);
 
-    const getter = transaction ? transaction : firestore;
-    const snapshot = await getter.get(query);
+    // This is the fix: check if a transaction is passed.
+    const snapshot = transaction ? await transaction.get(query) : await query.get();
     
     let nextSequence = 1;
     if (!snapshot.empty) {
@@ -37,7 +38,6 @@ export async function upsertSaleTransaction(
   items: Omit<SalesItem, 'id' | 'salesTransactionId'>[]
 ): Promise<{ success: boolean; error?: string; saleId?: string }> {
   const { firestore } = await getAdminServices();
-
   const isUpdate = !!sale.id;
 
   if (isUpdate) {
@@ -103,7 +103,7 @@ export async function upsertSaleTransaction(
   } else {
     // --- CREATE LOGIC ---
     try {
-      const invoiceNumber = await getNextInvoiceNumber(firestore);
+      const invoiceNumber = await getNextInvoiceNumber(firestore); // Get invoice number outside transaction
       const saleRef = firestore.collection('sales_transactions').doc();
       
       await firestore.runTransaction(async (transaction) => {
