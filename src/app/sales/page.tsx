@@ -83,7 +83,7 @@ import { Badge } from "@/components/ui/badge"
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns"
 import { DateRange } from "react-day-picker"
 import { cn, formatCurrency } from "@/lib/utils"
-import { useCollection, useDoc, useFirestore, useMemoFirebase } from "@/firebase"
+import { useCollection, useDoc, useFirestore, useMemoFirebase, useUserRole } from "@/firebase"
 import { Customer, Sale, Product, Unit, SalesItem, Payment, ThemeSettings } from "@/lib/types"
 import { collection, query, getDocs, doc, where, orderBy } from "firebase/firestore"
 import { SaleForm } from "./components/sale-form"
@@ -134,6 +134,7 @@ export default function SalesPage() {
   const [sortKey, setSortKey] = useState<SortKey>('invoiceNumber');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [customerPopoverOpen, setCustomerPopoverOpen] = useState(false);
+  const { permissions: userPermissions } = useUserRole();
 
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -479,12 +480,14 @@ export default function SalesPage() {
                 Xuất Excel
               </span>
             </Button>
-            <Button size="sm" className="h-8 gap-1" onClick={handleAddSale} disabled={isLoading}>
-              <PlusCircle className="h-3.5 w-3.5" />
-              <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                {isLoading ? 'Đang tải...' : 'Tạo đơn hàng'}
-              </span>
-            </Button>
+            {userPermissions?.sales?.includes('add') && (
+              <Button size="sm" className="h-8 gap-1" onClick={handleAddSale} disabled={isLoading}>
+                <PlusCircle className="h-3.5 w-3.5" />
+                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                  {isLoading ? 'Đang tải...' : 'Tạo đơn hàng'}
+                </span>
+              </Button>
+            )}
           </div>
         </div>
         <TabsContent value={statusFilter}>
@@ -696,14 +699,20 @@ export default function SalesPage() {
                                 <DropdownMenuItem asChild>
                                   <Link href={`/sales/${sale.id}`}>Xem chi tiết</Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleEditSale(sale)}>
-                                  Sửa
-                                </DropdownMenuItem>
+                                {userPermissions?.sales?.includes('edit') && (
+                                  <DropdownMenuItem onClick={() => handleEditSale(sale)}>
+                                    Sửa
+                                  </DropdownMenuItem>
+                                )}
                                 <DropdownMenuItem onClick={() => window.open(`/sales/${sale.id}?print=true`, '_blank')}>In hóa đơn</DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-destructive" onClick={() => setSaleToDelete(sale)}>
-                                  Xóa
-                                </DropdownMenuItem>
+                                {userPermissions?.sales?.includes('delete') && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem className="text-destructive" onClick={() => setSaleToDelete(sale)}>
+                                      Xóa
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>
@@ -733,5 +742,3 @@ export default function SalesPage() {
     </>
   )
 }
-
-    
