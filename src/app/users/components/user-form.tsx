@@ -143,22 +143,6 @@ const defaultPermissions: Record<AppUser['role'], Permissions> = {
   custom: {},
 };
 
-function arePermissionsEqual(p1: Permissions, p2: Permissions): boolean {
-    const keys1 = Object.keys(p1);
-    const keys2 = Object.keys(p2);
-    if (keys1.length !== keys2.length) return false;
-
-    for (const key of keys1) {
-        if (!keys2.includes(key)) return false;
-        const arr1 = [...(p1[key as Module] || [])].sort();
-        const arr2 = [...(p2[key as Module] || [])].sort();
-        if (arr1.length !== arr2.length || arr1.some((val, i) => val !== arr2[i])) {
-            return false;
-        }
-    }
-    return true;
-}
-
 
 interface UserFormProps {
   isOpen: boolean;
@@ -475,7 +459,7 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers }: UserFormProps
                                 ))}
                              </CardContent>
                              <div className="p-6 pt-0">
-                                <Button type="submit" className="w-full" disabled={permissionsForm.formState.isSubmitting || !permissionsForm.formState.isDirty}>
+                                <Button type="submit" className="w-full" disabled={permissionsForm.formState.isSubmitting}>
                                     {permissionsForm.formState.isSubmitting ? 'Đang lưu...' : 'Lưu phân quyền'}
                                 </Button>
                              </div>
