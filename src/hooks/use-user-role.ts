@@ -2,7 +2,7 @@
 
 import { useDoc, useFirestore, useUser, useMemoFirebase } from "@/firebase";
 import { doc } from "firebase/firestore";
-import { AppUser, Permissions, Module } from "@/lib/types";
+import { AppUser, Permissions } from "@/lib/types";
 
 // Define default permissions for each role
 const defaultPermissions: Record<string, Permissions> = {
@@ -61,9 +61,12 @@ export function useUserRole() {
 
   const isLoading = isUserLoading || isProfileLoading;
   
-  const permissions = userProfile?.role && userProfile.role !== 'custom'
-    ? defaultPermissions[userProfile.role]
-    : userProfile?.permissions;
+  // FIXED LOGIC: Prioritize stored permissions. If they exist (even if empty), use them.
+  // Fallback to default role permissions only if the 'permissions' field is missing entirely.
+  const permissions = userProfile?.permissions !== undefined 
+    ? userProfile.permissions 
+    : (userProfile?.role ? defaultPermissions[userProfile.role] : undefined);
+
 
   return { 
     role: userProfile?.role, 
