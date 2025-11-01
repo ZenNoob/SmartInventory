@@ -1,3 +1,4 @@
+
 'use client'
 
 import Link from 'next/link'
@@ -272,7 +273,7 @@ export function MainNav() {
                               <Link href="/reports/sold-products" className='flex items-center gap-2'><FileBox className="h-4 w-4" />Sản phẩm đã bán</Link>
                           </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive('/reports/purchases')}>
                                 <Link href="/reports/purchases" className='flex items-center gap-2'><Truck className="h-4 w-4" />Chi tiết nhập hàng</Link>
                             </SidebarMenuSubButton>
