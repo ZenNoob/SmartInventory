@@ -1,6 +1,5 @@
 
 
-
 'use client'
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
@@ -243,30 +242,27 @@ export default function POSPage() {
   // #region Sales Items Fetching Effect
   useEffect(() => {
     async function fetchAllSalesItems() {
-      if (!firestore || !sales) {
-        if (!salesLoading) setSalesItemsLoading(false)
-        return
-      }
-
-      setSalesItemsLoading(true)
-      const items: SalesItem[] = []
-      try {
-        for (const sale of sales) {
-          const itemsCollectionRef = collection(firestore, `sales_transactions/${sale.id}/sales_items`)
-          const itemsSnapshot = await getDocs(itemsCollectionRef)
-          itemsSnapshot.forEach((doc) => {
-            items.push({ id: doc.id, ...doc.data() } as SalesItem)
-          })
+        if (!firestore) return; // Wait for firestore to be available
+        setSalesItemsLoading(true);
+        const items: SalesItem[] = [];
+        try {
+            const salesSnapshot = await getDocs(query(collection(firestore, 'sales_transactions')));
+            for (const saleDoc of salesSnapshot.docs) {
+                const itemsCollectionRef = collection(firestore, `sales_transactions/${saleDoc.id}/sales_items`);
+                const itemsSnapshot = await getDocs(itemsCollectionRef);
+                itemsSnapshot.forEach(doc => {
+                    items.push({ id: doc.id, ...doc.data() } as SalesItem);
+                });
+            }
+            setAllSalesItems(items);
+        } catch (error) {
+            console.error("Error fetching all sales items:", error);
+        } finally {
+            setSalesItemsLoading(false);
         }
-        setAllSalesItems(items)
-      } catch (error) {
-        console.error('Error fetching sales items: ', error)
-      } finally {
-        setSalesItemsLoading(false)
-      }
     }
-    fetchAllSalesItems()
-  }, [sales, firestore, salesLoading])
+    fetchAllSalesItems();
+  }, [firestore]); // Run only when firestore is initialized
   // #endregion
 
   // #region Stock and Unit Calculation Callbacks
