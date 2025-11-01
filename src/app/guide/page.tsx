@@ -12,7 +12,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { List, ListChecks, ListPlus, Truck, BarChart2, DollarSign, FileText, History, Home, Settings, ShoppingCart, Store, User, Users2, Warehouse, Wallet, Building, Briefcase, Sparkles, PackagePlus } from "lucide-react"
+import { List, ListChecks, ListPlus, Truck, BarChart2, DollarSign, FileText, History, Home, Settings, ShoppingCart, Store, User, Users2, Warehouse, Wallet, Building, Briefcase, Sparkles, PackagePlus, LineChart } from "lucide-react"
 
 export default function GuidePage() {
   return (
