@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
@@ -419,7 +420,7 @@ export default function POSPage() {
       <div className="flex items-center justify-center h-screen">
         <p>Đang tải dữ liệu cho quầy POS...</p>
       </div>
-    )
+    );
   }
 
   return (
@@ -621,7 +622,7 @@ export default function POSPage() {
         <div className="lg:col-span-1 bg-card border rounded-lg p-6 flex flex-col">
            <h2 className="text-xl font-semibold mb-6">Thanh toán</h2>
           <div className="flex-1 space-y-2 overflow-y-auto text-sm pr-2 -mr-4">
-              <div className="space-y-1">
+              <div className="flex justify-between items-center">
                 <Label>Tổng tiền hàng</Label>
                 <p className="font-semibold text-base">{formatCurrency(totalAmount)}</p>
               </div>
