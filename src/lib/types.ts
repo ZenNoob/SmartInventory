@@ -9,6 +9,7 @@ export type Module =
   | 'purchases'
   | 'sales'
   | 'customers'
+  | 'cash-flow'
   | 'reports'
   | 'users'
   | 'settings'
@@ -168,4 +169,16 @@ export type PurchaseOrder = {
   totalAmount: number;
   notes?: string;
   createdAt: any; // server timestamp
+}
+
+export type CashTransaction = {
+    id: string;
+    type: 'thu' | 'chi';
+    transactionDate: string; // ISO date string
+    amount: number;
+    reason: string;
+    category?: string;
+    relatedInvoiceId?: string; // e.g., sale.id or purchase_order.id
+    createdBy?: string; // user.uid
+    createdAt: any; // server timestamp
 }

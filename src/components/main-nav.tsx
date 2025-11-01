@@ -20,7 +20,8 @@ import {
   BookUser,
   FileText,
   Warehouse,
-  FileBox
+  FileBox,
+  Wallet,
 } from 'lucide-react'
 
 import {
@@ -173,6 +174,16 @@ export function MainNav() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
+          {hasPermission('cash-flow', 'view') && (
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild isActive={isActive('/cash-flow')} tooltip="Sổ quỹ">
+                <Link href="/cash-flow">
+                  <Wallet />
+                  {state === 'expanded' && <span>Sổ quỹ</span>}
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           
           {hasPermission('reports', 'view') && (
             <Collapsible asChild>
@@ -185,6 +196,11 @@ export function MainNav() {
                 </CollapsibleTrigger>
                 <CollapsibleContent asChild>
                   <SidebarMenuSub>
+                      <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive('/reports/income-statement')}>
+                              <Link href="/reports/income-statement">Báo cáo Thu chi</Link>
+                          </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive('/reports/debt')}>
                               <Link href="/reports/debt">Công nợ</Link>

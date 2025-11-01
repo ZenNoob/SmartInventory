@@ -377,6 +377,54 @@
         "amount"
       ]
     },
+    "CashTransaction": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CashTransaction",
+      "type": "object",
+      "description": "Represents a cash flow transaction (income or expense).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the transaction."
+        },
+        "type": {
+          "type": "string",
+          "description": "Type of transaction.",
+          "enum": ["thu", "chi"]
+        },
+        "transactionDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The date of the transaction."
+        },
+        "amount": {
+          "type": "number",
+          "description": "The amount of money."
+        },
+        "reason": {
+          "type": "string",
+          "description": "The reason or description for the transaction."
+        },
+        "category": {
+          "type": "string",
+          "description": "Category of the transaction (e.g., Salary, Rent, Other Income)."
+        },
+        "relatedInvoiceId": {
+          "type": "string",
+          "description": "Optional reference to a sales or purchase invoice."
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "The UID of the user who created the transaction."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of when the transaction was created."
+        }
+      },
+      "required": ["id", "type", "transactionDate", "amount", "reason"]
+    },
     "User": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "User",
@@ -651,6 +699,16 @@
               "description": "Unique identifier for the payment."
             }
           ]
+        }
+      },
+      {
+        "path": "/cash_transactions/{cashTransactionId}",
+        "definition": {
+          "entityName": "CashTransaction",
+          "schema": {
+            "$ref": "#/entities/CashTransaction"
+          },
+          "description": "Stores cash flow transactions (income/expense). Requires accountant or admin role to manage."
         }
       },
       {
