@@ -1,4 +1,5 @@
 
+
 'use server'
 
 import { Sale, SalesItem } from "@/lib/types";
@@ -41,12 +42,21 @@ export async function upsertSaleTransaction(
   const isUpdate = !!sale.id;
   
   let finalRemainingDebt = sale.remainingDebt;
-  // If change is returned, remaining debt should be 0, not negative.
+  let finalCustomerPayment = sale.customerPayment;
+
+  // If change is returned and there is change (remainingDebt is negative),
+  // then the actual payment amount to be recorded is the finalAmount,
+  // and the remaining debt should be 0.
   if (sale.isChangeReturned && finalRemainingDebt && finalRemainingDebt < 0) {
-    finalRemainingDebt = 0;
+    finalCustomerPayment = sale.finalAmount; // Correct the payment amount
+    finalRemainingDebt = 0; // Set remaining debt to 0
   }
 
-  const saleDataForDb = { ...sale, remainingDebt: finalRemainingDebt };
+  const saleDataForDb = { 
+    ...sale, 
+    remainingDebt: finalRemainingDebt,
+    customerPayment: finalCustomerPayment,
+  };
   delete saleDataForDb.isChangeReturned; // Don't save this flag to the database
 
 
@@ -94,13 +104,13 @@ export async function upsertSaleTransaction(
           transaction.set(saleItemRef, { ...item, id: saleItemRef.id, salesTransactionId: saleRef.id });
         }
         
-        if (sale.customerPayment && sale.customerPayment > 0 && sale.customerId) {
+        if (saleDataForDb.customerPayment && saleDataForDb.customerPayment > 0 && saleDataForDb.customerId) {
           const paymentRef = firestore.collection('payments').doc();
           transaction.set(paymentRef, {
               id: paymentRef.id,
-              customerId: sale.customerId,
-              paymentDate: sale.transactionDate,
-              amount: sale.customerPayment,
+              customerId: saleDataForDb.customerId,
+              paymentDate: saleDataForDb.transactionDate,
+              amount: saleDataForDb.customerPayment,
               notes: `Thanh toán cho đơn hàng ${oldSaleData.invoiceNumber}`
           });
         }
@@ -132,13 +142,13 @@ export async function upsertSaleTransaction(
           transaction.set(saleItemRef, { ...item, id: saleItemRef.id, salesTransactionId: saleRef.id });
         }
         
-        if (sale.customerPayment && sale.customerPayment > 0 && sale.customerId) {
+        if (saleDataForDb.customerPayment && saleDataForDb.customerPayment > 0 && saleDataForDb.customerId) {
           const paymentRef = firestore.collection('payments').doc();
           transaction.set(paymentRef, {
               id: paymentRef.id,
-              customerId: sale.customerId,
-              paymentDate: sale.transactionDate,
-              amount: sale.customerPayment,
+              customerId: saleDataForDb.customerId,
+              paymentDate: saleDataForDb.transactionDate,
+              amount: saleDataForDb.customerPayment,
               notes: `Thanh toán cho đơn hàng ${invoiceNumber}`
           });
         }
