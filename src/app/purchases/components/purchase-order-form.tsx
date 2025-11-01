@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Input } from "@/components/ui/input"
+import { Textarea } from '@/components/ui/textarea'
 import { Product, Unit, PurchaseOrderItem, PurchaseOrder, SalesItem, Supplier } from '@/lib/types'
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
@@ -507,7 +508,7 @@ export function PurchaseOrderForm({ products, suppliers, units, allSalesItems, p
                                 <FormItem>
                                 <FormLabel>Ghi chú</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="Thêm ghi chú..." {...field} />
+                                    <Textarea placeholder="Thêm ghi chú..." {...field} />
                                 </FormControl>
                                 <FormMessage />
                                 </FormItem>
