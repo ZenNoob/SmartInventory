@@ -8,7 +8,7 @@ export type Module =
   | 'units'
   | 'products'
   | 'purchases'
-  | 'suppliers' // new
+  | 'suppliers'
   | 'sales'
   | 'customers'
   | 'cash-flow'
