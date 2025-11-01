@@ -400,6 +400,15 @@ export default function POSPage() {
   const remainingDebt = totalPayable - customerPayment;
   const changeAmount = customerPayment - finalAmount;
   // #endregion
+  
+  // Auto-fill customer payment
+  useEffect(() => {
+    if (finalAmount > 0) {
+      setCustomerPayment(finalAmount);
+    } else {
+      setCustomerPayment(0);
+    }
+  }, [finalAmount]);
 
   // #region Form Submission
   const handleCreateSale = async () => {
@@ -513,7 +522,7 @@ export default function POSPage() {
 
   const isLoading = customersLoading || productsLoading || unitsLoading || salesLoading || salesItemsLoading || settingsLoading || shiftsLoading || isUserLoading;
   
-  if (isLoading || !user) {
+  if (isLoading || (!user && !isUserLoading)) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p>Đang tải dữ liệu cho quầy POS...</p>
@@ -522,7 +531,7 @@ export default function POSPage() {
   }
 
   if (!activeShift) {
-    return <StartShiftDialog user={user} onShiftStarted={() => router.refresh()} />;
+    return <StartShiftDialog user={user!} onShiftStarted={() => router.refresh()} />;
   }
 
   const isLocked = !activeShift;
