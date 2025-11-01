@@ -16,6 +16,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -47,18 +48,18 @@ const userFormSchemaBase = z.object({
 });
 
 
-const modules: { id: Module; name: string }[] = [
-    { id: 'dashboard', name: 'Bảng điều khiển' },
-    { id: 'pos', name: 'POS - Bán tại quầy' },
-    { id: 'categories', name: 'Danh mục' },
-    { id: 'units', name: 'Đơn vị tính' },
-    { id: 'products', name: 'Sản phẩm' },
-    { id: 'purchases', name: 'Nhập hàng' },
-    { id: 'sales', name: 'Bán hàng' },
-    { id: 'customers', name: 'Khách hàng' },
-    { id: 'reports', name: 'Báo cáo' },
-    { id: 'users', name: 'Người dùng' },
-    { id: 'settings', name: 'Cài đặt' },
+const modules: { id: Module; name: string; description: string; }[] = [
+    { id: 'dashboard', name: 'Bảng điều khiển', description: 'Xem tổng quan tình hình kinh doanh, doanh thu, công nợ.' },
+    { id: 'pos', name: 'POS - Bán tại quầy', description: 'Sử dụng giao diện bán hàng nhanh tại quầy.' },
+    { id: 'categories', name: 'Danh mục', description: 'Quản lý các loại sản phẩm (VD: Giống, Phân bón).' },
+    { id: 'units', name: 'Đơn vị tính', description: 'Quản lý các đơn vị (VD: Cái, Kg, Bao).' },
+    { id: 'products', name: 'Sản phẩm', description: 'Quản lý thông tin, giá và các lô nhập của sản phẩm.' },
+    { id: 'purchases', name: 'Nhập hàng', description: 'Tạo và quản lý các phiếu nhập hàng từ nhà cung cấp.' },
+    { id: 'sales', name: 'Bán hàng', description: 'Tạo và quản lý các đơn hàng bán cho khách.' },
+    { id: 'customers', name: 'Khách hàng', description: 'Quản lý thông tin và công nợ của khách hàng.' },
+    { id: 'reports', name: 'Báo cáo', description: 'Xem các báo cáo chi tiết về doanh thu, công nợ, tồn kho.' },
+    { id: 'users', name: 'Người dùng', description: 'Quản lý tài khoản và phân quyền người dùng hệ thống.' },
+    { id: 'settings', name: 'Cài đặt', description: 'Tùy chỉnh thông tin chung và giao diện của ứng dụng.' },
 ]
 
 const permissions: { id: Permission; name: string }[] = [
@@ -274,9 +275,10 @@ export function UserForm({ isOpen, onOpenChange, user }: UserFormProps) {
                             control={form.control}
                             name={`permissions.${module.id}`}
                             render={() => (
-                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                                    <div className="space-y-0.5">
+                                <FormItem className="flex flex-col items-start justify-between rounded-lg border p-3 shadow-sm">
+                                    <div className="space-y-0.5 mb-2">
                                         <FormLabel>{module.name}</FormLabel>
+                                        <FormDescription>{module.description}</FormDescription>
                                     </div>
                                     <div className="flex items-center space-x-4">
                                         {permissions.map((permission) => (
@@ -288,7 +290,7 @@ export function UserForm({ isOpen, onOpenChange, user }: UserFormProps) {
                                                     return (
                                                     <FormItem
                                                         key={permission.id}
-                                                        className="flex flex-col items-center space-y-1"
+                                                        className="flex flex-row items-center space-x-2 space-y-0"
                                                     >
                                                         <FormControl>
                                                         <Checkbox
@@ -308,7 +310,7 @@ export function UserForm({ isOpen, onOpenChange, user }: UserFormProps) {
                                                             }}
                                                         />
                                                         </FormControl>
-                                                        <FormLabel className="text-xs font-normal">
+                                                        <FormLabel className="text-sm font-normal">
                                                            {permission.name}
                                                         </FormLabel>
                                                     </FormItem>
