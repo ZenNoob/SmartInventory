@@ -23,7 +23,7 @@ import {
   useMemoFirebase,
   useUser,
 } from '@/firebase'
-import { collection, query, getDocs } from 'firebase/firestore'
+import { collection, getDocs, query } from 'firebase/firestore'
 import {
   Customer,
   Payment,
@@ -548,20 +548,20 @@ export default function POSPage() {
         </div>
 
         {/* Payment and Summary */}
-        <div className="lg:col-span-1 bg-muted/30 rounded-lg p-6 flex flex-col">
+        <div className="lg:col-span-1 bg-card border rounded-lg p-6 flex flex-col">
           <h2 className="text-xl font-semibold mb-6">Thanh toán</h2>
-          <div className="space-y-6 text-lg flex-1">
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground">Tổng tiền hàng</span>
-              <span className="font-bold">{formatCurrency(totalAmount)}</span>
+          <div className="space-y-6 text-base flex-1">
+            <div className="space-y-1">
+              <p className="text-muted-foreground">Tổng tiền hàng</p>
+              <p className="font-bold text-xl">{formatCurrency(totalAmount)}</p>
             </div>
              <Separator />
-            <div className="flex justify-between items-center font-bold text-3xl text-primary">
-              <span>Khách cần trả</span>
-              <span>{formatCurrency(totalAmount)}</span>
+            <div className="space-y-1">
+                <p className="text-muted-foreground font-bold text-lg">Khách cần trả</p>
+                <p className="font-bold text-3xl text-primary">{formatCurrency(totalAmount)}</p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="customerPayment" className="text-lg">
+              <Label htmlFor="customerPayment" className="text-base">
                 Tiền khách đưa
               </Label>
               <Input
@@ -575,13 +575,13 @@ export default function POSPage() {
                 }}
               />
             </div>
-            <div
-              className={`flex justify-between items-center font-bold text-2xl ${
-                changeAmount >= 0 ? 'text-green-600' : 'text-destructive'
-              }`}
-            >
-              <span>{changeAmount >= 0 ? 'Tiền thối lại' : 'Còn thiếu'}</span>
-              <span>{formatCurrency(Math.abs(changeAmount))}</span>
+            <div className="space-y-1">
+                <p className={`text-muted-foreground font-bold text-lg ${changeAmount >= 0 ? 'text-green-600' : 'text-destructive'}`}>
+                    {changeAmount >= 0 ? 'Tiền thối lại' : 'Còn thiếu'}
+                </p>
+                <p className={`font-bold text-2xl ${changeAmount >= 0 ? 'text-green-600' : 'text-destructive'}`}>
+                    {formatCurrency(Math.abs(changeAmount))}
+                </p>
             </div>
           </div>
           <Button
