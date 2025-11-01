@@ -1,92 +1,36 @@
 
-'use client'
+'use server'
 
-import { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { useDoc, useFirestore, useMemoFirebase } from '@/firebase'
-import { doc } from 'firebase/firestore'
-import { notFound, useRouter } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 
 import type { Shift } from '@/lib/types'
-import { useToast } from '@/hooks/use-toast'
-import { updateShift } from '@/app/pos/actions'
+import { getAdminServices } from '@/lib/admin-actions'
+import { toPlainObject } from '@/lib/utils'
+
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import { FormattedNumberInput } from '@/components/formatted-number-input'
+import { EditShiftForm } from './components/edit-shift-form'
 
-const shiftFormSchema = z.object({
-  startingCash: z.coerce.number().min(0, "Số tiền không được âm."),
-  endingCash: z.coerce.number().min(0, "Số tiền không được âm."),
-});
 
-type ShiftFormValues = z.infer<typeof shiftFormSchema>;
+async function getShift(shiftId: string): Promise<Shift | null> {
+    try {
+        const { firestore } = await getAdminServices();
+        const shiftDoc = await firestore.collection('shifts').doc(shiftId).get();
 
-export default function EditShiftPage({ params }: { params: { id: string } }) {
-  const firestore = useFirestore();
-  const { toast } = useToast();
-  const router = useRouter();
-
-  const shiftRef = useMemoFirebase(
-    () => (firestore ? doc(firestore, 'shifts', params.id) : null),
-    [firestore, params.id]
-  );
-  const { data: shift, isLoading: shiftLoading } = useDoc<Shift>(shiftRef);
-
-  const form = useForm<ShiftFormValues>({
-    resolver: zodResolver(shiftFormSchema),
-  });
-
-  useEffect(() => {
-    if (shift) {
-      form.reset({
-        startingCash: shift.startingCash,
-        endingCash: shift.endingCash || 0,
-      });
+        if (!shiftDoc.exists) {
+            return null;
+        }
+        return toPlainObject(shiftDoc.data()) as Shift;
+    } catch (error) {
+        console.error("Error fetching shift:", error);
+        return null;
     }
-  }, [shift, form]);
+}
 
-  const onSubmit = async (data: ShiftFormValues) => {
-    if (!shift) return;
 
-    const result = await updateShift(shift.id, data);
-    if (result.success) {
-      toast({
-        title: "Thành công!",
-        description: "Đã cập nhật thông tin ca làm việc.",
-      });
-      router.push(`/shifts/${shift.id}`);
-      router.refresh(); // Ensure server component data is re-fetched
-    } else {
-      toast({
-        variant: "destructive",
-        title: "Lỗi cập nhật",
-        description: result.error,
-      });
-    }
-  };
-
-  if (shiftLoading) {
-    return <div className="flex justify-center items-center h-full"><p>Đang tải ca làm việc...</p></div>;
-  }
+export default async function EditShiftPage({ params }: { params: { id: string } }) {
+  const shift = await getShift(params.id);
 
   if (!shift) {
     notFound();
@@ -109,51 +53,7 @@ export default function EditShiftPage({ params }: { params: { id: string } }) {
         </div>
       </div>
 
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          <Card className="max-w-2xl mx-auto">
-            <CardHeader>
-              <CardTitle>Thông tin ca</CardTitle>
-              <CardDescription>
-                Chỉ tiền đầu ca và cuối ca có thể được chỉnh sửa. Các số liệu khác sẽ được tự động tính toán lại.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <FormField
-                control={form.control}
-                name="startingCash"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tiền đầu ca</FormLabel>
-                    <FormControl>
-                      <FormattedNumberInput {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="endingCash"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tiền cuối ca (Thực tế)</FormLabel>
-                    <FormControl>
-                      <FormattedNumberInput {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-            <div className='p-6 flex justify-end'>
-                <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? 'Đang lưu...' : 'Lưu thay đổi'}
-              </Button>
-            </div>
-          </Card>
-        </form>
-      </Form>
+      <EditShiftForm shift={shift} />
     </div>
   );
 }
