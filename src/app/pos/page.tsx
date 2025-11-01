@@ -14,6 +14,7 @@ import {
   Undo2,
   XCircle,
   PanelLeft,
+  UserPlus,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -62,6 +63,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from '@/components/ui/command'
 import {
   Table,
@@ -77,6 +79,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { useSidebar } from '@/components/ui/sidebar'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Form, FormControl, FormField, FormItem, FormDescription } from '@/components/ui/form'
+import { CustomerForm } from '@/app/customers/components/customer-form'
 
 
 type CartItem = {
@@ -140,6 +143,7 @@ export default function POSPage() {
   const [pointsUsed, setPointsUsed] = useState(0);
   const [paymentSuggestions, setPaymentSuggestions] = useState<number[]>([]);
   const [isChangeReturned, setIsChangeReturned] = useState(true);
+  const [isCustomerFormOpen, setIsCustomerFormOpen] = useState(false);
 
   // #region Data Fetching
   const customersQuery = useMemoFirebase(
@@ -472,6 +476,11 @@ export default function POSPage() {
   }
 
   return (
+    <>
+    <CustomerForm 
+      isOpen={isCustomerFormOpen} 
+      onOpenChange={setIsCustomerFormOpen} 
+    />
     <div className="flex flex-col h-[calc(100vh-5rem)] -m-6 bg-muted/30">
       <header className="p-4 border-b bg-background flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={toggleSidebar} className='shrink-0'>
@@ -582,6 +591,16 @@ export default function POSPage() {
                       )
                     })}
                   </CommandGroup>
+                  <CommandSeparator />
+                   <CommandItem
+                      onSelect={() => {
+                        setCustomerSearchOpen(false);
+                        setIsCustomerFormOpen(true);
+                      }}
+                    >
+                      <UserPlus className="mr-2 h-4 w-4" />
+                      Thêm khách hàng mới
+                    </CommandItem>
                 </CommandList>
               </Command>
             </PopoverContent>
@@ -832,5 +851,6 @@ export default function POSPage() {
         </div>
       </main>
     </div>
+    </>
   )
 }

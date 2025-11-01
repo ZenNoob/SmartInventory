@@ -62,7 +62,7 @@ type CustomerFormValues = z.infer<typeof customerFormSchema>;
 
 interface CustomerFormProps {
   isOpen: boolean;
-  onOpenChange: (isOpen: boolean) => void;
+  onOpenChange: (isOpen: boolean, newCustomerId?: string) => void;
   customer?: Customer;
 }
 
@@ -151,7 +151,7 @@ export function CustomerForm({ isOpen, onOpenChange, customer }: CustomerFormPro
         title: "Thành công!",
         description: `Đã ${customer ? 'cập nhật' : 'tạo'} khách hàng thành công.`,
       });
-      onOpenChange(false);
+      onOpenChange(false, result.customerId);
       router.refresh();
     } else {
       toast({
@@ -163,7 +163,7 @@ export function CustomerForm({ isOpen, onOpenChange, customer }: CustomerFormPro
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={(open) => onOpenChange(open)}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{customer ? 'Chỉnh sửa khách hàng' : 'Thêm khách hàng mới'}</DialogTitle>
@@ -438,5 +438,3 @@ export function CustomerForm({ isOpen, onOpenChange, customer }: CustomerFormPro
     </Dialog>
   )
 }
-
-    

@@ -5,13 +5,15 @@ import { getAdminServices } from "@/lib/admin-actions";
 import { FieldValue } from "firebase-admin/firestore";
 import * as xlsx from 'xlsx';
 
-export async function upsertCustomer(customer: Partial<Customer>): Promise<{ success: boolean; error?: string }> {
+export async function upsertCustomer(customer: Partial<Customer>): Promise<{ success: boolean; error?: string; customerId?: string }> {
   try {
     const { firestore } = await getAdminServices();
+    let customerId: string;
 
     if (customer.id) {
       // Update existing customer
-      const customerRef = firestore.collection('customers').doc(customer.id);
+      customerId = customer.id;
+      const customerRef = firestore.collection('customers').doc(customerId);
       await customerRef.set({
         ...customer,
         updatedAt: FieldValue.serverTimestamp(),
@@ -19,15 +21,16 @@ export async function upsertCustomer(customer: Partial<Customer>): Promise<{ suc
     } else {
       // Create new customer
       const customerRef = firestore.collection('customers').doc();
+      customerId = customerRef.id;
       await customerRef.set({ 
         ...customer, 
-        id: customerRef.id,
+        id: customerId,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
     }
 
-    return { success: true };
+    return { success: true, customerId };
   } catch (error: any) {
     console.error("Error upserting customer:", error);
     return { success: false, error: error.message || 'Không thể tạo hoặc cập nhật khách hàng.' };
@@ -140,5 +143,3 @@ export async function importCustomers(base64Data: string): Promise<{ success: bo
     return { success: false, error: error.message || 'Không thể nhập file khách hàng.' };
   }
 }
-
-    
