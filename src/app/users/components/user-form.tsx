@@ -52,9 +52,19 @@ const newUserFormSchema = userFormSchemaBase.extend({
   password: z.string().min(6, 'Mật khẩu phải có ít nhất 6 ký tự.'),
 });
 
-// Schema for updating an existing user (password is optional)
+// Schema for updating an existing user (password is optional, but if provided, must be valid)
 const updateUserFormSchema = userFormSchemaBase.extend({
   password: z.string().optional(),
+}).refine(data => {
+    // If password field is present and not an empty string, it must be at least 6 characters long.
+    // If it's empty or undefined, this validation passes.
+    if (data.password && data.password.length > 0) {
+        return data.password.length >= 6;
+    }
+    return true;
+}, {
+    message: 'Mật khẩu mới phải có ít nhất 6 ký tự.',
+    path: ['password'], // Specify the path of the error
 });
 
 
