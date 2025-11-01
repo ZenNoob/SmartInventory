@@ -3,7 +3,7 @@
 import { Sale, SalesItem } from "@/lib/types";
 import { getAdminServices } from "@/lib/admin-actions";
 
-async function getNextInvoiceNumber(firestore: FirebaseFirestore.Firestore, transaction: FirebaseFirestore.Transaction): Promise<string> {
+async function getNextInvoiceNumber(firestore: FirebaseFirestore.Firestore, transaction?: FirebaseFirestore.Transaction): Promise<string> {
     const today = new Date();
     const year = today.getFullYear();
     const month = (today.getMonth() + 1).toString().padStart(2, '0');
@@ -13,11 +13,12 @@ async function getNextInvoiceNumber(firestore: FirebaseFirestore.Firestore, tran
     const salesCollection = firestore.collection('sales_transactions');
     const query = salesCollection
         .where('invoiceNumber', '>=', datePrefix)
-        .where('invoiceNumber', '<', datePrefix + 'z') // 'z' is a char that is after all digits
+        .where('invoiceNumber', '<', datePrefix + 'z')
         .orderBy('invoiceNumber', 'desc')
         .limit(1);
 
-    const snapshot = await transaction.get(query);
+    const getter = transaction ? transaction : firestore;
+    const snapshot = await getter.get(query);
     
     let nextSequence = 1;
     if (!snapshot.empty) {
@@ -37,14 +38,14 @@ export async function upsertSaleTransaction(
 ): Promise<{ success: boolean; error?: string; saleId?: string }> {
   const { firestore } = await getAdminServices();
 
-  try {
-    return await firestore.runTransaction(async (transaction) => {
-      let saleRef;
-      const isUpdate = !!sale.id;
+  const isUpdate = !!sale.id;
 
-      if (isUpdate) {
-        // --- ALL READS FIRST for UPDATE ---
-        saleRef = firestore.collection('sales_transactions').doc(sale.id!);
+  if (isUpdate) {
+    // --- UPDATE LOGIC ---
+    try {
+      const saleRef = firestore.collection('sales_transactions').doc(sale.id!);
+      await firestore.runTransaction(async (transaction) => {
+        // --- ALL READS FIRST ---
         const oldSaleDoc = await transaction.get(saleRef);
         if (!oldSaleDoc.exists) {
           throw new Error("Đơn hàng không tồn tại.");
@@ -67,24 +68,46 @@ export async function upsertSaleTransaction(
           }
         }
         
-        // --- ALL WRITES for UPDATE ---
+        // --- ALL WRITES AFTER ---
         oldItemsSnapshot.docs.forEach(doc => transaction.delete(doc.ref));
+
         if (oldPaymentDoc && oldPaymentDoc.exists) {
           transaction.delete(oldPaymentDoc.ref);
         }
         
-        const saleDataToUpdate = { 
-          ...sale,
-          invoiceNumber: oldSaleData.invoiceNumber // Preserve original invoice number
-        };
-        transaction.set(saleRef, saleDataToUpdate);
-        
-      } else {
-        // --- ALL READS FIRST for CREATE ---
-        const invoiceNumber = await getNextInvoiceNumber(firestore, transaction);
-        saleRef = firestore.collection('sales_transactions').doc();
+        const saleDataToUpdate = { ...sale, invoiceNumber: oldSaleData.invoiceNumber };
+        transaction.set(saleRef, saleDataToUpdate, { merge: true });
 
-        // --- ALL WRITES for CREATE ---
+        const saleItemsCollection = saleRef.collection('sales_items');
+        for (const item of items) {
+          const saleItemRef = saleItemsCollection.doc();
+          transaction.set(saleItemRef, { ...item, id: saleItemRef.id, salesTransactionId: saleRef.id });
+        }
+        
+        if (sale.customerPayment && sale.customerPayment > 0 && sale.customerId) {
+          const paymentRef = firestore.collection('payments').doc();
+          transaction.set(paymentRef, {
+              id: paymentRef.id,
+              customerId: sale.customerId,
+              paymentDate: sale.transactionDate,
+              amount: sale.customerPayment,
+              notes: `Thanh toán cho đơn hàng ${oldSaleData.invoiceNumber}`
+          });
+        }
+      });
+      return { success: true, saleId: sale.id };
+    } catch (error: any) {
+      console.error("Error updating sale transaction:", error);
+      return { success: false, error: error.message || 'Không thể cập nhật đơn hàng.' };
+    }
+  } else {
+    // --- CREATE LOGIC ---
+    try {
+      const invoiceNumber = await getNextInvoiceNumber(firestore);
+      const saleRef = firestore.collection('sales_transactions').doc();
+      
+      await firestore.runTransaction(async (transaction) => {
+        // --- ALL WRITES ---
         const saleDataToCreate = { 
             ...sale, 
             id: saleRef.id, 
@@ -92,37 +115,29 @@ export async function upsertSaleTransaction(
             status: sale.status || 'unprinted',
         };
         transaction.set(saleRef, saleDataToCreate);
-      }
 
-      // --- WRITES for both CREATE and UPDATE ---
-      const saleItemsCollection = saleRef.collection('sales_items');
-      for (const item of items) {
-        const saleItemRef = saleItemsCollection.doc();
-        transaction.set(saleItemRef, { 
-          ...item, 
-          id: saleItemRef.id,
-          salesTransactionId: saleRef.id 
-        });
-      }
-      
-      if (sale.customerPayment && sale.customerPayment > 0 && sale.customerId) {
-        const paymentRef = firestore.collection('payments').doc();
-        const saleDataForPaymentNote = (await transaction.get(saleRef)).data();
+        const saleItemsCollection = saleRef.collection('sales_items');
+        for (const item of items) {
+          const saleItemRef = saleItemsCollection.doc();
+          transaction.set(saleItemRef, { ...item, id: saleItemRef.id, salesTransactionId: saleRef.id });
+        }
         
-        transaction.set(paymentRef, {
-            id: paymentRef.id,
-            customerId: sale.customerId,
-            paymentDate: sale.transactionDate,
-            amount: sale.customerPayment,
-            notes: `Thanh toán cho đơn hàng ${saleDataForPaymentNote?.invoiceNumber}`
-        });
-      }
-
+        if (sale.customerPayment && sale.customerPayment > 0 && sale.customerId) {
+          const paymentRef = firestore.collection('payments').doc();
+          transaction.set(paymentRef, {
+              id: paymentRef.id,
+              customerId: sale.customerId,
+              paymentDate: sale.transactionDate,
+              amount: sale.customerPayment,
+              notes: `Thanh toán cho đơn hàng ${invoiceNumber}`
+          });
+        }
+      });
       return { success: true, saleId: saleRef.id };
-    });
-  } catch (error: any) {
-    console.error("Error creating or updating sale transaction:", error);
-    return { success: false, error: error.message || 'Không thể tạo hoặc cập nhật đơn hàng.' };
+    } catch (error: any) {
+      console.error("Error creating sale transaction:", error);
+      return { success: false, error: error.message || 'Không thể tạo đơn hàng.' };
+    }
   }
 }
 
