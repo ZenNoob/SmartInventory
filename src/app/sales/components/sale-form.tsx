@@ -189,33 +189,30 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
     return { avgCost: totalCost / totalQuantityInBaseUnit, baseUnit: costBaseUnit };
   }, [productsMap, getUnitInfo, unitsMap]);
   
-  const otherSales = useMemo(() => {
-    if (!sale) return sales;
-    return sales.filter(s => s.id !== sale.id);
-  }, [sales, sale]);
-
-  const otherPayments = useMemo(() => {
-    if (!sale) return payments;
-    // This logic is tricky. A simple approximation is to filter out payments
-    // that match the amount and date, but that's not robust.
-    // For now, we'll just use all payments and accept a slight inaccuracy in previousDebt during edit.
-    return payments.filter(p => p.notes !== `Thanh toán cho đơn hàng ${sale.invoiceNumber}`);
-  }, [payments, sale]);
-
   const customerDebts = useMemo(() => {
-    if (!customers || !otherSales || !otherPayments) return new Map<string, number>();
+    if (!customers || !sales || !payments) return new Map<string, number>();
 
     const debtMap = new Map<string, number>();
-    customers.forEach(customer => {
-        const customerSales = otherSales.filter(s => s.customerId === customer.id);
-        const totalRevenue = customerSales.filter(s => s.finalAmount > 0).reduce((sum, s) => sum + (s.finalAmount || 0), 0);
-        const totalReturns = customerSales.filter(s => s.finalAmount < 0).reduce((sum, s) => sum + (s.finalAmount || 0), 0);
+    
+    // Determine which sales and payments to consider
+    const salesToConsider = sale ? sales.filter(s => s.id !== sale.id) : sales;
+    const paymentsToConsider = sale ? payments.filter(p => p.notes !== `Thanh toán cho đơn hàng ${sale.invoiceNumber}`) : payments;
 
-        const customerPayments = otherPayments.filter(p => p.customerId === customer.id).reduce((sum, p) => sum + p.amount, 0);
+    customers.forEach(customer => {
+        const customerSales = salesToConsider.filter(s => s.customerId === customer.id);
+        
+        // Correctly separate sales from returns
+        const totalRevenue = customerSales.filter(s => s.finalAmount >= 0).reduce((sum, s) => sum + (s.finalAmount || 0), 0);
+        const totalReturns = customerSales.filter(s => s.finalAmount < 0).reduce((sum, s) => sum + (s.finalAmount || 0), 0); // This will be a negative number
+
+        const customerPayments = paymentsToConsider.filter(p => p.customerId === customer.id).reduce((sum, p) => sum + p.amount, 0);
+        
+        // Correct debt calculation
         debtMap.set(customer.id, totalRevenue + totalReturns - customerPayments);
     });
     return debtMap;
-  }, [customers, otherSales, otherPayments]);
+  }, [customers, sales, payments, sale]);
+
 
   const refinedSaleFormSchema = useMemo(() => saleFormSchema.superRefine((data, ctx) => {
     data.items.forEach((item, index) => {
