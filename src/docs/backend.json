@@ -560,6 +560,11 @@
             "type": "number",
             "description": "The Value Added Tax rate in percentage."
         },
+        "printerType": {
+          "type": "string",
+          "description": "The type of thermal printer to use.",
+          "enum": ["none", "58mm", "80mm"]
+        },
         "companyName": {
           "type": "string",
           "description": "The name of the company."
@@ -880,3 +885,6 @@
     "reasoning": "The Firestore structure is designed to manage categories, products, customers, sales transactions, sales items, and payments while ensuring secure role-based access for employees (inventory managers, accountants, and admins). The structure leverages denormalization and structural segregation to support atomic operations and simplified security rules.\n\n*   **Authorization Independence:** The structure avoids chained `get()` calls in security rules by denormalizing authorization data where needed. User roles, stored in `/users/{userId}`, are used to determine access to different collections. Role existence is preferred over content checks for simplicity and security.\n*   **Structural Segregation:** Data with different security requirements are stored in separate collections. For instance, products and categories are accessible with the appropriate role.\n*   **Access Modeling:** Path-based ownership is used for user-specific data (e.g., `/users/{userId}`). Membership maps are not explicitly required given the limited collaboration requirements described in the user story, however, for more complex authorization requirements, this can be adapted.\n*   **QAPs:** The structure is designed to support secure `list` operations by segregating data based on access levels and using role-based authorization. For instance, listing products requires an inventory manager or admin role.\n*   **Invariants:** The structure supports data integrity by enforcing ownership and using server timestamps where applicable (though not explicitly defined in the schema, timestamp fields should be added where valuable). Denormalized data (e.g., user roles) are managed to ensure consistency.\n\nEach main entity is stored in its top-level collection, while relationships are maintained via ID references. This structure enables efficient querying and data retrieval while simplifying security rules and minimizing the risk of privilege escalation."
   }
 }
+
+
+    
