@@ -8,6 +8,8 @@ import { Toaster } from '@/components/ui/toaster'
 import GlobalError from './global-error'
 import { getThemeSettings } from './settings/actions'
 import { Providers } from './providers'
+import { MainNav } from '@/components/main-nav'
+import { Header } from '@/components/header'
 
 
 const ptSans = PT_Sans({
@@ -47,7 +49,15 @@ export default async function RootLayout({
         style={themeStyle}
       >
         <GlobalError>
-          <Providers>{children}</Providers>
+          <Providers>
+             <div className="flex min-h-screen">
+              <MainNav />
+              <div className="flex-1 flex flex-col p-6 gap-6 min-w-0">
+                <Header />
+                <main className="flex-1 overflow-y-auto">{children}</main>
+              </div>
+            </div>
+          </Providers>
         </GlobalError>
         <Toaster />
       </body>
