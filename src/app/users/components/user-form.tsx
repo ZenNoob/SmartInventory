@@ -367,108 +367,110 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers }: UserFormProps
             </Form>
             
             {isEditMode && (
-                <Card>
-                    <Form {...permissionsForm}>
-                        <form onSubmit={permissionsForm.handleSubmit(onPermissionsSubmit)} className="flex flex-col h-full">
-                            <CardHeader>
-                                <div className="flex justify-between items-center">
-                                    <CardTitle>Phân quyền chi tiết</CardTitle>
-                                    <Popover open={copyUserPopoverOpen} onOpenChange={setCopyUserPopoverOpen}>
-                                        <PopoverTrigger asChild>
-                                            <Button type="button" variant="outline" size="sm"><Copy className="h-4 w-4 mr-2" />Sao chép</Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-[300px] p-0">
-                                            <Command>
-                                                <CommandInput placeholder="Tìm người dùng để sao chép..." />
-                                                <CommandList>
-                                                    <CommandEmpty>Không tìm thấy.</CommandEmpty>
-                                                    <CommandGroup>
-                                                        {allUsers?.filter(u => u.id !== user.id).map((sourceUser) => (
-                                                            <CommandItem
-                                                                key={sourceUser.id}
-                                                                value={`${sourceUser.displayName} ${sourceUser.email}`}
-                                                                onSelect={() => handleCopyPermissions(sourceUser.id!)}
-                                                            >
-                                                                {sourceUser.displayName || sourceUser.email}
-                                                            </CommandItem>
-                                                        ))}
-                                                    </CommandGroup>
-                                                </CommandList>
-                                            </Command>
-                                        </PopoverContent>
-                                    </Popover>
-                                </div>
-                                <CardDescription>
-                                    {role !== 'custom' && (
-                                        <Button size="sm" variant="link" type="button" onClick={handleApplyDefaultPermissions} className="p-0 h-auto mt-2 text-xs">
-                                            <RefreshCw className="h-3 w-3 mr-1" />
-                                            Áp dụng lại quyền mặc định cho vai trò "{getRoleVietnamese(role)}"
-                                        </Button>
-                                    )}
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-2 flex-grow">
-                                {modules.map((module) => (
-                                <FormField
-                                    key={module.id}
+              <Card>
+                <Form {...permissionsForm}>
+                  <form onSubmit={permissionsForm.handleSubmit(onPermissionsSubmit)} className="flex flex-col h-full">
+                    <CardHeader>
+                      <div className="flex justify-between items-center">
+                        <CardTitle>Phân quyền chi tiết</CardTitle>
+                        <div className="flex gap-2">
+                          <Popover open={copyUserPopoverOpen} onOpenChange={setCopyUserPopoverOpen}>
+                            <PopoverTrigger asChild>
+                              <Button type="button" variant="outline" size="sm"><Copy className="h-4 w-4 mr-2" />Sao chép</Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[300px] p-0">
+                              <Command>
+                                <CommandInput placeholder="Tìm người dùng để sao chép..." />
+                                <CommandList>
+                                  <CommandEmpty>Không tìm thấy.</CommandEmpty>
+                                  <CommandGroup>
+                                    {allUsers?.filter(u => u.id !== user.id).map((sourceUser) => (
+                                      <CommandItem
+                                        key={sourceUser.id}
+                                        value={`${sourceUser.displayName} ${sourceUser.email}`}
+                                        onSelect={() => handleCopyPermissions(sourceUser.id!)}
+                                      >
+                                        {sourceUser.displayName || sourceUser.email}
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                          {role !== 'custom' && (
+                            <Button size="sm" variant="outline" type="button" onClick={handleApplyDefaultPermissions}>
+                              <RefreshCw className="h-4 w-4 mr-2" />
+                              Mặc định
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-2 flex-grow">
+                      {modules.map((module) => (
+                        <FormField
+                          key={module.id}
+                          control={permissionsForm.control}
+                          name={`permissions.${module.id}`}
+                          render={() => (
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                              <div className="space-y-0.5">
+                                <FormLabel>{module.name}</FormLabel>
+                              </div>
+                              <div className="flex items-center space-x-4">
+                                {permissions.map((permission) => (
+                                  <FormField
+                                    key={permission.id}
                                     control={permissionsForm.control}
                                     name={`permissions.${module.id}`}
-                                    render={() => (
-                                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                                            <div className="space-y-0.5">
-                                                <FormLabel>{module.name}</FormLabel>
-                                            </div>
-                                            <div className="flex items-center space-x-4">
-                                                {permissions.map((permission) => (
-                                                    <FormField
-                                                        key={permission.id}
-                                                        control={permissionsForm.control}
-                                                        name={`permissions.${module.id}`}
-                                                        render={({ field }) => {
-                                                            return (
-                                                            <FormItem
-                                                                key={permission.id}
-                                                                className="flex flex-row items-center space-x-2 space-y-0"
-                                                            >
-                                                                <FormControl>
-                                                                <Checkbox
-                                                                    checked={field.value?.includes(permission.id)}
-                                                                    onCheckedChange={(checked) => {
-                                                                    return checked
-                                                                        ? field.onChange([...(field.value || []), permission.id])
-                                                                        : field.onChange(
-                                                                            field.value?.filter(
-                                                                            (value) => value !== permission.id
-                                                                            )
-                                                                        )
-                                                                    }}
-                                                                />
-                                                                </FormControl>
-                                                                <FormLabel className="text-sm font-normal">
-                                                                {permission.name}
-                                                                </FormLabel>
-                                                            </FormItem>
-                                                            )
-                                                        }}
-                                                    />
-                                                ))}
-                                            </div>
+                                    render={({ field }) => {
+                                      return (
+                                        <FormItem
+                                          key={permission.id}
+                                          className="flex flex-row items-center space-x-2 space-y-0"
+                                        >
+                                          <FormControl>
+                                            <Checkbox
+                                              checked={field.value?.includes(permission.id)}
+                                              onCheckedChange={(checked) => {
+                                                return checked
+                                                  ? field.onChange([...(field.value || []), permission.id])
+                                                  : field.onChange(
+                                                    field.value?.filter(
+                                                      (value) => value !== permission.id
+                                                    )
+                                                  )
+                                              }}
+                                            />
+                                          </FormControl>
+                                          <FormLabel className="text-sm font-normal">
+                                            {permission.name}
+                                          </FormLabel>
                                         </FormItem>
-                                    )}
-                                />
+                                      )
+                                    }}
+                                  />
                                 ))}
-                            </CardContent>
-                            <div className="p-6 pt-4">
-                                <Button type="submit" className="w-full" disabled={permissionsForm.formState.isSubmitting}>
-                                    {permissionsForm.formState.isSubmitting ? 'Đang lưu...' : 'Lưu phân quyền'}
-                                </Button>
-                            </div>
-                        </form>
-                    </Form>
-                </Card>
+                              </div>
+                            </FormItem>
+                          )}
+                        />
+                      ))}
+                    </CardContent>
+                    <div className="p-6 pt-4">
+                      <Button type="submit" className="w-full" disabled={permissionsForm.formState.isSubmitting}>
+                        {permissionsForm.formState.isSubmitting ? 'Đang lưu...' : 'Lưu phân quyền'}
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              </Card>
             )}
         </div>
       </DialogContent>
     </Dialog>
   )
 }
+
+    
