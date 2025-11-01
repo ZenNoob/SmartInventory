@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -263,10 +264,30 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers }: UserFormProps
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="admin">Quản trị viên</SelectItem>
-                              <SelectItem value="accountant">Kế toán</SelectItem>
-                              <SelectItem value="inventory_manager">Quản lý kho</SelectItem>
-                              <SelectItem value="custom">Tùy chỉnh</SelectItem>
+                              <SelectItem value="admin">
+                                <div>
+                                    <p>Quản trị viên</p>
+                                    <p className="text-xs text-muted-foreground">Toàn quyền truy cập hệ thống.</p>
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="accountant">
+                                <div>
+                                    <p>Kế toán</p>
+                                    <p className="text-xs text-muted-foreground">Quản lý bán hàng, khách hàng, sổ quỹ, báo cáo.</p>
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="inventory_manager">
+                                <div>
+                                    <p>Quản lý kho</p>
+                                    <p className="text-xs text-muted-foreground">Quản lý sản phẩm, danh mục, đơn vị, nhập hàng.</p>
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="custom">
+                                <div>
+                                    <p>Tùy chỉnh</p>
+                                    <p className="text-xs text-muted-foreground">Thiết lập quyền truy cập chi tiết từng chức năng.</p>
+                                </div>
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />
