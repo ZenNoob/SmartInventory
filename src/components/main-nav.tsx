@@ -1,4 +1,3 @@
-
 'use client'
 
 import Link from 'next/link'
@@ -26,6 +25,7 @@ import {
   DollarSign,
   ChevronDown,
   Building,
+  Briefcase,
 } from 'lucide-react'
 
 import {
@@ -215,16 +215,23 @@ export function MainNav() {
             <Collapsible asChild>
               <SidebarMenuItem>
                 <CollapsibleTrigger asChild>
-                    <SidebarMenuButton className="w-full justify-start" isActive={isActive('/reports')} tooltip="Báo cáo">
+                    <SidebarMenuButton className="w-full justify-start" isActive={isActive('/reports') || isActive('/shifts')} tooltip="Báo cáo & Quản lý">
                       <div className="flex items-center gap-2 flex-1">
                         <LineChart />
-                        {state === 'expanded' && <span>Báo cáo</span>}
+                        {state === 'expanded' && <span>Báo cáo & Quản lý</span>}
                       </div>
                       {state === 'expanded' && <ChevronDown className="h-4 w-4 ml-auto shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />}
                     </SidebarMenuButton>
                 </CollapsibleTrigger>
                 <CollapsibleContent asChild>
                   <SidebarMenuSub>
+                      {hasPermission('shifts', 'view') && (
+                        <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive('/shifts')}>
+                                <Link href="/shifts" className='flex items-center gap-2'><Briefcase className="h-4 w-4" />Quản lý Ca</Link>
+                            </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      )}
                       <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive('/reports/income-statement')}>
                               <Link href="/reports/income-statement" className='flex items-center gap-2'><LineChart className="h-4 w-4" />Báo cáo Thu chi</Link>

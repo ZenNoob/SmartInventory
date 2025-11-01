@@ -16,6 +16,7 @@ export type Module =
   | 'users'
   | 'settings'
   | 'pos'
+  | 'shifts'
   | 'ai_forecast'
   | 'ai_segmentation'
   | 'ai_basket_analysis';

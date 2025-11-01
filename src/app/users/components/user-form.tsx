@@ -1,5 +1,3 @@
-
-
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -74,6 +72,7 @@ const modules: { id: Module; name: string; description: string; }[] = [
     { id: 'sales', name: 'Bán hàng', description: 'Tạo và quản lý các đơn hàng bán cho khách.' },
     { id: 'customers', name: 'Khách hàng', description: 'Quản lý thông tin và công nợ của khách hàng.' },
     { id: 'cash-flow', name: 'Sổ quỹ', description: 'Quản lý các giao dịch thu, chi tiền mặt.' },
+    { id: 'shifts', name: 'Quản lý Ca', description: 'Xem lại và quản lý các ca làm việc của nhân viên.' },
     { id: 'reports', name: 'Báo cáo', description: 'Xem các báo cáo chi tiết về doanh thu, công nợ, tồn kho.' },
     { id: 'ai_forecast', name: 'AI - Dự báo & Đề xuất', description: 'Sử dụng AI để dự báo doanh số và đề xuất nhập hàng.' },
     { id: 'ai_segmentation', name: 'AI - Phân khúc khách hàng', description: 'Sử dụng AI để phân nhóm khách hàng.' },
@@ -101,6 +100,7 @@ const defaultPermissions: Record<AppUser['role'], Permissions> = {
     sales: ['view', 'add', 'edit', 'delete'],
     customers: ['view', 'add', 'edit', 'delete'],
     'cash-flow': ['view', 'add', 'edit', 'delete'],
+    shifts: ['view'],
     reports: ['view'],
     ai_forecast: ['view'],
     ai_segmentation: ['view'],
