@@ -73,7 +73,6 @@ export async function upsertSaleTransaction(
           transaction.delete(oldPaymentDoc.ref);
         }
         
-        // Set/update the main sale document
         const saleDataToUpdate = { 
           ...sale,
           invoiceNumber: oldSaleData.invoiceNumber // Preserve original invoice number
@@ -83,7 +82,7 @@ export async function upsertSaleTransaction(
       } else {
         // --- ALL READS FIRST for CREATE ---
         const invoiceNumber = await getNextInvoiceNumber(firestore, transaction);
-        saleRef = firestore.collection('sales_transactions').doc(); // Let Firestore generate ID
+        saleRef = firestore.collection('sales_transactions').doc();
 
         // --- ALL WRITES for CREATE ---
         const saleDataToCreate = { 
@@ -108,15 +107,14 @@ export async function upsertSaleTransaction(
       
       if (sale.customerPayment && sale.customerPayment > 0 && sale.customerId) {
         const paymentRef = firestore.collection('payments').doc();
-        const saleDoc = await transaction.get(saleRef); // re-read to get the invoiceNumber
-        const saleData = saleDoc.data();
-
+        const saleDataForPaymentNote = (await transaction.get(saleRef)).data();
+        
         transaction.set(paymentRef, {
             id: paymentRef.id,
             customerId: sale.customerId,
             paymentDate: sale.transactionDate,
             amount: sale.customerPayment,
-            notes: `Thanh toán cho đơn hàng ${saleData?.invoiceNumber}`
+            notes: `Thanh toán cho đơn hàng ${saleDataForPaymentNote?.invoiceNumber}`
         });
       }
 
