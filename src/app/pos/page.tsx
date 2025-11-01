@@ -589,7 +589,7 @@ export default function POSPage() {
             onClick={handleCreateSale}
             disabled={isSubmitting || cart.length === 0}
           >
-            {isSubmitting ? 'Đang xử lý...' : `Thanh toán (${formatCurrency(totalAmount)})`}
+            {isSubmitting ? 'Đang xử lý...' : 'Thanh toán'}
           </Button>
         </div>
       </main>
