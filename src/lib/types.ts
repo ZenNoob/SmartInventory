@@ -71,6 +71,8 @@ export type Customer = {
   createdAt: string; // ISO 8601 date string
   updatedAt: string; // ISO 8601 date string
   status: 'active' | 'inactive';
+  loyaltyPoints?: number;
+  loyaltyTier?: 'bronze' | 'silver' | 'gold' | 'diamond';
 }
 
 export type SalesItem = {
@@ -114,6 +116,17 @@ export type AppUser = {
   permissions?: Permissions;
 }
 
+export type LoyaltyTierConfig = {
+  name: 'bronze' | 'silver' | 'gold' | 'diamond';
+  vietnameseName: string;
+  threshold: number;
+};
+
+export type LoyaltySettings = {
+  pointsPerAmount: number; // How much money to spend to get 1 point
+  tiers: LoyaltyTierConfig[];
+}
+
 export type ThemeSettings = {
   primary: string;
   primaryForeground: string;
@@ -127,6 +140,7 @@ export type ThemeSettings = {
   companyBusinessLine?: string;
   companyAddress?: string;
   companyPhone?: string;
+  loyalty?: LoyaltySettings;
 }
 
 export type PurchaseOrderItem = {

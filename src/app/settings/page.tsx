@@ -1,7 +1,8 @@
+
 'use client'
 
 import { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
@@ -16,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -27,9 +29,21 @@ import { useRouter } from 'next/navigation'
 import { useDoc, useFirestore, useMemoFirebase } from '@/firebase'
 import { doc } from 'firebase/firestore'
 import { upsertThemeSettings } from './actions'
-import type { ThemeSettings } from '@/lib/types'
+import type { ThemeSettings, LoyaltySettings } from '@/lib/types'
 import { hexToHsl, hslToHex } from '@/lib/utils'
 import { Separator } from '@/components/ui/separator'
+
+const loyaltyTierSchema = z.object({
+  name: z.enum(['bronze', 'silver', 'gold', 'diamond']),
+  vietnameseName: z.string(),
+  threshold: z.coerce.number().min(0, "Ngưỡng điểm phải là số không âm."),
+});
+
+const loyaltySettingsSchema = z.object({
+  pointsPerAmount: z.coerce.number().min(1, "Giá trị phải lớn hơn 0."),
+  tiers: z.array(loyaltyTierSchema),
+});
+
 
 const themeFormSchema = z.object({
   primary: z.string().min(1, "Bắt buộc"),
@@ -44,6 +58,7 @@ const themeFormSchema = z.object({
   companyBusinessLine: z.string().optional(),
   companyAddress: z.string().optional(),
   companyPhone: z.string().optional(),
+  loyalty: loyaltySettingsSchema.optional(),
 });
 
 type ThemeFormValues = z.infer<typeof themeFormSchema>;
@@ -60,6 +75,16 @@ export default function SettingsPage() {
 
   const { data: themeSettings, isLoading } = useDoc<ThemeSettings>(settingsRef);
   
+  const defaultLoyaltySettings: LoyaltySettings = {
+    pointsPerAmount: 100000, // 100,000 VND for 1 point
+    tiers: [
+      { name: 'bronze', vietnameseName: 'Đồng', threshold: 0 },
+      { name: 'silver', vietnameseName: 'Bạc', threshold: 50 },
+      { name: 'gold', vietnameseName: 'Vàng', threshold: 200 },
+      { name: 'diamond', vietnameseName: 'Kim Cương', threshold: 500 },
+    ],
+  };
+
   const form = useForm<ThemeFormValues>({
     resolver: zodResolver(themeFormSchema),
     defaultValues: {
@@ -75,7 +100,13 @@ export default function SettingsPage() {
       companyBusinessLine: '',
       companyAddress: '',
       companyPhone: '',
+      loyalty: defaultLoyaltySettings
     },
+  });
+
+  const { fields: tierFields } = useFieldArray({
+    control: form.control,
+    name: "loyalty.tiers",
   });
   
   useEffect(() => {
@@ -93,6 +124,7 @@ export default function SettingsPage() {
         companyBusinessLine: themeSettings.companyBusinessLine || '',
         companyAddress: themeSettings.companyAddress || '',
         companyPhone: themeSettings.companyPhone || '',
+        loyalty: themeSettings.loyalty || defaultLoyaltySettings,
       });
     }
   }, [themeSettings, form]);
@@ -111,6 +143,7 @@ export default function SettingsPage() {
       companyBusinessLine: data.companyBusinessLine,
       companyAddress: data.companyAddress,
       companyPhone: data.companyPhone,
+      loyalty: data.loyalty,
     };
     const result = await upsertThemeSettings(hslData);
     if (result.success) {
@@ -128,7 +161,7 @@ export default function SettingsPage() {
     }
   };
 
-  const ColorField = ({ name, label }: { name: keyof Omit<ThemeFormValues, 'lowStockThreshold' | 'vatRate' |'companyName' | 'companyBusinessLine' | 'companyAddress' | 'companyPhone'>, label: string }) => (
+  const ColorField = ({ name, label }: { name: keyof Omit<ThemeFormValues, 'lowStockThreshold' | 'vatRate' |'companyName' | 'companyBusinessLine' | 'companyAddress' | 'companyPhone' | 'loyalty'>, label: string }) => (
     <FormField
       control={form.control}
       name={name}
@@ -279,6 +312,53 @@ export default function SettingsPage() {
                         )}
                         />
                 </div>
+                <Separator />
+                 <div>
+                    <h3 className="text-lg font-medium">Chương trình khách hàng thân thiết</h3>
+                    <p className="text-sm text-muted-foreground mb-6">Cấu hình cách tích điểm và phân hạng thành viên.</p>
+                    <div className="space-y-6">
+                      <FormField
+                        control={form.control}
+                        name="loyalty.pointsPerAmount"
+                        render={({ field }) => (
+                          <FormItem className="max-w-xs">
+                            <FormLabel>Tỷ lệ tích điểm</FormLabel>
+                            <FormControl>
+                              <Input type="number" {...field} />
+                            </FormControl>
+                            <FormDescription>
+                              Số tiền (VNĐ) cần chi tiêu để nhận được 1 điểm.
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <div>
+                        <h4 className="font-medium mb-2">Ngưỡng lên hạng</h4>
+                        <div className="space-y-4">
+                            {tierFields.map((field, index) => (
+                               <FormField
+                                key={field.id}
+                                control={form.control}
+                                name={`loyalty.tiers.${index}.threshold`}
+                                render={({ field }) => (
+                                    <FormItem className="max-w-xs">
+                                        <FormLabel>Hạng {tierFields[index].vietnameseName}</FormLabel>
+                                        <FormControl>
+                                            <Input type="number" {...field} />
+                                        </FormControl>
+                                        <FormDescription>
+                                            Số điểm tối thiểu để đạt hạng này.
+                                        </FormDescription>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                               />
+                            ))}
+                        </div>
+                      </div>
+                    </div>
+                 </div>
               </>
             )}
           </CardContent>
