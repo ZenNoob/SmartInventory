@@ -2,6 +2,7 @@
 
 
 
+
 'use client'
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
@@ -806,7 +807,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
                                   </FormItem>
                               )}
                           />
-                          {selectedCustomer && selectedCustomer.id !== 'walk-in-customer' && settings?.loyalty && (
+                          {selectedCustomer && selectedCustomer.id !== 'walk-in-customer' && settings?.loyalty?.enabled && (
                               <FormField
                                   control={form.control}
                                   name="pointsUsed"
