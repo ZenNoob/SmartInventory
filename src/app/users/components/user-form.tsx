@@ -192,14 +192,6 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers }: UserFormProps
   });
   
   const role = infoForm.watch('role');
-  const currentPermissions = permissionsForm.watch('permissions');
-
-  const isSyncedWithRole = useMemo(() => {
-    if (role === 'custom' || !currentPermissions) return false;
-    const defaultPerms = defaultPermissions[role];
-    return arePermissionsEqual(currentPermissions, defaultPerms);
-  }, [role, currentPermissions]);
-
 
   useEffect(() => {
     if(isOpen) {
@@ -229,7 +221,7 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers }: UserFormProps
 
   const handleApplyDefaultPermissions = () => {
     if (role && role !== 'custom') {
-      permissionsForm.setValue('permissions', defaultPermissions[role], { shouldValidate: true });
+      permissionsForm.setValue('permissions', defaultPermissions[role], { shouldValidate: true, shouldDirty: true });
        toast({
         title: "Đã áp dụng",
         description: `Đã áp dụng bộ quyền mặc định cho vai trò "${getRoleVietnamese(role)}".`,
@@ -267,6 +259,7 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers }: UserFormProps
         description: `Đã cập nhật phân quyền.`,
       });
       router.refresh();
+      permissionsForm.reset(data, { keepValues: true }); // Reset form state after successful submission
     } else {
       toast({
         variant: "destructive",
@@ -279,7 +272,7 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers }: UserFormProps
   const handleCopyPermissions = (sourceUserId: string) => {
     const sourceUser = allUsers?.find(u => u.id === sourceUserId);
     if (sourceUser?.permissions) {
-        permissionsForm.setValue('permissions', sourceUser.permissions, { shouldValidate: true });
+        permissionsForm.setValue('permissions', sourceUser.permissions, { shouldValidate: true, shouldDirty: true });
         toast({
             title: "Đã sao chép",
             description: `Đã sao chép quyền từ người dùng ${sourceUser.displayName || sourceUser.email}.`
@@ -422,14 +415,6 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers }: UserFormProps
                                     </Popover>
                                 </div>
                                  <CardDescription>
-                                    {role !== 'custom' && !isSyncedWithRole && (
-                                        <Alert variant="destructive" className="mt-2 text-xs">
-                                            <AlertTriangle className="h-4 w-4" />
-                                            <AlertDescription>
-                                                Quyền đã bị thay đổi so với vai trò <span className="font-bold">{getRoleVietnamese(role)}</span>.
-                                            </AlertDescription>
-                                        </Alert>
-                                    )}
                                     {role !== 'custom' && (
                                         <Button size="sm" variant="link" type="button" onClick={handleApplyDefaultPermissions} className="p-0 h-auto mt-2 text-xs">
                                             <RefreshCw className="h-3 w-3 mr-1" />
@@ -490,7 +475,7 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers }: UserFormProps
                                 ))}
                              </CardContent>
                              <div className="p-6 pt-0">
-                                <Button type="submit" className="w-full" disabled={permissionsForm.formState.isSubmitting}>
+                                <Button type="submit" className="w-full" disabled={permissionsForm.formState.isSubmitting || !permissionsForm.formState.isDirty}>
                                     {permissionsForm.formState.isSubmitting ? 'Đang lưu...' : 'Lưu phân quyền'}
                                 </Button>
                              </div>
