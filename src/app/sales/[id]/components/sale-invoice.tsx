@@ -120,6 +120,9 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap, sett
     });
   };
 
+  const remainingDebt = sale.remainingDebt || 0;
+  const isChange = remainingDebt < 0;
+
   return (
     <div ref={invoiceRef}>
       <div className="flex items-center gap-4 mb-4">
@@ -246,8 +249,12 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap, sett
                         <TableCell className="text-right font-semibold">{formatCurrency(sale.customerPayment || 0)}</TableCell>
                     </TableRow>
                      <TableRow className="text-lg">
-                        <TableCell colSpan={6} className="text-right font-bold">Còn Nợ lại</TableCell>
-                        <TableCell className="text-right font-bold">{formatCurrency(sale.remainingDebt || 0)}</TableCell>
+                        <TableCell colSpan={6} className={`text-right font-bold ${isChange ? 'text-green-600' : ''}`}>
+                            {isChange ? 'Tiền thối lại' : 'Còn nợ lại'}
+                        </TableCell>
+                        <TableCell className={`text-right font-bold ${isChange ? 'text-green-600' : ''}`}>
+                            {formatCurrency(Math.abs(remainingDebt))}
+                        </TableCell>
                     </TableRow>
                 </TableFooter>
             </Table>
