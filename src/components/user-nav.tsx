@@ -18,7 +18,7 @@ import { useRouter } from 'next/navigation'
 
 export function UserNav() {
   const { user } = useUser();
-  const { role } = useUserRole();
+  const { role, permissions } = useUserRole();
   const auth = useAuth();
   const router = useRouter();
 
@@ -27,6 +27,8 @@ export function UserNav() {
       router.push('/login');
     });
   }
+  
+  const canViewSettings = permissions?.settings?.includes('view');
 
   return (
     <DropdownMenu>
@@ -56,9 +58,11 @@ export function UserNav() {
           <DropdownMenuItem asChild>
             <Link href="/guide">Hướng dẫn</Link>
           </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/settings">Cài đặt</Link>
-          </DropdownMenuItem>
+          {canViewSettings && (
+            <DropdownMenuItem asChild>
+              <Link href="/settings">Cài đặt</Link>
+            </DropdownMenuItem>
+          )}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout}>
