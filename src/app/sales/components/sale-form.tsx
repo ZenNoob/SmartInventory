@@ -3,6 +3,7 @@
 
 
 
+
 'use client'
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
@@ -338,6 +339,20 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
     return acc + quantityInBaseUnit * (item.price || 0);
   }, 0);
   
+  const { tierDiscountPercentage, tierDiscountAmount } = useMemo(() => {
+    if (!selectedCustomer || !settings?.loyalty?.enabled) {
+      return { tierDiscountPercentage: 0, tierDiscountAmount: 0 };
+    }
+    const customerTier = settings.loyalty.tiers.find(t => t.name === selectedCustomer.loyaltyTier);
+    if (!customerTier || !customerTier.discountPercentage) {
+      return { tierDiscountPercentage: 0, tierDiscountAmount: 0 };
+    }
+    return {
+      tierDiscountPercentage: customerTier.discountPercentage,
+      tierDiscountAmount: (totalAmount * customerTier.discountPercentage) / 100,
+    };
+  }, [selectedCustomer, totalAmount, settings]);
+  
   const pointsToVndRate = settings?.loyalty?.pointsToVndRate || 0;
   const pointsDiscount = pointsUsed * pointsToVndRate;
 
@@ -345,7 +360,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
     ? (totalAmount * (sale.discountValue || 0)) / 100
     : (discountValue || 0);
     
-  const amountAfterDiscount = totalAmount - calculatedDiscount - pointsDiscount;
+  const amountAfterDiscount = totalAmount - tierDiscountAmount - calculatedDiscount - pointsDiscount;
   const vatRate = settings?.vatRate || 0;
   const vatAmount = (amountAfterDiscount * vatRate) / 100;
   const finalAmount = amountAfterDiscount + vatAmount;
@@ -389,6 +404,8 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
         discount: calculatedDiscount,
         discountType: sale?.discountType,
         discountValue: data.discountValue,
+        tierDiscountPercentage,
+        tierDiscountAmount,
         pointsUsed: data.pointsUsed,
         pointsDiscount: pointsDiscount,
         customerPayment: data.customerPayment,
@@ -436,7 +453,6 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
           productId: product.id, 
           quantity: 1, 
           price: product.sellingPrice || 0,
-          unitId: product.unitId
         });
       }
     }
@@ -794,6 +810,12 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
                               <Label>Tổng tiền hàng</Label>
                               <p className="font-semibold text-base">{formatCurrency(totalAmount)}</p>
                           </div>
+                           {tierDiscountAmount > 0 && (
+                            <div className="flex justify-between items-center text-primary">
+                                <Label>Ưu đãi hạng {selectedCustomer?.loyaltyTier && settings?.loyalty?.tiers.find(t => t.name === selectedCustomer.loyaltyTier)?.vietnameseName} ({tierDiscountPercentage}%)</Label>
+                                <p className="font-semibold">-{formatCurrency(tierDiscountAmount)}</p>
+                            </div>
+                           )}
                           <FormField
                               control={form.control}
                               name="discountValue"

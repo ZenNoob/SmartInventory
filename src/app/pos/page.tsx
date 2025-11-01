@@ -78,7 +78,6 @@ import { Separator } from '@/components/ui/separator'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { useSidebar } from '@/components/ui/sidebar'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Form, FormControl, FormField, FormItem, FormDescription } from '@/components/ui/form'
 import { CustomerForm } from '@/app/customers/components/customer-form'
 
 
@@ -351,6 +350,21 @@ export default function POSPage() {
     [cart]
   )
 
+  const { tierDiscountPercentage, tierDiscountAmount } = useMemo(() => {
+    if (!selectedCustomer || !settings?.loyalty?.enabled) {
+      return { tierDiscountPercentage: 0, tierDiscountAmount: 0 };
+    }
+    const customerTier = settings.loyalty.tiers.find(t => t.name === selectedCustomer.loyaltyTier);
+    if (!customerTier || !customerTier.discountPercentage) {
+      return { tierDiscountPercentage: 0, tierDiscountAmount: 0 };
+    }
+    return {
+      tierDiscountPercentage: customerTier.discountPercentage,
+      tierDiscountAmount: (totalAmount * customerTier.discountPercentage) / 100,
+    };
+  }, [selectedCustomer, totalAmount, settings]);
+  
+
   const calculatedDiscount = useMemo(() => 
     discountType === 'percentage' ? (totalAmount * discountValue) / 100 : discountValue,
     [totalAmount, discountType, discountValue]
@@ -359,7 +373,7 @@ export default function POSPage() {
   const pointsToVndRate = settings?.loyalty?.pointsToVndRate || 0;
   const pointsDiscount = pointsUsed * pointsToVndRate;
 
-  const amountAfterDiscount = totalAmount - calculatedDiscount - pointsDiscount;
+  const amountAfterDiscount = totalAmount - tierDiscountAmount - calculatedDiscount - pointsDiscount;
   const vatRate = settings?.vatRate || 0;
   const vatAmount = (amountAfterDiscount * vatRate) / 100;
   const finalAmount = amountAfterDiscount + vatAmount;
@@ -399,6 +413,8 @@ export default function POSPage() {
       discount: calculatedDiscount,
       discountType,
       discountValue,
+      tierDiscountPercentage,
+      tierDiscountAmount,
       pointsUsed,
       pointsDiscount,
       vatAmount: vatAmount,
@@ -716,6 +732,13 @@ export default function POSPage() {
                 <Label>Tổng tiền hàng</Label>
                 <p className="font-semibold text-base">{formatCurrency(totalAmount)}</p>
               </div>
+
+              {tierDiscountAmount > 0 && (
+                <div className="flex justify-between items-center text-primary">
+                  <Label>Ưu đãi hạng {selectedCustomer?.loyaltyTier && settings?.loyalty?.tiers.find(t => t.name === selectedCustomer.loyaltyTier)?.vietnameseName} ({tierDiscountPercentage}%)</Label>
+                  <p className="font-semibold">-{formatCurrency(tierDiscountAmount)}</p>
+                </div>
+              )}
 
               <div className="space-y-2 pt-2">
                  <Label>Giảm giá</Label>
