@@ -54,6 +54,7 @@ export type CustomerTransactionHistoryInfo = {
 }
 
 type SortKey = 'customerName' | 'openingBalance' | 'incurredAmount' | 'paidAmount' | 'closingBalance';
+const WALK_IN_CUSTOMER_ID = 'walk-in-customer';
 
 export default function TransactionHistoryPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -81,7 +82,12 @@ export default function TransactionHistoryPage() {
     const fromDate = dateRange.from;
     const toDate = dateRange.to || fromDate;
 
-    return customers.map(customer => {
+    const allCustomerEntities = [
+        ...customers,
+        { id: WALK_IN_CUSTOMER_ID, name: 'Khách lẻ' } as Customer
+    ];
+
+    return allCustomerEntities.map(customer => {
       // Opening Balance
       const salesBefore = sales.filter(s => s.customerId === customer.id && new Date(s.transactionDate) < fromDate);
       const paymentsBefore = payments.filter(p => p.customerId === customer.id && new Date(p.paymentDate) < fromDate);
@@ -316,9 +322,13 @@ export default function TransactionHistoryPage() {
                       )}
                     </TableCell>
                     <TableCell className="font-medium">
-                      <Link href={`/customers/${data.customerId}`} className="hover:underline" onClick={e => e.stopPropagation()}>
-                        {data.customerName}
-                      </Link>
+                      {data.customerId === WALK_IN_CUSTOMER_ID ? (
+                        <span>{data.customerName}</span>
+                      ) : (
+                        <Link href={`/customers/${data.customerId}`} className="hover:underline" onClick={e => e.stopPropagation()}>
+                          {data.customerName}
+                        </Link>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">{formatCurrency(data.openingBalance)}</TableCell>
                     <TableCell className="text-right text-blue-600">{formatCurrency(data.incurredAmount)}</TableCell>
