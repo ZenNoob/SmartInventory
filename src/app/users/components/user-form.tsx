@@ -44,8 +44,17 @@ const userFormSchemaBase = z.object({
   email: z.string().email({ message: "Email không hợp lệ." }),
   displayName: z.string().optional(),
   role: z.enum(['admin', 'accountant', 'inventory_manager', 'custom']),
-  password: z.string().optional(),
   permissions: permissionsSchema.optional(),
+});
+
+// Schema for creating a new user (password is required)
+const newUserFormSchema = userFormSchemaBase.extend({
+  password: z.string().min(6, 'Mật khẩu phải có ít nhất 6 ký tự.'),
+});
+
+// Schema for updating an existing user (password is optional)
+const updateUserFormSchema = userFormSchemaBase.extend({
+  password: z.string().optional(),
 });
 
 
@@ -120,32 +129,16 @@ export function UserForm({ isOpen, onOpenChange, user }: UserFormProps) {
   const { toast } = useToast();
   const router = useRouter();
 
-  const userFormSchema = userFormSchemaBase.superRefine((data, ctx) => {
-    if (!user && !data.password) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['password'],
-        message: 'Mật khẩu là bắt buộc cho người dùng mới.',
-      });
-    }
-    if (!user && data.password && data.password.length < 6) {
-       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['password'],
-        message: 'Mật khẩu phải có ít nhất 6 ký tự.',
-      });
-    }
-  });
+  const isEditMode = !!user;
 
-  type UserFormValues = z.infer<typeof userFormSchema>;
-
-  const form = useForm<UserFormValues>({
-    resolver: zodResolver(userFormSchema),
+  const form = useForm<z.infer<typeof userFormSchemaBase> & { password?: string }>({
+    resolver: zodResolver(isEditMode ? updateUserFormSchema : newUserFormSchema),
     defaultValues: {
         email: '',
         displayName: '',
         role: 'custom',
         permissions: {},
+        password: '',
     }
   });
   
@@ -159,6 +152,7 @@ export function UserForm({ isOpen, onOpenChange, user }: UserFormProps) {
           displayName: user.displayName || '',
           role: user.role,
           permissions: user.permissions || defaultPermissions[user.role] || {},
+          password: '',
         });
       } else {
         form.reset({
@@ -179,7 +173,7 @@ export function UserForm({ isOpen, onOpenChange, user }: UserFormProps) {
   }, [role, form]);
 
 
-  const onSubmit = async (data: UserFormValues) => {
+  const onSubmit = async (data: z.infer<typeof userFormSchemaBase> & { password?: string }) => {
     const result = await upsertUser({ ...data, id: user?.id });
     if (result.success) {
       toast({
@@ -224,21 +218,19 @@ export function UserForm({ isOpen, onOpenChange, user }: UserFormProps) {
                         </FormItem>
                       )}
                     />
-                     {!user && (
-                      <FormField
+                     <FormField
                         control={form.control}
                         name="password"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Mật khẩu</FormLabel>
                             <FormControl>
-                              <Input type="password" placeholder="••••••••" {...field} />
+                              <Input type="password" placeholder={user ? "Để trống nếu không muốn đổi" : "••••••••"} {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
-                    )}
                     <FormField
                       control={form.control}
                       name="displayName"
