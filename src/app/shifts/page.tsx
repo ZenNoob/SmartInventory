@@ -6,8 +6,12 @@ import {
   Search,
   ArrowUp,
   ArrowDown,
-  MoreHorizontal
+  MoreHorizontal,
+  Calendar as CalendarIcon,
+  ListFilter
 } from 'lucide-react'
+import { DateRange } from 'react-day-picker'
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns'
 
 import {
   Card,
@@ -23,7 +27,15 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover'
 import {
   Table,
   TableBody,
@@ -35,35 +47,65 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase'
-import { collection, query, orderBy } from 'firebase/firestore'
-import { Shift } from '@/lib/types'
+import { collection, query, orderBy, where } from 'firebase/firestore'
+import { Shift, AppUser } from '@/lib/types'
 import { Input } from '@/components/ui/input'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, cn } from '@/lib/utils'
 import Link from 'next/link'
+import { Calendar } from '@/components/ui/calendar'
 
 type SortKey = 'startTime' | 'userName' | 'status' | 'totalRevenue' | 'cashDifference';
+type StatusFilter = 'all' | 'active' | 'closed';
 
 export default function ShiftsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('startTime')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: startOfMonth(new Date()),
+    to: endOfMonth(new Date()),
+  });
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [userFilter, setUserFilter] = useState<string>('all');
   
   const firestore = useFirestore()
 
   const shiftsQuery = useMemoFirebase(() => {
-    if (!firestore) return null
-    return query(collection(firestore, 'shifts'), orderBy('startTime', 'desc'))
-  }, [firestore])
+    if (!firestore) return null;
+    let q = query(collection(firestore, "shifts"));
 
-  const { data: shifts, isLoading } = useCollection<Shift>(shiftsQuery)
+    if (dateRange?.from) {
+      q = query(q, where('startTime', '>=', dateRange.from.toISOString().split('T')[0]));
+    }
+     if (dateRange?.to) {
+      // Add one day to include the end date fully
+      const toDate = new Date(dateRange.to);
+      toDate.setDate(toDate.getDate() + 1);
+      q = query(q, where('startTime', '<', toDate.toISOString().split('T')[0]));
+    }
+    
+    q = query(q, orderBy("startTime", "desc"));
+    return q;
+  }, [firestore, dateRange]);
 
-  const filteredShifts = shifts?.filter(shift => {
-    const term = searchTerm.toLowerCase()
-    return (
-      shift.userName.toLowerCase().includes(term) ||
-      shift.id.toLowerCase().includes(term)
-    )
-  })
+  const usersQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'users')) : null, [firestore]);
+
+  const { data: shifts, isLoading } = useCollection<Shift>(shiftsQuery);
+  const { data: users, isLoading: usersLoading } = useCollection<AppUser>(usersQuery);
+
+  const filteredShifts = useMemo(() => {
+    return shifts?.filter(shift => {
+      const term = searchTerm.toLowerCase()
+      const searchMatch = !term ||
+        shift.userName.toLowerCase().includes(term) ||
+        shift.id.toLowerCase().includes(term);
+      
+      const statusMatch = statusFilter === 'all' || shift.status === statusFilter;
+      const userMatch = userFilter === 'all' || shift.userId === userFilter;
+
+      return searchMatch && statusMatch && userMatch;
+    });
+  }, [shifts, searchTerm, statusFilter, userFilter]);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -102,6 +144,25 @@ export default function ShiftsPage() {
     }
     return sortableItems
   }, [filteredShifts, sortKey, sortDirection])
+  
+  const setDatePreset = (preset: 'this_week' | 'this_month' | 'this_year' | 'all') => {
+    const now = new Date();
+    if (preset === 'all') {
+      setDateRange(undefined);
+      return;
+    }
+    switch (preset) {
+      case 'this_week':
+        setDateRange({ from: startOfWeek(now, { weekStartsOn: 1 }), to: endOfWeek(now, { weekStartsOn: 1 }) });
+        break;
+      case 'this_month':
+        setDateRange({ from: startOfMonth(now), to: endOfMonth(now) });
+        break;
+      case 'this_year':
+        setDateRange({ from: startOfYear(now), to: endOfYear(now) });
+        break;
+    }
+  }
 
   const SortableHeader = ({ sortKey: key, children, className }: { sortKey: SortKey; children: React.ReactNode; className?: string }) => (
     <TableHead className={className}>
@@ -126,7 +187,7 @@ export default function ShiftsPage() {
               </CardDescription>
             </div>
           </div>
-           <div className="flex items-center gap-4 pt-4">
+           <div className="flex flex-wrap items-center gap-4 pt-4">
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -137,6 +198,58 @@ export default function ShiftsPage() {
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
+              <Popover>
+                  <PopoverTrigger asChild>
+                      <Button
+                      variant={"outline"}
+                      className={cn(
+                          "w-[240px] justify-start text-left font-normal",
+                          !dateRange && "text-muted-foreground"
+                      )}
+                      >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateRange?.from ? (dateRange.to ? <>{format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}</> : format(dateRange.from, "dd/MM/yyyy")) : <span>Tất cả</span>}
+                      </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                          mode="range"
+                          selected={dateRange}
+                          onSelect={setDateRange}
+                          initialFocus
+                      />
+                       <div className="p-2 border-t grid grid-cols-3 gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_week')}>Tuần này</Button>
+                          <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_month')}>Tháng này</Button>
+                          <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_year')}>Năm nay</Button>
+                          <Button variant="ghost" size="sm" onClick={() => setDatePreset('all')}>Tất cả</Button>
+                      </div>
+                  </PopoverContent>
+              </Popover>
+               <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-10 gap-1">
+                    <ListFilter className="h-3.5 w-3.5" />
+                    <span>Lọc</span>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Lọc theo Trạng thái</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+                        <DropdownMenuRadioItem value="all">Tất cả</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="active">Đang hoạt động</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="closed">Đã đóng</DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>Lọc theo Nhân viên</DropdownMenuLabel>
+                     <DropdownMenuRadioGroup value={userFilter} onValueChange={(v) => setUserFilter(v)}>
+                        <DropdownMenuRadioItem value="all">Tất cả</DropdownMenuRadioItem>
+                        {users?.map(user => (
+                            <DropdownMenuRadioItem key={user.id} value={user.id!}>{user.displayName || user.email}</DropdownMenuRadioItem>
+                        ))}
+                    </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
            </div>
         </CardHeader>
         <CardContent className="p-0">
