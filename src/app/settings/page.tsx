@@ -308,14 +308,16 @@ export default function SettingsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Bạn có hoàn toàn chắc chắn?</AlertDialogTitle>
             <AlertDialogDescription>
-              Hành động này <span className="font-bold text-destructive">không thể</span> hoàn tác. Thao tác này sẽ xóa vĩnh viễn:
-              <ul className="list-disc pl-5 mt-2 space-y-1">
-                <li>Tất cả đơn hàng bán và chi tiết đơn hàng.</li>
-                <li>Tất cả phiếu nhập hàng và chi tiết phiếu nhập.</li>
-                <li>Toàn bộ lịch sử thanh toán của khách hàng.</li>
-                <li>Reset toàn bộ điểm thưởng và lịch sử nhập kho.</li>
-              </ul>
-              <strong className="mt-2 block">Rất khuyến khích bạn tạo bản sao lưu trước khi xóa.</strong>
+              <div>
+                Hành động này <span className="font-bold text-destructive">không thể</span> hoàn tác. Thao tác này sẽ xóa vĩnh viễn:
+                <ul className="list-disc pl-5 mt-2 space-y-1">
+                  <li>Tất cả đơn hàng bán và chi tiết đơn hàng.</li>
+                  <li>Tất cả phiếu nhập hàng và chi tiết phiếu nhập.</li>
+                  <li>Toàn bộ lịch sử thanh toán của khách hàng.</li>
+                  <li>Reset toàn bộ điểm thưởng và lịch sử nhập kho.</li>
+                </ul>
+                <strong className="mt-2 block">Rất khuyến khích bạn tạo bản sao lưu trước khi xóa.</strong>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
