@@ -24,6 +24,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useAuth } from '@/firebase'
 
 interface ShiftControlsProps {
   activeShift: Shift
@@ -64,6 +65,7 @@ export function ShiftControls({ activeShift }: ShiftControlsProps) {
   const [endingCash, setEndingCash] = useState(0)
   const { toast } = useToast()
   const router = useRouter()
+  const auth = useAuth()
 
   const handleCloseShift = async () => {
     setIsClosing(true)
@@ -74,8 +76,10 @@ export function ShiftControls({ activeShift }: ShiftControlsProps) {
         description: 'Ca làm việc của bạn đã được đóng thành công.',
       })
       setIsCloseShiftDialogOpen(false)
-      // Force a full page reload to reset the POS state
-      window.location.reload()
+      // Log out the user and redirect to the login page for the next user.
+      auth.signOut().then(() => {
+        router.push('/login');
+      });
     } else {
       toast({
         variant: 'destructive',
