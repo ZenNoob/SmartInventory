@@ -48,22 +48,23 @@ import { useMemo } from 'react'
 export default function ShiftDetailPage({ params }: { params: { id: string } }) {
   const firestore = useFirestore()
   const router = useRouter()
+  const shiftId = params.id;
 
   const shiftRef = useMemoFirebase(
-    () => (firestore && params.id ? doc(firestore, 'shifts', params.id) : null),
-    [firestore, params.id]
+    () => (firestore && shiftId ? doc(firestore, 'shifts', shiftId) : null),
+    [firestore, shiftId]
   )
   const { data: shift, isLoading: shiftLoading } = useDoc<Shift>(shiftRef)
 
   const salesQuery = useMemoFirebase(
     () =>
-      firestore && params.id
+      firestore && shiftId
         ? query(
             collection(firestore, 'sales_transactions'),
-            where('shiftId', '==', params.id)
+            where('shiftId', '==', shiftId)
           )
         : null,
-    [firestore, params.id]
+    [firestore, shiftId]
   )
   const { data: sales, isLoading: salesLoading } = useCollection<Sale>(salesQuery)
 
