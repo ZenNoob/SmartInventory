@@ -1,3 +1,4 @@
+
 'use client'
 
 import * as React from "react"
@@ -343,6 +344,7 @@ export default function TransactionHistoryPage() {
                              <Table>
                               <TableHeader>
                                 <TableRow>
+                                  <TableHead className="w-16">STT</TableHead>
                                   <TableHead>Ngày</TableHead>
                                   <TableHead>Loại giao dịch</TableHead>
                                   <TableHead>Ghi chú / Mã HĐ</TableHead>
@@ -351,11 +353,12 @@ export default function TransactionHistoryPage() {
                               </TableHeader>
                               <TableBody>
                                 <TooltipProvider>
-                                {data.transactionsDuring.map(tx => {
+                                {data.transactionsDuring.map((tx, index) => {
                                   const isSale = 'invoiceNumber' in tx;
                                   const isReturnOrder = isSale && tx.finalAmount < 0;
                                   return (
                                   <TableRow key={tx.id}>
+                                    <TableCell>{index + 1}</TableCell>
                                     <TableCell>{format(new Date(isSale ? tx.transactionDate : tx.paymentDate), 'dd/MM/yyyy')}</TableCell>
                                     <TableCell>
                                         <Badge variant={isSale ? 'outline' : 'secondary'}>
