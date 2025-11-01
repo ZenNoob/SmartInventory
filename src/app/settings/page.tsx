@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import * as React from 'react'
@@ -39,11 +40,11 @@ import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
 import { useDoc, useFirestore, useMemoFirebase } from '@/firebase'
 import { doc } from 'firebase/firestore'
-import { upsertThemeSettings, recalculateAllLoyaltyPoints, deleteAllTransactionalData } from './actions'
+import { upsertThemeSettings, recalculateAllLoyaltyPoints, deleteAllTransactionalData, backupAllTransactionalData } from './actions'
 import type { ThemeSettings, LoyaltySettings } from '@/lib/types'
 import { hexToHsl, hslToHex } from '@/lib/utils'
 import { Separator } from '@/components/ui/separator'
-import { AlertCircle, Loader2, Trash2 } from 'lucide-react'
+import { AlertCircle, FileDown, Loader2, Trash2 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 const loyaltyTierSchema = z.object({
@@ -83,6 +84,7 @@ export default function SettingsPage() {
   const firestore = useFirestore();
   const [isRecalculating, startRecalculatingTransition] = useTransition();
   const [isDeletingData, startDataDeletionTransition] = useTransition();
+  const [isBackingUp, startBackupTransition] = useTransition();
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
 
 
@@ -201,6 +203,25 @@ export default function SettingsPage() {
       }
     });
   }
+  
+  const handleBackup = () => {
+    startBackupTransition(async () => {
+        toast({ title: "Đang tạo bản sao lưu...", description: "Quá trình này có thể mất một chút thời gian." });
+        const result = await backupAllTransactionalData();
+        if (result.success && result.data) {
+            const link = document.createElement("a");
+            link.href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${result.data}`;
+            link.download = `backup_${new Date().toISOString().split('T')[0]}.xlsx`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            toast({ title: "Sao lưu thành công!", description: "Tệp Excel đã được tải xuống." });
+        } else {
+            toast({ variant: "destructive", title: "Lỗi sao lưu", description: result.error });
+        }
+    });
+  };
+
 
   const handleDeleteData = () => {
     startDataDeletionTransition(async () => {
@@ -260,6 +281,7 @@ export default function SettingsPage() {
                 <li>Toàn bộ lịch sử thanh toán của khách hàng.</li>
                 <li>Reset toàn bộ điểm thưởng và lịch sử nhập kho.</li>
               </ul>
+              <strong className="mt-2 block">Rất khuyến khích bạn tạo bản sao lưu trước khi xóa.</strong>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -491,17 +513,29 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle>Khu vực nguy hiểm</CardTitle>
             <CardDescription>
-              Các hành động này không thể hoàn tác. Hãy chắc chắn rằng bạn biết mình đang làm gì.
+              Các hành động này không thể hoàn tác. Hãy sao lưu dữ liệu trước khi thực hiện.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Button variant="destructive" onClick={() => setShowDeleteConfirm(true)}>
-              <Trash2 className="mr-2 h-4 w-4" />
-              Xóa tất cả dữ liệu giao dịch
-            </Button>
-            <p className="text-sm text-muted-foreground mt-2">
-              Thao tác này sẽ xóa toàn bộ lịch sử bán hàng, nhập hàng, thanh toán và reset điểm khách hàng. Chỉ sử dụng khi bạn muốn bắt đầu lại từ đầu.
-            </p>
+          <CardContent className="space-y-4">
+             <div>
+                <Button variant="outline" onClick={handleBackup} disabled={isBackingUp}>
+                    {isBackingUp ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
+                    {isBackingUp ? 'Đang sao lưu...' : 'Sao lưu toàn bộ dữ liệu'}
+                </Button>
+                 <p className="text-sm text-muted-foreground mt-2">
+                    Tải xuống một tệp Excel chứa toàn bộ dữ liệu giao dịch của bạn.
+                </p>
+            </div>
+            <Separator />
+            <div>
+                <Button variant="destructive" onClick={() => setShowDeleteConfirm(true)}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Xóa tất cả dữ liệu giao dịch
+                </Button>
+                <p className="text-sm text-muted-foreground mt-2">
+                Thao tác này sẽ xóa toàn bộ lịch sử bán hàng, nhập hàng, thanh toán và reset điểm khách hàng.
+                </p>
+            </div>
           </CardContent>
         </Card>
     </div>

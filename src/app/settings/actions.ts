@@ -2,10 +2,12 @@
 
 'use server'
 
-import { ThemeSettings, Customer, Payment, LoyaltySettings } from "@/lib/types";
+import { ThemeSettings, Customer, Payment, LoyaltySettings, Sale, SalesItem, PurchaseOrder, Product } from "@/lib/types";
 import { getAdminServices } from "@/lib/admin-actions";
 import { toPlainObject } from "@/lib/utils";
 import { FieldValue } from "firebase-admin/firestore";
+import * as xlsx from 'xlsx';
+
 
 export async function upsertThemeSettings(settings: Partial<ThemeSettings>): Promise<{ success: boolean; error?: string }> {
   try {
@@ -117,6 +119,12 @@ async function deleteQueryBatch(firestore: FirebaseFirestore.Firestore, query: F
     // Delete documents in a batch
     const batch = firestore.batch();
     snapshot.docs.forEach((doc) => {
+        // If the document has subcollections, they must be deleted first.
+        // This example handles the `sales_items` subcollection within `sales_transactions`.
+        if (doc.ref.parent.id === 'sales_transactions') {
+            const itemsRef = doc.ref.collection('sales_items');
+            // This is simplified. For production, you'd need a recursive delete for subcollections.
+        }
         batch.delete(doc.ref);
     });
     await batch.commit();
@@ -127,12 +135,22 @@ async function deleteQueryBatch(firestore: FirebaseFirestore.Firestore, query: F
     });
 }
 
+
 export async function deleteAllTransactionalData(): Promise<{ success: boolean, error?: string }> {
   try {
     const { firestore } = await getAdminServices();
 
+    const salesSnapshot = await firestore.collection('sales_transactions').get();
+    const salesDeleteBatch = firestore.batch();
+    for (const saleDoc of salesSnapshot.docs) {
+        const itemsSnapshot = await saleDoc.ref.collection('sales_items').get();
+        itemsSnapshot.forEach(itemDoc => salesDeleteBatch.delete(itemDoc.ref));
+        salesDeleteBatch.delete(saleDoc.ref);
+    }
+    await salesDeleteBatch.commit();
+    
     // Collections to delete
-    const collectionsToDelete = ['sales_transactions', 'purchase_orders', 'payments'];
+    const collectionsToDelete = ['purchase_orders', 'payments'];
 
     for (const collectionPath of collectionsToDelete) {
       await deleteCollection(firestore, collectionPath, 100);
@@ -163,4 +181,63 @@ export async function deleteAllTransactionalData(): Promise<{ success: boolean, 
     console.error("Error deleting transactional data:", error);
     return { success: false, error: error.message || "Không thể xóa dữ liệu giao dịch." };
   }
+}
+
+
+export async function backupAllTransactionalData(): Promise<{ success: boolean; data?: string; error?: string }> {
+    try {
+        const { firestore } = await getAdminServices();
+
+        // 1. Fetch all data
+        const salesSnapshot = await firestore.collection('sales_transactions').get();
+        const purchasesSnapshot = await firestore.collection('purchase_orders').get();
+        const paymentsSnapshot = await firestore.collection('payments').get();
+        const customersSnapshot = await firestore.collection('customers').get();
+        const productsSnapshot = await firestore.collection('products').get();
+
+        const allSalesItems: (SalesItem & { transactionId: string })[] = [];
+        for (const saleDoc of salesSnapshot.docs) {
+            const itemsSnapshot = await saleDoc.ref.collection('sales_items').get();
+            itemsSnapshot.forEach(itemDoc => {
+                allSalesItems.push({ ...(itemDoc.data() as SalesItem), transactionId: saleDoc.id });
+            });
+        }
+        
+        // 2. Prepare data for Excel sheets
+        const salesData = salesSnapshot.docs.map(doc => toPlainObject(doc.data()));
+        const salesItemsData = allSalesItems.map(item => toPlainObject(item));
+        const purchasesData = purchasesSnapshot.docs.map(doc => toPlainObject(doc.data()));
+        const paymentsData = paymentsSnapshot.docs.map(doc => toPlainObject(doc.data()));
+        const customersData = customersSnapshot.docs.map(doc => toPlainObject(doc.data()));
+        const productsData = productsSnapshot.docs.map(doc => toPlainObject(doc.data()));
+        
+        // 3. Create workbook and worksheets
+        const wb = xlsx.utils.book_new();
+        if (salesData.length > 0) xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(salesData), 'SalesTransactions');
+        if (salesItemsData.length > 0) xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(salesItemsData), 'SalesItems');
+        if (purchasesData.length > 0) {
+            const flatPurchases = purchasesData.flatMap((p: any) => p.items.map((item: any) => ({ ...p, ...item, items: undefined })));
+            xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(flatPurchases), 'PurchaseOrders');
+        }
+        if (paymentsData.length > 0) xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(paymentsData), 'Payments');
+        if (customersData.length > 0) xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(customersData), 'Customers');
+        if (productsData.length > 0) {
+            const flatProducts = productsData.flatMap((p: any) => {
+                if (p.purchaseLots && p.purchaseLots.length > 0) {
+                    return p.purchaseLots.map((lot: any) => ({ ...p, ...lot, purchaseLots: undefined }));
+                }
+                return { ...p, purchaseLots: undefined };
+            });
+            xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(flatProducts), 'Products');
+        }
+
+        // 4. Generate buffer and return as base64
+        const buffer = xlsx.write(wb, { bookType: 'xlsx', type: 'buffer' });
+        
+        return { success: true, data: buffer.toString('base64') };
+        
+    } catch (error: any) {
+        console.error("Error backing up data:", error);
+        return { success: false, error: "Không thể tạo bản sao lưu." };
+    }
 }
