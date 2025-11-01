@@ -83,6 +83,7 @@ import { updateProductStatus, deleteProduct, generateProductTemplate } from "./a
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { ImportProducts } from "./components/import-products"
+import { useUserRole } from "@/hooks/use-user-role"
 
 
 type ProductStatus = 'active' | 'draft' | 'archived' | 'all';
@@ -106,6 +107,7 @@ export default function ProductsPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
+  const { permissions } = useUserRole();
 
 
   const productsQuery = useMemoFirebase(() => {
@@ -536,7 +538,7 @@ export default function ProductsPage() {
               </span>
             </Button>
             <ImportProducts />
-            <PredictShortageForm />
+            {permissions?.ai_forecast?.includes('view') && <PredictShortageForm />}
             <Button size="sm" className="h-8 gap-1" onClick={handleAddProduct}>
               <PlusCircle className="h-3.5 w-3.5" />
               <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">

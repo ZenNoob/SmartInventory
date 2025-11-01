@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useState, useMemo } from "react"
@@ -37,6 +38,7 @@ import { Customer, Sale, Payment } from "@/lib/types"
 import { type SegmentCustomersOutput } from "@/ai/flows/segment-customers-flow"
 import { getCustomerSegments } from "@/app/actions"
 import Link from "next/link"
+import { useUserRole } from "@/hooks/use-user-role"
 
 type SortKey = 'customerName' | 'segment';
 type SegmentFilter = 'all' | 'VIP' | 'Trung thành' | 'Tiềm năng' | 'Nguy cơ rời bỏ' | 'Mới' | 'Không hoạt động';
@@ -62,6 +64,7 @@ export default function CustomerSegmentsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const firestore = useFirestore();
+  const { permissions } = useUserRole();
 
   const customersQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "customers")) : null, [firestore]);
   const salesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "sales_transactions")) : null, [firestore]);
@@ -154,19 +157,21 @@ export default function CustomerSegmentsPage() {
                 Sử dụng AI để phân tích và nhóm khách hàng của bạn vào các phân khúc chiến lược.
                 </CardDescription>
             </div>
-            <Button onClick={handleAnalyze} disabled={isLoading || isAnalyzing}>
-                {isAnalyzing ? (
-                    <>
-                        <Bot className="mr-2 h-4 w-4 animate-spin" />
-                        Đang phân tích...
-                    </>
-                ) : (
-                    <>
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        Chạy phân tích AI
-                    </>
-                )}
-            </Button>
+            {permissions?.ai_segmentation?.includes('view') && (
+              <Button onClick={handleAnalyze} disabled={isLoading || isAnalyzing}>
+                  {isAnalyzing ? (
+                      <>
+                          <Bot className="mr-2 h-4 w-4 animate-spin" />
+                          Đang phân tích...
+                      </>
+                  ) : (
+                      <>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Chạy phân tích AI
+                      </>
+                  )}
+              </Button>
+            )}
         </div>
         {analysisResult && (
              <div className="flex items-center gap-4 pt-4">

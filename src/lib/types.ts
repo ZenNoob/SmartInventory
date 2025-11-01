@@ -13,7 +13,10 @@ export type Module =
   | 'reports'
   | 'users'
   | 'settings'
-  | 'pos';
+  | 'pos'
+  | 'ai_forecast'
+  | 'ai_segmentation'
+  | 'ai_basket_analysis';
 
 export type Permissions = {
   [key in Module]?: Permission[];

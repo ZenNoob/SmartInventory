@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useDoc, useFirestore, useUser, useMemoFirebase } from "@/firebase";
@@ -17,6 +18,9 @@ const defaultPermissions: Record<string, Permissions> = {
         customers: ['view', 'add', 'edit', 'delete'],
         'cash-flow': ['view', 'add', 'edit', 'delete'],
         reports: ['view'],
+        ai_forecast: ['view'],
+        ai_segmentation: ['view'],
+        ai_basket_analysis: ['view'],
         users: ['view', 'add', 'edit', 'delete'],
         settings: ['view', 'edit'],
     },

@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useState, useMemo, useEffect } from "react"
@@ -26,6 +27,7 @@ import { collection, query, getDocs } from "firebase/firestore"
 import { Sale, SalesItem, Product } from "@/lib/types"
 import { type MarketBasketAnalysisOutput } from "@/ai/flows/analyze-market-basket"
 import { getMarketBasketAnalysis } from "@/app/actions"
+import { useUserRole } from "@/hooks/use-user-role"
 
 export default function MarketBasketAnalysisPage() {
   const [analysisResult, setAnalysisResult] = useState<MarketBasketAnalysisOutput | null>(null);
@@ -35,6 +37,7 @@ export default function MarketBasketAnalysisPage() {
   const [salesItemsLoading, setSalesItemsLoading] = useState(true);
 
   const firestore = useFirestore();
+  const { permissions } = useUserRole();
 
   const salesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "sales_transactions")) : null, [firestore]);
   const productsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "products")) : null, [firestore]);
@@ -116,19 +119,21 @@ export default function MarketBasketAnalysisPage() {
                 Dùng AI để khám phá sản phẩm nào thường được mua cùng nhau và nhận gợi ý marketing.
                 </CardDescription>
             </div>
-            <Button onClick={handleAnalyze} disabled={isLoading || isAnalyzing}>
-                {isAnalyzing ? (
-                    <>
-                        <Bot className="mr-2 h-4 w-4 animate-spin" />
-                        Đang phân tích...
-                    </>
-                ) : (
-                    <>
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        Chạy phân tích AI
-                    </>
-                )}
-            </Button>
+            {permissions?.ai_basket_analysis?.includes('view') && (
+              <Button onClick={handleAnalyze} disabled={isLoading || isAnalyzing}>
+                  {isAnalyzing ? (
+                      <>
+                          <Bot className="mr-2 h-4 w-4 animate-spin" />
+                          Đang phân tích...
+                      </>
+                  ) : (
+                      <>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Chạy phân tích AI
+                      </>
+                  )}
+              </Button>
+            )}
         </div>
       </CardHeader>
       <CardContent>

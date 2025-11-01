@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useEffect } from 'react'
@@ -58,6 +59,9 @@ const modules: { id: Module; name: string; description: string; }[] = [
     { id: 'sales', name: 'Bán hàng', description: 'Tạo và quản lý các đơn hàng bán cho khách.' },
     { id: 'customers', name: 'Khách hàng', description: 'Quản lý thông tin và công nợ của khách hàng.' },
     { id: 'reports', name: 'Báo cáo', description: 'Xem các báo cáo chi tiết về doanh thu, công nợ, tồn kho.' },
+    { id: 'ai_forecast', name: 'AI - Dự báo & Đề xuất', description: 'Sử dụng AI để dự báo doanh số và đề xuất nhập hàng.' },
+    { id: 'ai_segmentation', name: 'AI - Phân khúc khách hàng', description: 'Sử dụng AI để phân nhóm khách hàng.' },
+    { id: 'ai_basket_analysis', name: 'AI - Phân tích rổ hàng', description: 'Sử dụng AI để tìm các sản phẩm hay được mua cùng nhau.' },
     { id: 'users', name: 'Người dùng', description: 'Quản lý tài khoản và phân quyền người dùng hệ thống.' },
     { id: 'settings', name: 'Cài đặt', description: 'Tùy chỉnh thông tin chung và giao diện của ứng dụng.' },
 ]
@@ -79,7 +83,11 @@ const defaultPermissions: Record<AppUser['role'], Permissions> = {
     purchases: ['view', 'add', 'edit', 'delete'],
     sales: ['view', 'add', 'edit', 'delete'],
     customers: ['view', 'add', 'edit', 'delete'],
+    'cash-flow': ['view', 'add', 'edit', 'delete'],
     reports: ['view'],
+    ai_forecast: ['view'],
+    ai_segmentation: ['view'],
+    ai_basket_analysis: ['view'],
     users: ['view', 'add', 'edit', 'delete'],
     settings: ['view', 'edit'],
   },
@@ -87,6 +95,7 @@ const defaultPermissions: Record<AppUser['role'], Permissions> = {
     dashboard: ['view'],
     sales: ['view', 'add', 'edit'],
     customers: ['view', 'add', 'edit'],
+    'cash-flow': ['view', 'add', 'edit', 'delete'],
     reports: ['view'],
   },
   inventory_manager: {
