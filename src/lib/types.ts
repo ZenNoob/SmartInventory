@@ -106,6 +106,7 @@ export type Sale = {
   id: string;
   invoiceNumber: string;
   customerId: string;
+  shiftId?: string; // Add shiftId to Sale
   transactionDate: string; // ISO 8601 date string
   status: 'pending' | 'unprinted' | 'printed';
   totalAmount: number; // Gross total before discount and VAT
@@ -210,4 +211,21 @@ export type CashTransaction = {
     relatedInvoiceId?: string; // e.g., sale.id or purchase_order.id
     createdBy?: string; // user.uid
     createdAt: any; // server timestamp
+}
+
+export type Shift = {
+  id: string;
+  userId: string;
+  userName: string;
+  status: 'active' | 'closed';
+  startTime: string; // ISO date string
+  endTime?: string; // ISO date string
+  startingCash: number;
+  endingCash?: number;
+  cashSales?: number; // Total cash from sales
+  cashPayments?: number; // Total cash from debt payments
+  totalCashInDrawer?: number; // Theoretical cash
+  cashDifference?: number; // Difference between theoretical and actual
+  totalRevenue: number;
+  salesCount: number;
 }

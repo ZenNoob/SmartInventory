@@ -299,6 +299,10 @@
           "type": "string",
           "description": "Reference to Customer. (Relationship: Customer 1:N SalesTransaction)"
         },
+        "shiftId": {
+          "type": "string",
+          "description": "Reference to the Shift during which this sale occurred."
+        },
         "transactionDate": {
           "type": "string",
           "description": "Date of the sales transaction.",
@@ -457,6 +461,29 @@
         }
       },
       "required": ["id", "type", "transactionDate", "amount", "reason"]
+    },
+     "Shift": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Shift",
+      "type": "object",
+      "description": "Represents a work shift for a salesperson.",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "closed"] },
+        "startTime": { "type": "string", "format": "date-time" },
+        "endTime": { "type": "string", "format": "date-time" },
+        "startingCash": { "type": "number" },
+        "endingCash": { "type": "number" },
+        "cashSales": { "type": "number" },
+        "cashPayments": { "type": "number" },
+        "totalCashInDrawer": { "type": "number" },
+        "cashDifference": { "type": "number" },
+        "totalRevenue": { "type": "number" },
+        "salesCount": { "type": "number" }
+      },
+      "required": ["id", "userId", "userName", "status", "startTime", "startingCash"]
     },
     "User": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -749,6 +776,14 @@
               "description": "Unique identifier for the payment."
             }
           ]
+        }
+      },
+       {
+        "path": "/shifts/{shiftId}",
+        "definition": {
+          "entityName": "Shift",
+          "schema": { "$ref": "#/entities/Shift" },
+          "description": "Stores work shift information for POS users."
         }
       },
       {

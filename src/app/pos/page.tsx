@@ -15,6 +15,7 @@ import {
   XCircle,
   PanelLeft,
   UserPlus,
+  Lock,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -26,7 +27,7 @@ import {
   useUser,
   useDoc,
 } from '@/firebase'
-import { getDocs, query, doc, collection } from 'firebase/firestore'
+import { getDocs, query, doc, collection, where } from 'firebase/firestore'
 import {
   Customer,
   Payment,
@@ -35,6 +36,7 @@ import {
   SalesItem,
   ThemeSettings,
   Unit,
+  Shift
 } from '@/lib/types'
 import { upsertSaleTransaction } from '@/app/sales/actions'
 import { useToast } from '@/hooks/use-toast'
@@ -79,6 +81,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { useSidebar } from '@/components/ui/sidebar'
 import { Checkbox } from '@/components/ui/checkbox'
 import { CustomerForm } from '@/app/customers/components/customer-form'
+import { StartShiftDialog } from './components/start-shift-dialog'
+import { ShiftControls } from './components/shift-controls'
 
 
 type CartItem = {
@@ -145,6 +149,13 @@ export default function POSPage() {
   const [isCustomerFormOpen, setIsCustomerFormOpen] = useState(false);
 
   // #region Data Fetching
+  const activeShiftQuery = useMemoFirebase(() => 
+    (firestore && user) ? query(collection(firestore, 'shifts'), where('userId', '==', user.uid), where('status', '==', 'active'), where('__name__', '!=', '')) : null,
+  [firestore, user]);
+
+  const { data: activeShifts, isLoading: shiftsLoading } = useCollection<Shift>(activeShiftQuery);
+  const activeShift = useMemo(() => activeShifts?.[0], [activeShifts]);
+
   const customersQuery = useMemoFirebase(
     () => (firestore ? query(collection(firestore, 'customers')) : null),
     [firestore]
@@ -410,6 +421,7 @@ export default function POSPage() {
 
     const saleData: Partial<Sale> & { isChangeReturned?: boolean } = {
       customerId: selectedCustomerId,
+      shiftId: activeShift?.id,
       transactionDate: new Date().toISOString(),
       totalAmount: totalAmount,
       discount: calculatedDiscount,
@@ -491,7 +503,7 @@ export default function POSPage() {
   }
 
 
-  const isLoading = customersLoading || productsLoading || unitsLoading || salesLoading || salesItemsLoading || settingsLoading;
+  const isLoading = customersLoading || productsLoading || unitsLoading || salesLoading || salesItemsLoading || settingsLoading || shiftsLoading;
   
   if (isLoading) {
     return (
@@ -500,6 +512,17 @@ export default function POSPage() {
       </div>
     );
   }
+
+  if (!user) {
+    router.push('/login');
+    return null;
+  }
+  
+  if (!activeShift) {
+    return <StartShiftDialog user={user} onShiftStarted={() => router.refresh()} />;
+  }
+
+  const isLocked = !activeShift;
 
   return (
     <>
@@ -521,12 +544,12 @@ export default function POSPage() {
               value={barcode}
               onChange={(e) => setBarcode(e.target.value)}
               onKeyDown={handleBarcodeScan}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isLocked}
             />
           </div>
            <Popover open={productSearchOpen} onOpenChange={setProductSearchOpen}>
             <PopoverTrigger asChild>
-                <Button type="button" variant="outline" className="h-12">
+                <Button type="button" variant="outline" className="h-12" disabled={isLocked}>
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Thêm thủ công
                 </Button>
@@ -568,6 +591,7 @@ export default function POSPage() {
               <Button
                 variant="outline"
                 role="combobox"
+                disabled={isLocked}
                 className={cn(
                   'w-[250px] justify-between h-12',
                   !selectedCustomerId && 'text-muted-foreground'
@@ -631,25 +655,19 @@ export default function POSPage() {
               </Command>
             </PopoverContent>
           </Popover>
-          <Button
-            variant="destructive"
-            className="h-12"
-            onClick={() => {
-              setCart([])
-              setCustomerPayment(0)
-              setDiscountValue(0)
-              setPointsUsed(0);
-            }}
-            disabled={isSubmitting}
-          >
-            <XCircle className="mr-2 h-5 w-5" />
-            Hủy
-          </Button>
+           {activeShift && <ShiftControls activeShift={activeShift} />}
       </header>
 
       <main className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 p-6 overflow-hidden">
         {/* Cart Items */}
-        <div className="lg:col-span-2 flex flex-col h-full">
+        <div className="lg:col-span-2 flex flex-col h-full relative">
+          {isLocked && (
+             <div className="absolute inset-0 bg-background/80 flex flex-col items-center justify-center z-10">
+                <Lock className="h-16 w-16 text-muted-foreground mb-4" />
+                <p className="text-lg font-semibold text-muted-foreground">Giao diện bán hàng đã khóa</p>
+                <p className="text-sm text-muted-foreground">Vui lòng bắt đầu ca làm việc để mở khóa.</p>
+            </div>
+          )}
           <h2 className="text-xl font-semibold mb-4">Đơn hàng hiện tại ({cart.length})</h2>
           <div className="flex-1 overflow-y-auto -mr-4 pr-4 border rounded-lg">
             <Table>
@@ -880,13 +898,29 @@ export default function POSPage() {
                 </div>
               )}
           </div>
-          <Button
-            className="w-full h-14 text-lg mt-4"
-            onClick={handleCreateSale}
-            disabled={isSubmitting || cart.length === 0}
-          >
-            Thanh toán
-          </Button>
+            <div className="flex gap-2">
+                <Button
+                    variant="outline"
+                    className="w-full h-14"
+                    onClick={() => {
+                    setCart([])
+                    setCustomerPayment(0)
+                    setDiscountValue(0)
+                    setPointsUsed(0);
+                    }}
+                    disabled={isSubmitting || isLocked}
+                >
+                    <XCircle className="mr-2 h-5 w-5" />
+                    Hủy
+                </Button>
+                <Button
+                    className="w-full h-14 text-lg"
+                    onClick={handleCreateSale}
+                    disabled={isSubmitting || cart.length === 0 || isLocked}
+                >
+                    Thanh toán
+                </Button>
+            </div>
         </div>
       </main>
     </div>
