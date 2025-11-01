@@ -1,5 +1,4 @@
 
-
 'use client'
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
@@ -455,6 +454,17 @@ export function PurchaseOrderForm({ products, suppliers, units, allSalesItems, p
                                                 <CommandList>
                                                     <CommandEmpty>Không tìm thấy.</CommandEmpty>
                                                     <CommandGroup>
+                                                        <CommandItem
+                                                            key="clear"
+                                                            value=""
+                                                            onSelect={() => {
+                                                                form.setValue("supplierId", "")
+                                                                setSupplierSearchOpen(false)
+                                                            }}
+                                                        >
+                                                            <Check className={cn("mr-2 h-4 w-4", !field.value ? "opacity-100" : "opacity-0")}/>
+                                                            Không chọn (Tự sản xuất/Nhập lẻ)
+                                                        </CommandItem>
                                                     {suppliers.map((supplier) => (
                                                         <CommandItem
                                                             value={supplier.name}
