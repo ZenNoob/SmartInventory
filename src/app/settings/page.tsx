@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useTransition } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -13,7 +13,7 @@ import {
   CardTitle,
   CardFooter,
 } from "@/components/ui/card"
-import { Button } from '@/components/ui/button'
+import { Button } from "@/components/ui/button"
 import {
   Form,
   FormControl,
@@ -28,10 +28,12 @@ import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
 import { useDoc, useFirestore, useMemoFirebase } from '@/firebase'
 import { doc } from 'firebase/firestore'
-import { upsertThemeSettings } from './actions'
+import { upsertThemeSettings, recalculateAllLoyaltyPoints } from './actions'
 import type { ThemeSettings, LoyaltySettings } from '@/lib/types'
 import { hexToHsl, hslToHex } from '@/lib/utils'
 import { Separator } from '@/components/ui/separator'
+import { AlertCircle, Loader2 } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 const loyaltyTierSchema = z.object({
   name: z.enum(['bronze', 'silver', 'gold', 'diamond']),
@@ -67,6 +69,7 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const router = useRouter();
   const firestore = useFirestore();
+  const [isRecalculating, startRecalculatingTransition] = useTransition();
 
   const settingsRef = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -160,6 +163,28 @@ export default function SettingsPage() {
       });
     }
   };
+
+  const handleRecalculate = () => {
+    startRecalculatingTransition(async () => {
+      toast({
+        title: "Đang bắt đầu...",
+        description: "Quá trình tính lại điểm và phân hạng đang được chuẩn bị.",
+      });
+      const result = await recalculateAllLoyaltyPoints();
+      if (result.success) {
+        toast({
+          title: "Hoàn tất!",
+          description: `Đã tính toán lại điểm và phân hạng cho ${result.processedCount} khách hàng.`,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Ôi! Đã có lỗi xảy ra khi tính lại.",
+          description: result.error,
+        });
+      }
+    });
+  }
 
   const ColorField = ({ name, label }: { name: keyof Omit<ThemeFormValues, 'lowStockThreshold' | 'vatRate' |'companyName' | 'companyBusinessLine' | 'companyAddress' | 'companyPhone' | 'loyalty'>, label: string }) => (
     <FormField
@@ -357,6 +382,16 @@ export default function SettingsPage() {
                             ))}
                         </div>
                       </div>
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          Lưu cài đặt trước khi tính lại điểm. Việc tính toán lại có thể mất vài phút.
+                        </AlertDescription>
+                      </Alert>
+                       <Button type="button" variant="outline" onClick={handleRecalculate} disabled={isRecalculating || form.formState.isSubmitting}>
+                          {isRecalculating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Tính lại điểm & phân hạng cho toàn bộ khách hàng
+                        </Button>
                     </div>
                  </div>
               </>
@@ -364,7 +399,7 @@ export default function SettingsPage() {
           </CardContent>
           <CardFooter className="border-t px-6 py-4">
             <Button type="submit" disabled={form.formState.isSubmitting || isLoading}>
-              {form.formState.isSubmitting ? 'Đang lưu...' : 'Lưu'}
+              {form.formState.isSubmitting ? 'Đang lưu...' : 'Lưu cài đặt'}
             </Button>
           </CardFooter>
         </Card>
