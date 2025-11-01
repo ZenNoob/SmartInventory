@@ -1,5 +1,6 @@
 
 
+
 'use server'
 
 import { ThemeSettings, Customer, Payment, LoyaltySettings, Sale, SalesItem, PurchaseOrder, Product } from "@/lib/types";
@@ -108,31 +109,34 @@ async function deleteCollection(firestore: FirebaseFirestore.Firestore, collecti
 }
 
 async function deleteQueryBatch(firestore: FirebaseFirestore.Firestore, query: FirebaseFirestore.Query, resolve: () => void, reject: (error: any) => void) {
-    const snapshot = await query.get();
+    try {
+        const snapshot = await query.get();
 
-    if (snapshot.size === 0) {
-        // When there are no documents left, we are done
-        resolve();
-        return;
-    }
-
-    // Delete documents in a batch
-    const batch = firestore.batch();
-    snapshot.docs.forEach((doc) => {
-        // If the document has subcollections, they must be deleted first.
-        // This example handles the `sales_items` subcollection within `sales_transactions`.
-        if (doc.ref.parent.id === 'sales_transactions') {
-            const itemsRef = doc.ref.collection('sales_items');
-            // This is simplified. For production, you'd need a recursive delete for subcollections.
+        if (snapshot.size === 0) {
+            // When there are no documents left, we are done
+            resolve();
+            return;
         }
-        batch.delete(doc.ref);
-    });
-    await batch.commit();
 
-    // Recurse on the next process tick, to avoid hitting stack limit.
-    process.nextTick(() => {
-        deleteQueryBatch(firestore, query, resolve, reject);
-    });
+        // Delete documents in a batch
+        const batch = firestore.batch();
+        for (const doc of snapshot.docs) {
+            // If the document has subcollections, they must be deleted first.
+            if (doc.ref.parent.id === 'sales_transactions') {
+                const itemsSnapshot = await doc.ref.collection('sales_items').get();
+                itemsSnapshot.forEach(itemDoc => batch.delete(itemDoc.ref));
+            }
+            batch.delete(doc.ref);
+        }
+        await batch.commit();
+
+        // Recurse on the next process tick, to avoid hitting stack limit.
+        process.nextTick(() => {
+            deleteQueryBatch(firestore, query, resolve, reject);
+        });
+    } catch(error) {
+        reject(error);
+    }
 }
 
 
@@ -140,17 +144,15 @@ export async function deleteAllTransactionalData(): Promise<{ success: boolean, 
   try {
     const { firestore } = await getAdminServices();
 
-    const salesSnapshot = await firestore.collection('sales_transactions').get();
-    const salesDeleteBatch = firestore.batch();
-    for (const saleDoc of salesSnapshot.docs) {
-        const itemsSnapshot = await saleDoc.ref.collection('sales_items').get();
-        itemsSnapshot.forEach(itemDoc => salesDeleteBatch.delete(itemDoc.ref));
-        salesDeleteBatch.delete(saleDoc.ref);
-    }
-    await salesDeleteBatch.commit();
-    
     // Collections to delete
-    const collectionsToDelete = ['purchase_orders', 'payments'];
+    const collectionsToDelete = [
+        'sales_transactions', 
+        'purchase_orders', 
+        'payments',
+        'supplier_payments',
+        'cash_transactions',
+        'shifts'
+    ];
 
     for (const collectionPath of collectionsToDelete) {
       await deleteCollection(firestore, collectionPath, 100);
