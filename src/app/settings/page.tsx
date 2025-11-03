@@ -259,6 +259,69 @@ export default function SettingsPage() {
   );
   
   const loyaltyEnabled = form.watch('loyalty.enabled');
+  
+  const handleRecalculatePoints = () => {
+    startRecalculatingTransition(async () => {
+      const result = await recalculateAllLoyaltyPoints();
+      if (result.success) {
+        toast({
+          title: "Hoàn tất!",
+          description: `Đã xử lý và tính toán lại điểm cho ${result.processedCount} khách hàng.`,
+        });
+        router.refresh();
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Lỗi tính toán",
+          description: result.error,
+        });
+      }
+    });
+  };
+
+  const handleDeleteData = () => {
+    startDataDeletionTransition(async () => {
+      const result = await deleteAllTransactionalData();
+      if (result.success) {
+        toast({
+          title: "Xóa thành công!",
+          description: "Toàn bộ dữ liệu giao dịch đã được xóa.",
+        });
+        setShowDeleteConfirm(false);
+        router.refresh();
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Lỗi khi xóa dữ liệu",
+          description: result.error,
+        });
+      }
+    });
+  };
+
+  const handleBackup = () => {
+    startBackupTransition(async () => {
+      const result = await backupAllTransactionalData();
+      if (result.success && result.data) {
+        const link = document.createElement("a");
+        link.href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${result.data}`;
+        link.download = `backup_${new Date().toISOString().split('T')[0]}.xlsx`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast({
+          title: "Sao lưu thành công!",
+          description: "File sao lưu đã được tải xuống.",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Lỗi sao lưu",
+          description: result.error,
+        });
+      }
+    });
+  };
 
 
   return (
@@ -268,25 +331,24 @@ export default function SettingsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Bạn có hoàn toàn chắc chắn?</AlertDialogTitle>
             <AlertDialogDescription>
-              Hành động này <span className="font-bold text-destructive">không thể</span> hoàn tác và sẽ xóa vĩnh viễn dữ liệu giao dịch.
+              <div>
+                Hành động này <span className="font-bold text-destructive">không thể</span> hoàn tác và sẽ xóa vĩnh viễn:
+                <ul className="list-disc pl-5 mt-2 space-y-1">
+                  <li>Tất cả đơn hàng bán và chi tiết đơn hàng.</li>
+                  <li>Tất cả phiếu nhập hàng và chi tiết phiếu nhập.</li>
+                  <li>Toàn bộ lịch sử thanh toán của khách hàng.</li>
+                  <li>Toàn bộ lịch sử thanh toán cho nhà cung cấp.</li>
+                  <li>Toàn bộ lịch sử thu/chi trên sổ quỹ.</li>
+                  <li>Toàn bộ lịch sử ca làm việc.</li>
+                  <li>Reset toàn bộ điểm thưởng và lịch sử nhập kho.</li>
+                </ul>
+                <strong className="mt-4 block">Rất khuyến khích bạn tạo bản sao lưu trước khi xóa.</strong>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="text-sm">
-            <p>Thao tác này sẽ xóa vĩnh viễn:</p>
-            <ul className="list-disc pl-5 mt-2 space-y-1 text-muted-foreground">
-              <li>Tất cả đơn hàng bán và chi tiết đơn hàng.</li>
-              <li>Tất cả phiếu nhập hàng và chi tiết phiếu nhập.</li>
-              <li>Toàn bộ lịch sử thanh toán của khách hàng.</li>
-              <li>Toàn bộ lịch sử thanh toán cho nhà cung cấp.</li>
-              <li>Toàn bộ lịch sử thu/chi trên sổ quỹ.</li>
-              <li>Toàn bộ lịch sử ca làm việc.</li>
-              <li>Reset toàn bộ điểm thưởng và lịch sử nhập kho.</li>
-            </ul>
-            <strong className="mt-4 block">Rất khuyến khích bạn tạo bản sao lưu trước khi xóa.</strong>
-          </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeletingData}>Hủy</AlertDialogCancel>
-            <AlertDialogAction onClick={() => {}} disabled={isDeletingData} className="bg-destructive hover:bg-destructive/90">
+            <AlertDialogAction onClick={handleDeleteData} disabled={isDeletingData} className="bg-destructive hover:bg-destructive/90">
               {isDeletingData ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Đang xóa...</> : 'Tôi hiểu, hãy xóa'}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -603,7 +665,7 @@ export default function SettingsPage() {
                               Lưu cài đặt trước khi tính lại điểm. Việc tính toán lại có thể mất vài phút.
                             </AlertDescription>
                           </Alert>
-                          <Button type="button" variant="outline" onClick={() => {}} disabled={isRecalculating || form.formState.isSubmitting}>
+                          <Button type="button" variant="outline" onClick={handleRecalculatePoints} disabled={isRecalculating || form.formState.isSubmitting}>
                               {isRecalculating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                               Tính lại điểm & phân hạng cho toàn bộ khách hàng
                             </Button>
