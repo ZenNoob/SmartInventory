@@ -2,7 +2,7 @@
 
 'use client'
 
-import React, { useRef } from 'react'
+import React, { useRef, useEffect } from 'react'
 import { useReactToPrint } from 'react-to-print';
 import type { Customer, Sale, SalesItem, Product, Unit, ThemeSettings } from "@/lib/types"
 import { formatCurrency } from "@/lib/utils"
@@ -19,9 +19,25 @@ interface ThermalReceiptProps {
     settings: ThemeSettings | null;
 }
 
-const ThermalReceipt = React.forwardRef<HTMLDivElement, ThermalReceiptProps>(
-    ({ sale, items, customer, productsMap, unitsMap, settings }, ref) => {
-    
+const ThermalReceipt = ({ sale, items, customer, productsMap, unitsMap, settings }: ThermalReceiptProps) => {
+    const componentRef = useRef<HTMLDivElement>(null);
+
+    const handlePrint = useReactToPrint({
+        content: () => componentRef.current,
+        onAfterPrint: async () => {
+            // Only update status if it's not already printed
+            if (sale.status !== 'printed') {
+                await updateSaleStatus(sale.id, 'printed');
+            }
+            window.close();
+        },
+    });
+
+    useEffect(() => {
+        // Automatically trigger print when the component mounts in a print view
+        handlePrint();
+    }, [handlePrint]);
+
     const paperWidth = settings?.printerType === '58mm' ? 'w-[58mm]' : 'w-[80mm]';
 
     const getUnitInfo = (unitId: string) => {
@@ -39,7 +55,7 @@ const ThermalReceipt = React.forwardRef<HTMLDivElement, ThermalReceiptProps>(
 
     return (
         <div className="bg-white p-2 rounded-lg shadow-lg">
-            <div ref={ref} className={`p-1 font-mono text-[10px] bg-white text-black ${paperWidth}`}>
+            <div ref={componentRef} className={`p-1 font-mono text-[10px] bg-white text-black ${paperWidth}`}>
                 <div className="text-center space-y-1">
                     {settings?.companyBusinessLine && <p className="font-bold">{settings.companyBusinessLine}</p>}
                     {settings?.companyName && <p className="text-lg font-bold">{settings.companyName}</p>}
@@ -127,40 +143,14 @@ const ThermalReceipt = React.forwardRef<HTMLDivElement, ThermalReceiptProps>(
                 </div>
             </div>
              <div className="mt-4 flex justify-center no-print">
-                <PrintButton saleId={sale.id} />
+                 <Button onClick={handlePrint}>
+                    <Printer className="mr-2 h-4 w-4" /> In hóa đơn
+                </Button>
             </div>
         </div>
     );
-});
+};
 
 ThermalReceipt.displayName = 'ThermalReceipt';
-
-function PrintButton({ saleId }: { saleId: string }) {
-    const componentRef = React.useRef<HTMLDivElement>(null);
-    const handlePrint = useReactToPrint({
-        content: () => componentRef.current,
-        onAfterPrint: async () => {
-            await updateSaleStatus(saleId, 'printed');
-            window.close();
-        },
-    });
-
-    React.useEffect(() => {
-        // Automatically trigger print when the component mounts
-        handlePrint();
-    }, [handlePrint]);
-
-    // Attach the ref to the parent of the print button to capture the correct content
-    return (
-       <div ref={componentRef}>
-            <div className="print-content">
-                {/* The content to print is the parent's content, which is rendered by the server component */}
-            </div>
-            <Button onClick={handlePrint} className="no-print">
-                <Printer className="mr-2 h-4 w-4" /> In hóa đơn
-            </Button>
-       </div>
-    );
-}
 
 export { ThermalReceipt };
