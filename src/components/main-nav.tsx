@@ -91,7 +91,7 @@ export function MainNav() {
 
   const showCatalogMenu = hasPermission('categories', 'view') || hasPermission('units', 'view') || hasPermission('customers', 'view') || hasPermission('suppliers', 'view');
   const showReportsMenu = hasPermission('reports_shifts', 'view') || hasPermission('reports_income_statement', 'view') || hasPermission('reports_profit', 'view') || hasPermission('reports_debt', 'view') || hasPermission('reports_supplier_debt', 'view') || hasPermission('reports_transactions', 'view') || hasPermission('reports_supplier_debt_tracking', 'view') || hasPermission('reports_revenue', 'view') || hasPermission('reports_sold_products', 'view') || hasPermission('reports_inventory', 'view') || hasPermission('reports_ai_segmentation', 'view') || hasPermission('reports_ai_basket_analysis', 'view');
-
+  const showSystemMenu = hasPermission('users', 'view') || hasPermission('settings', 'view');
 
   return (
     <Sidebar>
@@ -322,26 +322,39 @@ export function MainNav() {
             <SidebarSeparator />
           </SidebarMenuItem>
 
-          {hasPermission('users', 'view') && (
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={isActive('/users')} tooltip="Quản lý người dùng">
-                <Link href="/users">
-                  <Users2 />
-                  {state === 'expanded' && <span>Quản lý người dùng</span>}
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+          {showSystemMenu && (
+            <Collapsible asChild>
+                <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                        <SidebarMenuButton className="w-full justify-start" isActive={isActive('/users') || isActive('/settings')} tooltip="Hệ thống">
+                            <div className="flex items-center gap-2 flex-1">
+                                <Settings />
+                                {state === 'expanded' && <span>Hệ thống</span>}
+                            </div>
+                            {state === 'expanded' && <ChevronDown className="h-4 w-4 ml-auto shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />}
+                        </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent asChild>
+                        <SidebarMenuSub>
+                            {hasPermission('users', 'view') && (
+                                <SidebarMenuSubItem>
+                                    <SidebarMenuSubButton asChild isActive={isActive('/users')}>
+                                        <Link href="/users" className='flex items-center gap-2'><Users2 className="h-4 w-4" />Quản lý người dùng</Link>
+                                    </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                            )}
+                            {hasPermission('settings', 'view') && (
+                                <SidebarMenuSubItem>
+                                    <SidebarMenuSubButton asChild isActive={isActive('/settings')}>
+                                        <Link href="/settings" className='flex items-center gap-2'><Settings className="h-4 w-4" />Cài đặt</Link>
+                                    </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                            )}
+                        </SidebarMenuSub>
+                    </CollapsibleContent>
+                </SidebarMenuItem>
+            </Collapsible>
           )}
-          {hasPermission('settings', 'view') && (
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive('/settings')} tooltip="Cài đặt">
-              <Link href="/settings">
-                <Settings />
-                {state === 'expanded' && <span>Cài đặt</span>}
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-         )}
         </SidebarMenu>
       </SidebarContent>
     </Sidebar>
