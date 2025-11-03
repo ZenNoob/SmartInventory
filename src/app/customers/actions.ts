@@ -1,3 +1,4 @@
+
 'use server'
 
 import { Customer, LoyaltySettings } from "@/lib/types";
@@ -20,7 +21,14 @@ export async function upsertCustomer(customer: Partial<Customer>): Promise<{ suc
         if (loyaltySettings && loyaltySettings.enabled) {
           const sortedTiers = [...loyaltySettings.tiers].sort((a, b) => b.threshold - a.threshold);
           const newTier = sortedTiers.find(tier => customerData.lifetimePoints! >= tier.threshold);
-          customerData.loyaltyTier = newTier?.name || undefined;
+          const newTierName = newTier?.name || undefined;
+          
+          if (newTierName) {
+            customerData.loyaltyTier = newTierName;
+          } else {
+            // Use FieldValue.delete() to remove the field if no tier is matched
+            (customerData as any).loyaltyTier = FieldValue.delete();
+          }
         }
       }
     }
