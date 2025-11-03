@@ -1,8 +1,7 @@
 
-
 'use client'
 
-import React, { useRef, useEffect } from 'react'
+import React, { useRef } from 'react'
 import { useReactToPrint } from 'react-to-print';
 import type { Customer, Sale, SalesItem, Product, Unit, ThemeSettings } from "@/lib/types"
 import { formatCurrency } from "@/lib/utils"
@@ -32,11 +31,6 @@ const ThermalReceipt = ({ sale, items, customer, productsMap, unitsMap, settings
             window.close();
         },
     });
-
-    useEffect(() => {
-        // Automatically trigger print when the component mounts in a print view
-        handlePrint();
-    }, [handlePrint]);
 
     const paperWidth = settings?.printerType === '58mm' ? 'w-[58mm]' : 'w-[80mm]';
 
