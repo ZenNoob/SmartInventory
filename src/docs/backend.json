@@ -1,5 +1,6 @@
 
 
+
 {
   "entities": {
     "Category": {
@@ -585,6 +586,11 @@
         "companyLogo": {
           "type": "string",
           "description": "A Base64 encoded data URI of the company logo."
+        },
+        "softwarePackage": {
+          "type": "string",
+          "description": "The selected software package which determines feature availability.",
+          "enum": ["basic", "standard", "advanced"]
         }
       },
       "required": [

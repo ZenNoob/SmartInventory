@@ -1,9 +1,10 @@
 
+
 'use client';
 
 import { useDoc, useFirestore, useUser, useMemoFirebase } from "@/firebase";
 import { doc } from "firebase/firestore";
-import { AppUser, Permissions } from "@/lib/types";
+import { AppUser, Permissions, SoftwarePackage, ThemeSettings } from "@/lib/types";
 
 // Define default permissions for each role
 const defaultPermissions: Record<string, Permissions> = {
@@ -146,6 +147,32 @@ const defaultPermissions: Record<string, Permissions> = {
     custom: {},
 };
 
+// Define permissions for each software package
+const packagePermissions: Record<SoftwarePackage, (keyof Permissions)[]> = {
+  basic: [
+    'dashboard', 'pos', 'categories', 'units', 'suppliers', 'products', 
+    'purchases', 'sales', 'customers', 'cash-flow', 
+    'reports_revenue', 'reports_inventory', 'reports_debt', 'reports_supplier_debt'
+  ],
+  standard: [
+    'dashboard', 'pos', 'categories', 'units', 'suppliers', 'products', 
+    'purchases', 'sales', 'customers', 'cash-flow',
+    'reports_shifts', 'reports_income_statement', 'reports_profit', 'reports_debt',
+    'reports_supplier_debt', 'reports_transactions', 'reports_supplier_debt_tracking',
+    'reports_revenue', 'reports_sold_products', 'reports_inventory',
+    'users', 'settings'
+  ],
+  advanced: [
+    'dashboard', 'pos', 'categories', 'units', 'suppliers', 'products', 
+    'purchases', 'sales', 'customers', 'cash-flow',
+    'reports_shifts', 'reports_income_statement', 'reports_profit', 'reports_debt',
+    'reports_supplier_debt', 'reports_transactions', 'reports_supplier_debt_tracking',
+    'reports_revenue', 'reports_sold_products', 'reports_inventory',
+    'reports_ai_segmentation', 'reports_ai_basket_analysis', 'ai_forecast',
+    'users', 'settings'
+  ],
+};
+
 
 export function useUserRole() {
   const { user, isUserLoading } = useUser();
@@ -156,15 +183,41 @@ export function useUserRole() {
     return doc(firestore, 'users', user.uid);
   }, [user, firestore]);
 
-  const { data: userProfile, isLoading: isProfileLoading } = useDoc<AppUser>(userDocRef);
+  const settingsDocRef = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return doc(firestore, 'settings', 'theme');
+  }, [firestore]);
 
-  const isLoading = isUserLoading || isProfileLoading;
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc<AppUser>(userDocRef);
+  const { data: settings, isLoading: isSettingsLoading } = useDoc<ThemeSettings>(settingsDocRef);
+
+  const isLoading = isUserLoading || isProfileLoading || isSettingsLoading;
   
-  // FIXED LOGIC: Prioritize stored permissions. If they exist (even if empty), use them.
-  // Fallback to default role permissions only if the 'permissions' field is missing entirely.
-  const permissions = userProfile?.permissions !== undefined 
-    ? userProfile.permissions 
-    : (userProfile?.role ? defaultPermissions[userProfile.role] : undefined);
+  const permissions = useMemo(() => {
+    const role = userProfile?.role;
+    const userPermissions = userProfile?.permissions;
+    const softwarePackage = settings?.softwarePackage || 'advanced';
+    
+    // Start with the user's base permissions (either from custom field or role default)
+    let basePermissions = userPermissions !== undefined
+      ? userPermissions
+      : (role ? defaultPermissions[role] : {});
+
+    // If a software package is set, filter the base permissions
+    if (softwarePackage) {
+      const allowedModules = packagePermissions[softwarePackage];
+      const filteredPermissions: Permissions = {};
+      
+      for (const module of allowedModules) {
+        if (basePermissions[module]) {
+          filteredPermissions[module] = basePermissions[module];
+        }
+      }
+      return filteredPermissions;
+    }
+    
+    return basePermissions;
+  }, [userProfile, settings]);
 
 
   return { 

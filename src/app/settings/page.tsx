@@ -1,5 +1,6 @@
 
 
+
 'use client'
 
 import * as React from 'react'
@@ -42,7 +43,7 @@ import { useRouter } from 'next/navigation'
 import { useDoc, useFirestore, useMemoFirebase } from '@/firebase'
 import { doc } from 'firebase/firestore'
 import { upsertThemeSettings, recalculateAllLoyaltyPoints, deleteAllTransactionalData, backupAllTransactionalData } from './actions'
-import type { ThemeSettings, LoyaltySettings } from '@/lib/types'
+import type { ThemeSettings, LoyaltySettings, SoftwarePackage } from '@/lib/types'
 import { hexToHsl, hslToHex } from '@/lib/utils'
 import { Separator } from '@/components/ui/separator'
 import { AlertCircle, FileDown, Loader2, Trash2 } from 'lucide-react'
@@ -81,6 +82,7 @@ const themeFormSchema = z.object({
   companyPhone: z.string().optional(),
   companyLogo: z.string().optional(),
   loyalty: loyaltySettingsSchema.optional(),
+  softwarePackage: z.enum(['basic', 'standard', 'advanced']).default('advanced'),
 });
 
 type ThemeFormValues = z.infer<typeof themeFormSchema>;
@@ -155,7 +157,8 @@ export default function SettingsPage() {
       companyAddress: '',
       companyPhone: '',
       companyLogo: '',
-      loyalty: defaultLoyaltySettings
+      loyalty: defaultLoyaltySettings,
+      softwarePackage: 'advanced'
     },
   });
 
@@ -182,6 +185,7 @@ export default function SettingsPage() {
         companyPhone: themeSettings.companyPhone || '',
         companyLogo: themeSettings.companyLogo || '',
         loyalty: themeSettings.loyalty ? { ...defaultLoyaltySettings, ...themeSettings.loyalty } : defaultLoyaltySettings,
+        softwarePackage: themeSettings.softwarePackage || 'advanced',
       });
     }
   }, [themeSettings, form]);
@@ -203,6 +207,7 @@ export default function SettingsPage() {
       companyPhone: data.companyPhone,
       companyLogo: data.companyLogo,
       loyalty: data.loyalty,
+      softwarePackage: data.softwarePackage,
     };
     const result = await upsertThemeSettings(hslData);
     if (result.success) {
@@ -239,7 +244,7 @@ export default function SettingsPage() {
     }
   };
 
-  const ColorField = ({ name, label }: { name: keyof Omit<ThemeFormValues, 'lowStockThreshold' | 'vatRate' | 'companyName' | 'companyBusinessLine' | 'companyAddress' | 'companyPhone' | 'loyalty' | 'printerType' | 'companyLogo'>, label: string }) => (
+  const ColorField = ({ name, label }: { name: keyof Omit<ThemeFormValues, 'lowStockThreshold' | 'vatRate' | 'companyName' | 'companyBusinessLine' | 'companyAddress' | 'companyPhone' | 'loyalty' | 'printerType' | 'companyLogo' | 'softwarePackage'>, label: string }) => (
     <FormField
       control={form.control}
       name={name}
@@ -279,26 +284,6 @@ export default function SettingsPage() {
     });
   };
 
-  const handleDeleteData = () => {
-    startDataDeletionTransition(async () => {
-      const result = await deleteAllTransactionalData();
-      if (result.success) {
-        toast({
-          title: "Xóa thành công!",
-          description: "Toàn bộ dữ liệu giao dịch đã được xóa.",
-        });
-        setShowDeleteConfirm(false);
-        router.refresh();
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Lỗi khi xóa dữ liệu",
-          description: result.error,
-        });
-      }
-    });
-  };
-
   const handleBackup = () => {
     startBackupTransition(async () => {
       const result = await backupAllTransactionalData();
@@ -323,6 +308,26 @@ export default function SettingsPage() {
     });
   };
 
+  const handleDeleteData = () => {
+    startDataDeletionTransition(async () => {
+      const result = await deleteAllTransactionalData();
+      if (result.success) {
+        toast({
+          title: "Xóa thành công!",
+          description: "Toàn bộ dữ liệu giao dịch đã được xóa.",
+        });
+        setShowDeleteConfirm(false);
+        router.refresh();
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Lỗi khi xóa dữ liệu",
+          description: result.error,
+        });
+      }
+    });
+  };
+
 
   return (
     <div className="space-y-6">
@@ -330,7 +335,7 @@ export default function SettingsPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Bạn có hoàn toàn chắc chắn?</AlertDialogTitle>
-            <AlertDialogDescription>
+             <AlertDialogDescription>
               <div>
                 Hành động này <span className="font-bold text-destructive">không thể</span> hoàn tác và sẽ xóa vĩnh viễn:
                 <ul className="list-disc pl-5 mt-2 space-y-1">
@@ -368,6 +373,55 @@ export default function SettingsPage() {
               {!isLoading && (
                 <>
                   <div>
+                    <h3 className="text-lg font-medium">Gói Phần mềm</h3>
+                    <p className="text-sm text-muted-foreground mb-6">Chọn gói tính năng hiện tại cho hệ thống.</p>
+                    <FormField
+                      control={form.control}
+                      name="softwarePackage"
+                      render={({ field }) => (
+                        <FormItem className="space-y-3">
+                          <FormControl>
+                            <RadioGroup
+                              onValueChange={field.onChange}
+                              value={field.value}
+                              className="grid md:grid-cols-3 gap-4"
+                            >
+                              <FormItem>
+                                <FormControl>
+                                  <RadioGroupItem value="basic" id="pkg-basic" className="sr-only peer" />
+                                </FormControl>
+                                <FormLabel htmlFor="pkg-basic" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
+                                  <span className="font-bold text-lg">Cơ bản</span>
+                                  <span className="text-sm text-muted-foreground mt-2 text-center">Các chức năng thiết yếu để bắt đầu kinh doanh.</span>
+                                </FormLabel>
+                              </FormItem>
+                              <FormItem>
+                                <FormControl>
+                                  <RadioGroupItem value="standard" id="pkg-standard" className="sr-only peer" />
+                                </FormControl>
+                                <FormLabel htmlFor="pkg-standard" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
+                                  <span className="font-bold text-lg">Tiêu chuẩn</span>
+                                  <span className="text-sm text-muted-foreground mt-2 text-center">Công cụ quản lý và báo cáo nâng cao.</span>
+                                </FormLabel>
+                              </FormItem>
+                              <FormItem>
+                                <FormControl>
+                                  <RadioGroupItem value="advanced" id="pkg-advanced" className="sr-only peer" />
+                                </FormControl>
+                                <FormLabel htmlFor="pkg-advanced" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
+                                   <span className="font-bold text-lg">Nâng cao</span>
+                                  <span className="text-sm text-muted-foreground mt-2 text-center">Tối ưu hóa kinh doanh với Trí tuệ Nhân tạo (AI).</span>
+                                </FormLabel>
+                              </FormItem>
+                            </RadioGroup>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <Separator />
+                  <div>
                     <h3 className="text-lg font-medium">Thông tin doanh nghiệp</h3>
                     <p className="text-sm text-muted-foreground mb-6">Thông tin này sẽ được hiển thị trên hóa đơn.</p>
                     <div className='space-y-4'>
@@ -397,7 +451,7 @@ export default function SettingsPage() {
                               <FormItem>
                               <FormLabel>Ngành nghề kinh doanh</FormLabel>
                               <FormControl>
-                                  <Input placeholder="Vd: CƠ SỞ SẢN XUẤT VÀ KINH DOANH GIỐNG CÂY TRỒNG" {...field} />
+                                  <Input placeholder="Vd: CƠ SỞ SẢN XUẤT VÀ KINH DOANH GIỐNG CÂY TRỒNG" {...field} value={field.value ?? ''} />
                               </FormControl>
                               <FormMessage />
                               </FormItem>
@@ -410,7 +464,7 @@ export default function SettingsPage() {
                               <FormItem>
                               <FormLabel>Tên doanh nghiệp</FormLabel>
                               <FormControl>
-                                  <Input placeholder="Vd: MINH PHÁT" {...field} />
+                                  <Input placeholder="Vd: MINH PHÁT" {...field} value={field.value ?? ''} />
                               </FormControl>
                               <FormMessage />
                               </FormItem>
@@ -423,7 +477,7 @@ export default function SettingsPage() {
                               <FormItem>
                               <FormLabel>Địa chỉ</FormLabel>
                               <FormControl>
-                                  <Input placeholder="Vd: 70 Ấp 1, X. Mỹ Thạnh, H. Thủ Thừa, T. Long an" {...field} />
+                                  <Input placeholder="Vd: 70 Ấp 1, X. Mỹ Thạnh, H. Thủ Thừa, T. Long an" {...field} value={field.value ?? ''} />
                               </FormControl>
                               <FormMessage />
                               </FormItem>
@@ -436,7 +490,7 @@ export default function SettingsPage() {
                               <FormItem>
                               <FormLabel>Số điện thoại</FormLabel>
                               <FormControl>
-                                  <Input placeholder="Vd: 0915 582 447" {...field} />
+                                  <Input placeholder="Vd: 0915 582 447" {...field} value={field.value ?? ''}/>
                               </FormControl>
                               <FormMessage />
                               </FormItem>

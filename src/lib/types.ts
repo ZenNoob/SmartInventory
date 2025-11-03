@@ -3,6 +3,7 @@
 
 
 
+
 export type Permission = 'view' | 'add' | 'edit' | 'delete';
 
 export type Module = 
@@ -176,6 +177,8 @@ export type LoyaltySettings = {
   tiers: LoyaltyTierConfig[];
 }
 
+export type SoftwarePackage = 'basic' | 'standard' | 'advanced';
+
 export type ThemeSettings = {
   primary: string;
   primaryForeground: string;
@@ -192,6 +195,7 @@ export type ThemeSettings = {
   companyPhone?: string;
   companyLogo?: string;
   loyalty?: LoyaltySettings;
+  softwarePackage?: SoftwarePackage;
 }
 
 export type PurchaseOrderItem = {
