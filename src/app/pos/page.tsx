@@ -153,21 +153,7 @@ export default function POSPage() {
   const [isChangeReturned, setIsChangeReturned] = useState(true);
   const [isCustomerFormOpen, setIsCustomerFormOpen] = useState(false);
   
-  // State for printing
-  const [receiptData, setReceiptData] = useState<{ sale: Sale; items: SalesItem[] } | null>(null);
-  const receiptRef = useRef<HTMLDivElement>(null);
-  const handlePrint = useReactToPrint({
-      content: () => receiptRef.current,
-      onAfterPrint: async () => {
-          if (receiptData) {
-              await updateSaleStatus(receiptData.sale.id, 'printed');
-          }
-          setReceiptData(null); // Clear data after printing
-      },
-      removeAfterPrint: true,
-  });
-
-
+  
   // #region Data Fetching
   const activeShiftQuery = useMemoFirebase(() => 
     (firestore && user && user.uid) ? query(collection(firestore, 'shifts'), where('userId', '==', user.uid), where('status', '==', 'active')) : null,
@@ -474,14 +460,9 @@ export default function POSPage() {
         description: `Đã tạo đơn hàng ${result.saleData.invoiceNumber}.`,
       });
 
-      // Prepare for printing if enabled
+      // Open new window for printing if enabled
       if (settings?.printerType && settings.printerType !== 'none') {
-        const saleItems = itemsData.map((item, index) => ({
-          ...item,
-          id: `${result.saleData!.id}-item-${index}`, // Temporary ID for component key
-          salesTransactionId: result.saleData!.id
-        }));
-        setReceiptData({ sale: result.saleData, items: saleItems });
+          window.open(`/sales/${result.saleData.id}?print=true`, '_blank', 'width=350,height=600');
       }
 
       // Reset state for new sale
@@ -502,14 +483,6 @@ export default function POSPage() {
     }
      setIsSubmitting(false)
   }
-
-  // Trigger print when receiptData is set
-  useEffect(() => {
-    if (receiptData && receiptRef.current) {
-      handlePrint();
-    }
-  }, [receiptData, handlePrint]);
-
 
   // Auto-focus barcode input
   useEffect(() => {
@@ -584,19 +557,6 @@ export default function POSPage() {
         onOpenChange={handleNewCustomerCreated} 
       />
     )}
-     <div style={{ display: 'none' }}>
-        {receiptData && (
-            <ThermalReceipt
-                ref={receiptRef}
-                sale={receiptData.sale}
-                items={receiptData.items}
-                customer={customers.find(c => c.id === receiptData.sale.customerId) || null}
-                productsMap={productsMap}
-                unitsMap={unitsMap}
-                settings={settings}
-            />
-        )}
-    </div>
     <div className="flex flex-col h-[calc(100vh-5rem)] -m-6 bg-muted/30">
       <header className="p-4 border-b bg-background flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={toggleSidebar} className='shrink-0'>

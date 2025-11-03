@@ -25,8 +25,10 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({
   children,
+  params
 }: Readonly<{
-  children: React.ReactNode
+  children: React.ReactNode,
+  params: { id: string }
 }>) {
   const themeSettings = await getThemeSettings();
 
@@ -38,6 +40,20 @@ export default async function RootLayout({
     '--accent': themeSettings.accent,
     '--accent-foreground': themeSettings.accentForeground,
   } as React.CSSProperties : {};
+  
+  // A bit of a hack to detect the print-only page.
+  // In a larger app, a dedicated layout file for the print route would be better.
+  const isPrintView = params.id && (children as React.ReactElement)?.props?.childProp?.segment === '[id]';
+
+  if (isPrintView) {
+     return (
+       <html lang="vi" suppressHydrationWarning>
+        <body className={cn('bg-gray-100', ptSans.variable)}>
+          {children}
+        </body>
+      </html>
+     )
+  }
 
   return (
     <html lang="vi" suppressHydrationWarning>

@@ -30,10 +30,9 @@ interface SaleInvoiceProps {
     productsMap: Map<string, Product>;
     unitsMap: Map<string, Unit>;
     settings: ThemeSettings | null;
-    autoPrint: boolean;
 }
 
-export function SaleInvoice({ sale, items, customer, productsMap, unitsMap, settings, autoPrint }: SaleInvoiceProps) {
+export function SaleInvoice({ sale, items, customer, productsMap, unitsMap, settings }: SaleInvoiceProps) {
   const invoiceRef = useRef<HTMLDivElement>(null);
 
   const handlePrint = async () => {
@@ -48,17 +47,6 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap, sett
       window.location.reload(); 
     }
   };
-
-  useEffect(() => {
-    if (autoPrint) {
-      const timer = setTimeout(() => {
-        handlePrint();
-      }, 500); 
-      return () => clearTimeout(timer);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoPrint]);
-
 
   const getUnitInfo = (unitId: string) => {
     const unit = unitsMap.get(unitId);
