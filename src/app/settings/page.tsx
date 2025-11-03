@@ -1,6 +1,7 @@
 
 
 
+
 'use client'
 
 import * as React from 'react'
@@ -50,6 +51,7 @@ import { AlertCircle, FileDown, Loader2, Trash2 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 
 const loyaltyTierSchema = z.object({
   name: z.enum(['bronze', 'silver', 'gold', 'diamond']),
@@ -335,20 +337,19 @@ export default function SettingsPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Bạn có hoàn toàn chắc chắn?</AlertDialogTitle>
-             <AlertDialogDescription>
-              <div>
-                Hành động này <span className="font-bold text-destructive">không thể</span> hoàn tác và sẽ xóa vĩnh viễn:
-                <ul className="list-disc pl-5 mt-2 space-y-1">
-                  <li>Tất cả đơn hàng bán và chi tiết đơn hàng.</li>
-                  <li>Tất cả phiếu nhập hàng và chi tiết phiếu nhập.</li>
-                  <li>Toàn bộ lịch sử thanh toán của khách hàng.</li>
-                  <li>Toàn bộ lịch sử thanh toán cho nhà cung cấp.</li>
-                  <li>Toàn bộ lịch sử thu/chi trên sổ quỹ.</li>
-                  <li>Toàn bộ lịch sử ca làm việc.</li>
-                  <li>Reset toàn bộ điểm thưởng và lịch sử nhập kho.</li>
-                </ul>
-                <strong className="mt-4 block">Rất khuyến khích bạn tạo bản sao lưu trước khi xóa.</strong>
-              </div>
+             <AlertDialogDescription asChild>
+                <div>
+                  Hành động này <span className="font-bold text-destructive">không thể</span> hoàn tác và sẽ xóa vĩnh viễn:
+                  <ul className="list-disc pl-5 mt-2 space-y-1">
+                    <li>Tất cả đơn hàng bán và chi tiết đơn hàng.</li>
+                    <li>Tất cả phiếu nhập hàng và chi tiết phiếu nhập.</li>
+                    <li>Toàn bộ lịch sử thanh toán của khách hàng và nhà cung cấp.</li>
+                    <li>Toàn bộ lịch sử thu/chi trên sổ quỹ.</li>
+                    <li>Toàn bộ lịch sử ca làm việc.</li>
+                    <li>Reset toàn bộ điểm thưởng và lịch sử nhập kho.</li>
+                  </ul>
+                  <strong className="mt-4 block">Rất khuyến khích bạn tạo bản sao lưu trước khi xóa.</strong>
+                </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -360,200 +361,242 @@ export default function SettingsPage() {
         </AlertDialogContent>
       </AlertDialog>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
           <Card>
             <CardHeader>
               <CardTitle>Cài đặt chung</CardTitle>
               <CardDescription>
-                Tùy chỉnh giao diện và các cài đặt chung cho ứng dụng của bạn.
+                Tùy chỉnh các cài đặt chung cho ứng dụng của bạn.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-8">
+            <CardContent>
               {isLoading && <p>Đang tải cài đặt...</p>}
               {!isLoading && (
-                <>
-                  <div>
-                    <h3 className="text-lg font-medium">Gói Phần mềm</h3>
-                    <p className="text-sm text-muted-foreground mb-6">Chọn gói tính năng hiện tại cho hệ thống.</p>
-                    <FormField
-                      control={form.control}
-                      name="softwarePackage"
-                      render={({ field }) => (
-                        <FormItem className="space-y-3">
-                          <FormControl>
-                            <RadioGroup
-                              onValueChange={field.onChange}
-                              value={field.value}
-                              className="grid md:grid-cols-3 gap-4"
-                            >
-                              <FormItem>
-                                <FormControl>
-                                  <RadioGroupItem value="basic" id="pkg-basic" className="sr-only peer" />
-                                </FormControl>
-                                <FormLabel htmlFor="pkg-basic" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
-                                  <span className="font-bold text-lg">Cơ bản</span>
-                                  <span className="text-sm text-muted-foreground mt-2 text-center">Các chức năng thiết yếu để bắt đầu kinh doanh.</span>
-                                </FormLabel>
-                              </FormItem>
-                              <FormItem>
-                                <FormControl>
-                                  <RadioGroupItem value="standard" id="pkg-standard" className="sr-only peer" />
-                                </FormControl>
-                                <FormLabel htmlFor="pkg-standard" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
-                                  <span className="font-bold text-lg">Tiêu chuẩn</span>
-                                  <span className="text-sm text-muted-foreground mt-2 text-center">Công cụ quản lý và báo cáo nâng cao.</span>
-                                </FormLabel>
-                              </FormItem>
-                              <FormItem>
-                                <FormControl>
-                                  <RadioGroupItem value="advanced" id="pkg-advanced" className="sr-only peer" />
-                                </FormControl>
-                                <FormLabel htmlFor="pkg-advanced" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
-                                   <span className="font-bold text-lg">Nâng cao</span>
-                                  <span className="text-sm text-muted-foreground mt-2 text-center">Tối ưu hóa kinh doanh với Trí tuệ Nhân tạo (AI).</span>
-                                </FormLabel>
-                              </FormItem>
-                            </RadioGroup>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  <Separator />
-                  <div>
-                    <h3 className="text-lg font-medium">Thông tin doanh nghiệp</h3>
-                    <p className="text-sm text-muted-foreground mb-6">Thông tin này sẽ được hiển thị trên hóa đơn.</p>
-                    <div className='space-y-4'>
-                      <FormField
-                        control={form.control}
-                        name="companyLogo"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Logo công ty</FormLabel>
-                            <div className="flex items-center gap-4">
+                <Accordion type="multiple" defaultValue={['item-1']} className="w-full">
+                  <AccordionItem value="item-1">
+                    <AccordionTrigger>Thông tin chung</AccordionTrigger>
+                    <AccordionContent className="space-y-8">
+                       <div>
+                        <h3 className="text-lg font-medium">Gói Phần mềm</h3>
+                        <p className="text-sm text-muted-foreground mb-6">Chọn gói tính năng hiện tại cho hệ thống.</p>
+                        <FormField
+                          control={form.control}
+                          name="softwarePackage"
+                          render={({ field }) => (
+                            <FormItem className="space-y-3">
                               <FormControl>
-                                <Input type="file" accept="image/png, image/jpeg, image/svg+xml" onChange={handleLogoChange} className="max-w-xs" />
+                                <RadioGroup
+                                  onValueChange={field.onChange}
+                                  value={field.value}
+                                  className="grid md:grid-cols-3 gap-4"
+                                >
+                                  <FormItem>
+                                    <FormControl>
+                                      <RadioGroupItem value="basic" id="pkg-basic" className="sr-only peer" />
+                                    </FormControl>
+                                    <FormLabel htmlFor="pkg-basic" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
+                                      <span className="font-bold text-lg">Cơ bản</span>
+                                      <span className="text-sm text-muted-foreground mt-2 text-center">Các chức năng thiết yếu để bắt đầu kinh doanh.</span>
+                                    </FormLabel>
+                                  </FormItem>
+                                  <FormItem>
+                                    <FormControl>
+                                      <RadioGroupItem value="standard" id="pkg-standard" className="sr-only peer" />
+                                    </FormControl>
+                                    <FormLabel htmlFor="pkg-standard" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
+                                      <span className="font-bold text-lg">Tiêu chuẩn</span>
+                                      <span className="text-sm text-muted-foreground mt-2 text-center">Công cụ quản lý và báo cáo nâng cao.</span>
+                                    </FormLabel>
+                                  </FormItem>
+                                  <FormItem>
+                                    <FormControl>
+                                      <RadioGroupItem value="advanced" id="pkg-advanced" className="sr-only peer" />
+                                    </FormControl>
+                                    <FormLabel htmlFor="pkg-advanced" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
+                                      <span className="font-bold text-lg">Nâng cao</span>
+                                      <span className="text-sm text-muted-foreground mt-2 text-center">Tối ưu hóa kinh doanh với Trí tuệ Nhân tạo (AI).</span>
+                                    </FormLabel>
+                                  </FormItem>
+                                </RadioGroup>
                               </FormControl>
-                              {field.value && (
-                                <Image src={field.value} alt="Logo preview" width={64} height={64} className="h-16 w-16 object-contain border rounded-md" />
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      <Separator />
+                       <div>
+                        <h3 className="text-lg font-medium">Thông tin doanh nghiệp</h3>
+                        <p className="text-sm text-muted-foreground mb-6">Thông tin này sẽ được hiển thị trên hóa đơn.</p>
+                        <div className='space-y-4'>
+                          <FormField
+                            control={form.control}
+                            name="companyLogo"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Logo công ty</FormLabel>
+                                <div className="flex items-center gap-4">
+                                  <FormControl>
+                                    <Input type="file" accept="image/png, image/jpeg, image/svg+xml" onChange={handleLogoChange} className="max-w-xs" />
+                                  </FormControl>
+                                  {field.value && (
+                                    <Image src={field.value} alt="Logo preview" width={64} height={64} className="h-16 w-16 object-contain border rounded-md" />
+                                  )}
+                                </div>
+                                <FormDescription>Tải lên logo của bạn. Khuyến khích ảnh vuông, dung lượng dưới 1MB.</FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                              control={form.control}
+                              name="companyBusinessLine"
+                              render={({ field }) => (
+                                  <FormItem>
+                                  <FormLabel>Ngành nghề kinh doanh</FormLabel>
+                                  <FormControl>
+                                      <Input placeholder="Vd: CƠ SỞ SẢN XUẤT VÀ KINH DOANH GIỐNG CÂY TRỒNG" {...field} value={field.value ?? ''} />
+                                  </FormControl>
+                                  <FormMessage />
+                                  </FormItem>
                               )}
-                            </div>
-                            <FormDescription>Tải lên logo của bạn. Khuyến khích ảnh vuông, dung lượng dưới 1MB.</FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                          control={form.control}
-                          name="companyBusinessLine"
-                          render={({ field }) => (
-                              <FormItem>
-                              <FormLabel>Ngành nghề kinh doanh</FormLabel>
-                              <FormControl>
-                                  <Input placeholder="Vd: CƠ SỞ SẢN XUẤT VÀ KINH DOANH GIỐNG CÂY TRỒNG" {...field} value={field.value ?? ''} />
-                              </FormControl>
-                              <FormMessage />
-                              </FormItem>
-                          )}
-                        />
+                            />
+                            <FormField
+                              control={form.control}
+                              name="companyName"
+                              render={({ field }) => (
+                                  <FormItem>
+                                  <FormLabel>Tên doanh nghiệp</FormLabel>
+                                  <FormControl>
+                                      <Input placeholder="Vd: MINH PHÁT" {...field} value={field.value ?? ''} />
+                                  </FormControl>
+                                  <FormMessage />
+                                  </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="companyAddress"
+                              render={({ field }) => (
+                                  <FormItem>
+                                  <FormLabel>Địa chỉ</FormLabel>
+                                  <FormControl>
+                                      <Input placeholder="Vd: 70 Ấp 1, X. Mỹ Thạnh, H. Thủ Thừa, T. Long an" {...field} value={field.value ?? ''} />
+                                  </FormControl>
+                                  <FormMessage />
+                                  </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="companyPhone"
+                              render={({ field }) => (
+                                  <FormItem>
+                                  <FormLabel>Số điện thoại</FormLabel>
+                                  <FormControl>
+                                      <Input placeholder="Vd: 0915 582 447" {...field} value={field.value ?? ''}/>
+                                  </FormControl>
+                                  <FormMessage />
+                                  </FormItem>
+                              )}
+                            />
+                        </div>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                   <AccordionItem value="item-2">
+                    <AccordionTrigger>Cài đặt Vận hành</AccordionTrigger>
+                    <AccordionContent className="space-y-8">
+                       <div>
+                        <h3 className="text-lg font-medium">Cài đặt In ấn</h3>
+                        <p className="text-sm text-muted-foreground mb-6">Cấu hình máy in nhiệt cho quầy POS.</p>
                         <FormField
                           control={form.control}
-                          name="companyName"
+                          name="printerType"
                           render={({ field }) => (
-                              <FormItem>
-                              <FormLabel>Tên doanh nghiệp</FormLabel>
+                            <FormItem className="space-y-3">
+                              <FormLabel>Tự động in hóa đơn sau khi thanh toán</FormLabel>
+                              <FormDescription>Hệ thống sẽ tự động gửi lệnh in đến máy in mặc định của máy tính.</FormDescription>
                               <FormControl>
-                                  <Input placeholder="Vd: MINH PHÁT" {...field} value={field.value ?? ''} />
+                                <RadioGroup
+                                  onValueChange={field.onChange}
+                                  value={field.value}
+                                  className="flex flex-col space-y-1"
+                                >
+                                  <FormItem className="flex items-center space-x-3 space-y-0">
+                                    <FormControl>
+                                      <RadioGroupItem value="none" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">
+                                    Không in
+                                    </FormLabel>
+                                  </FormItem>
+                                  <FormItem className="flex items-center space-x-3 space-y-0">
+                                    <FormControl>
+                                      <RadioGroupItem value="58mm" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">
+                                      In khổ 58mm
+                                    </FormLabel>
+                                  </FormItem>
+                                  <FormItem className="flex items-center space-x-3 space-y-0">
+                                    <FormControl>
+                                      <RadioGroupItem value="80mm" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">
+                                      In khổ 80mm
+                                    </FormLabel>
+                                  </FormItem>
+                                </RadioGroup>
                               </FormControl>
                               <FormMessage />
-                              </FormItem>
+                            </FormItem>
                           )}
                         />
-                        <FormField
-                          control={form.control}
-                          name="companyAddress"
-                          render={({ field }) => (
-                              <FormItem>
-                              <FormLabel>Địa chỉ</FormLabel>
-                              <FormControl>
-                                  <Input placeholder="Vd: 70 Ấp 1, X. Mỹ Thạnh, H. Thủ Thừa, T. Long an" {...field} value={field.value ?? ''} />
-                              </FormControl>
-                              <FormMessage />
-                              </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="companyPhone"
-                          render={({ field }) => (
-                              <FormItem>
-                              <FormLabel>Số điện thoại</FormLabel>
-                              <FormControl>
-                                  <Input placeholder="Vd: 0915 582 447" {...field} value={field.value ?? ''}/>
-                              </FormControl>
-                              <FormMessage />
-                              </FormItem>
-                          )}
-                        />
-                    </div>
-                  </div>
-                  
-                  <Separator />
-                  
-                  <div>
-                    <h3 className="text-lg font-medium">Cài đặt In ấn</h3>
-                    <p className="text-sm text-muted-foreground mb-6">Cấu hình máy in nhiệt cho quầy POS.</p>
-                     <FormField
-                      control={form.control}
-                      name="printerType"
-                      render={({ field }) => (
-                        <FormItem className="space-y-3">
-                          <FormLabel>Tự động in hóa đơn sau khi thanh toán</FormLabel>
-                           <FormDescription>Hệ thống sẽ tự động gửi lệnh in đến máy in mặc định của máy tính.</FormDescription>
-                          <FormControl>
-                            <RadioGroup
-                              onValueChange={field.onChange}
-                              value={field.value}
-                              className="flex flex-col space-y-1"
-                            >
-                              <FormItem className="flex items-center space-x-3 space-y-0">
-                                <FormControl>
-                                  <RadioGroupItem value="none" />
-                                </FormControl>
-                                <FormLabel className="font-normal">
-                                 Không in
-                                </FormLabel>
-                              </FormItem>
-                              <FormItem className="flex items-center space-x-3 space-y-0">
-                                <FormControl>
-                                  <RadioGroupItem value="58mm" />
-                                </FormControl>
-                                <FormLabel className="font-normal">
-                                  In khổ 58mm
-                                </FormLabel>
-                              </FormItem>
-                              <FormItem className="flex items-center space-x-3 space-y-0">
-                                <FormControl>
-                                  <RadioGroupItem value="80mm" />
-                                </FormControl>
-                                <FormLabel className="font-normal">
-                                  In khổ 80mm
-                                </FormLabel>
-                              </FormItem>
-                            </RadioGroup>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                      </div>
 
-                  <Separator />
-
-                  <div>
-                      <h3 className="text-lg font-medium">Giao diện</h3>
-                      <p className="text-sm text-muted-foreground mb-6">Tùy chỉnh màu sắc của ứng dụng.</p>
+                      <Separator />
+                       <div>
+                          <h3 className="text-lg font-medium">Hàng tồn kho</h3>
+                          <p className="text-sm text-muted-foreground mb-6">Cài đặt liên quan đến quản lý hàng tồn kho.</p>
+                          <FormField
+                              control={form.control}
+                              name="lowStockThreshold"
+                              render={({ field }) => (
+                                  <FormItem className="max-w-xs">
+                                  <FormLabel>Ngưỡng cảnh báo tồn kho</FormLabel>
+                                  <FormControl>
+                                      <FormattedNumberInput {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                  </FormItem>
+                              )}
+                              />
+                      </div>
+                      <Separator />
+                      <div>
+                          <h3 className="text-lg font-medium">Thuế</h3>
+                          <p className="text-sm text-muted-foreground mb-6">Cài đặt liên quan đến thuế giá trị gia tăng (VAT).</p>
+                          <FormField
+                              control={form.control}
+                              name="vatRate"
+                              render={({ field }) => (
+                                  <FormItem className="max-w-xs">
+                                  <FormLabel>Tỷ lệ thuế VAT (%)</FormLabel>
+                                  <FormControl>
+                                      <Input type="number" placeholder="Ví dụ: 10" {...field} value={field.value ?? ''} />
+                                  </FormControl>
+                                  <FormMessage />
+                                  </FormItem>
+                              )}
+                              />
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                   <AccordionItem value="item-3">
+                    <AccordionTrigger>Giao diện</AccordionTrigger>
+                    <AccordionContent>
+                       <p className="text-sm text-muted-foreground mb-6">Tùy chỉnh màu sắc của ứng dụng.</p>
                       <div className='space-y-8'>
                           <div className='grid md:grid-cols-2 gap-8'>
                               <ColorField name="background" label="Màu nền (Background)" />
@@ -570,167 +613,138 @@ export default function SettingsPage() {
                               <ColorField name="accentForeground" label="Chữ trên màu nhấn" />
                           </div>
                       </div>
-                  </div>
-                  <Separator />
-                  <div>
-                      <h3 className="text-lg font-medium">Hàng tồn kho</h3>
-                      <p className="text-sm text-muted-foreground mb-6">Cài đặt liên quan đến quản lý hàng tồn kho.</p>
-                      <FormField
-                          control={form.control}
-                          name="lowStockThreshold"
-                          render={({ field }) => (
-                              <FormItem className="max-w-xs">
-                              <FormLabel>Ngưỡng cảnh báo tồn kho</FormLabel>
-                              <FormControl>
-                                  <FormattedNumberInput {...field} />
-                              </FormControl>
-                              <FormMessage />
-                              </FormItem>
-                          )}
-                          />
-                  </div>
-                  <Separator />
-                  <div>
-                      <h3 className="text-lg font-medium">Thuế</h3>
-                      <p className="text-sm text-muted-foreground mb-6">Cài đặt liên quan đến thuế giá trị gia tăng (VAT).</p>
-                      <FormField
-                          control={form.control}
-                          name="vatRate"
-                          render={({ field }) => (
-                              <FormItem className="max-w-xs">
-                              <FormLabel>Tỷ lệ thuế VAT (%)</FormLabel>
-                              <FormControl>
-                                  <Input type="number" placeholder="Ví dụ: 10" {...field} value={field.value ?? ''} />
-                              </FormControl>
-                              <FormMessage />
-                              </FormItem>
-                          )}
-                          />
-                  </div>
-                  <Separator />
-                  <div>
-                    <div className="space-y-1 mb-6">
-                      <h3 className="text-lg font-medium">Chương trình khách hàng thân thiết</h3>
-                      <p className="text-sm text-muted-foreground">Cấu hình cách tích điểm và phân hạng thành viên.</p>
-                    </div>
-
-                    <FormField
-                      control={form.control}
-                      name="loyalty.enabled"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 mb-6">
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-base">
-                              Kích hoạt chương trình
-                            </FormLabel>
-                            <FormDescription>
-                              Bật hoặc tắt hệ thống tích điểm và phân hạng khách hàng.
-                            </FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                      {loyaltyEnabled && (
-                        <div className="space-y-6 pl-4 border-l">
-                          <div className="grid md:grid-cols-2 gap-6">
-                              <FormField
-                                control={form.control}
-                                name="loyalty.pointsPerAmount"
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>Tỷ lệ tích điểm</FormLabel>
-                                    <FormControl>
-                                      <FormattedNumberInput {...field} />
-                                    </FormControl>
-                                    <FormDescription>
-                                      Số tiền (VNĐ) cần chi tiêu để nhận được 1 điểm.
-                                    </FormDescription>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                              <FormField
-                                control={form.control}
-                                name="loyalty.pointsToVndRate"
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>Tỷ lệ quy đổi điểm</FormLabel>
-                                    <FormControl>
-                                      <FormattedNumberInput {...field} />
-                                    </FormControl>
-                                    <FormDescription>
-                                      Giá trị của 1 điểm khi khách hàng sử dụng (VNĐ).
-                                    </FormDescription>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                          </div>
-                          <div>
-                            <h4 className="font-medium mb-2">Cấu hình Hạng thành viên</h4>
-                            <div className="space-y-4">
-                                {tierFields.map((field, index) => (
-                                  <div key={field.id} className="p-4 border rounded-lg grid grid-cols-2 gap-4">
-                                    <FormField
-                                      control={form.control}
-                                      name={`loyalty.tiers.${index}.threshold`}
-                                      render={({ field }) => (
-                                          <FormItem>
-                                              <FormLabel>Hạng {tierFields[index].vietnameseName}</FormLabel>
-                                              <FormControl>
-                                                  <FormattedNumberInput {...field} />
-                                              </FormControl>
-                                              <FormDescription>
-                                                  Tổng điểm tích lũy tối thiểu để đạt hạng này.
-                                              </FormDescription>
-                                              <FormMessage />
-                                          </FormItem>
-                                      )}
-                                    />
-                                     <FormField
-                                      control={form.control}
-                                      name={`loyalty.tiers.${index}.discountPercentage`}
-                                      render={({ field }) => (
-                                          <FormItem>
-                                              <FormLabel>Ưu đãi giảm giá (%)</FormLabel>
-                                              <FormControl>
-                                                  <Input type="number" {...field} />
-                                              </FormControl>
-                                              <FormDescription>
-                                                  Giảm giá tự động cho hạng này.
-                                              </FormDescription>
-                                              <FormMessage />
-                                          </FormItem>
-                                      )}
-                                    />
-                                  </div>
-                                ))}
-                            </div>
-                          </div>
-                          <Alert variant="destructive">
-                            <AlertCircle className="h-4 w-4" />
-                            <AlertDescription>
-                              Lưu cài đặt trước khi tính lại điểm. Việc tính toán lại có thể mất vài phút.
-                            </AlertDescription>
-                          </Alert>
-                          <Button type="button" variant="outline" onClick={handleRecalculatePoints} disabled={isRecalculating || form.formState.isSubmitting}>
-                              {isRecalculating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                              Tính lại điểm & phân hạng cho toàn bộ khách hàng
-                            </Button>
-                        </div>
-                      )}
-                  </div>
-                </>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               )}
             </CardContent>
-            <CardFooter className="border-t px-6 py-4">
-              <Button type="submit" disabled={form.formState.isSubmitting || isLoading}>
+            <CardFooter>
+               <Button type="submit" disabled={form.formState.isSubmitting || isLoading}>
+                {form.formState.isSubmitting ? 'Đang lưu...' : 'Lưu cài đặt'}
+              </Button>
+            </CardFooter>
+          </Card>
+          
+           <Card>
+            <CardHeader>
+                <CardTitle>Chương trình khách hàng thân thiết</CardTitle>
+                <CardDescription>Cấu hình cách tích điểm và phân hạng thành viên.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                 <FormField
+                    control={form.control}
+                    name="loyalty.enabled"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 mb-6">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-base">
+                            Kích hoạt chương trình
+                          </FormLabel>
+                          <FormDescription>
+                            Bật hoặc tắt hệ thống tích điểm và phân hạng khách hàng.
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                    {loyaltyEnabled && (
+                      <div className="space-y-6">
+                        <div className="grid md:grid-cols-2 gap-6">
+                            <FormField
+                              control={form.control}
+                              name="loyalty.pointsPerAmount"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Tỷ lệ tích điểm</FormLabel>
+                                  <FormControl>
+                                    <FormattedNumberInput {...field} />
+                                  </FormControl>
+                                  <FormDescription>
+                                    Số tiền (VNĐ) cần chi tiêu để nhận được 1 điểm.
+                                  </FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="loyalty.pointsToVndRate"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Tỷ lệ quy đổi điểm</FormLabel>
+                                  <FormControl>
+                                    <FormattedNumberInput {...field} />
+                                  </FormControl>
+                                  <FormDescription>
+                                    Giá trị của 1 điểm khi khách hàng sử dụng (VNĐ).
+                                  </FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                        </div>
+                        <div>
+                          <h4 className="font-medium mb-2">Cấu hình Hạng thành viên</h4>
+                          <div className="space-y-4">
+                              {tierFields.map((field, index) => (
+                                <div key={field.id} className="p-4 border rounded-lg grid grid-cols-2 gap-4">
+                                  <FormField
+                                    control={form.control}
+                                    name={`loyalty.tiers.${index}.threshold`}
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Hạng {tierFields[index].vietnameseName}</FormLabel>
+                                            <FormControl>
+                                                <FormattedNumberInput {...field} />
+                                            </FormControl>
+                                            <FormDescription>
+                                                Tổng điểm tích lũy tối thiểu để đạt hạng này.
+                                            </FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                  />
+                                    <FormField
+                                    control={form.control}
+                                    name={`loyalty.tiers.${index}.discountPercentage`}
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Ưu đãi giảm giá (%)</FormLabel>
+                                            <FormControl>
+                                                <Input type="number" {...field} />
+                                            </FormControl>
+                                            <FormDescription>
+                                                Giảm giá tự động cho hạng này.
+                                            </FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                  />
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                        <Alert variant="destructive">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertDescription>
+                            Lưu cài đặt trước khi tính lại điểm. Việc tính toán lại có thể mất vài phút.
+                          </AlertDescription>
+                        </Alert>
+                        <Button type="button" variant="outline" onClick={handleRecalculatePoints} disabled={isRecalculating || form.formState.isSubmitting}>
+                            {isRecalculating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Tính lại điểm & phân hạng cho toàn bộ khách hàng
+                          </Button>
+                      </div>
+                    )}
+            </CardContent>
+             <CardFooter>
+               <Button type="submit" disabled={form.formState.isSubmitting || isLoading}>
                 {form.formState.isSubmitting ? 'Đang lưu...' : 'Lưu cài đặt'}
               </Button>
             </CardFooter>
