@@ -3,6 +3,7 @@
 
 
 
+
 'use client'
 
 import * as React from 'react'
@@ -338,7 +339,7 @@ export default function SettingsPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Bạn có hoàn toàn chắc chắn?</AlertDialogTitle>
-             <AlertDialogDescription asChild>
+            <AlertDialogDescription>
                 <div>
                   Hành động này <span className="font-bold text-destructive">không thể</span> hoàn tác và sẽ xóa vĩnh viễn:
                   <ul className="list-disc pl-5 mt-2 space-y-1">

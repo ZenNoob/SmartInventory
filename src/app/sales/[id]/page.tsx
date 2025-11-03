@@ -1,3 +1,4 @@
+
 import { notFound } from "next/navigation"
 import { getAdminServices } from "@/lib/admin-actions"
 import type { Customer, Sale, SalesItem, Product, Unit, ThemeSettings } from "@/lib/types"
@@ -54,7 +55,8 @@ export default async function SaleDetailPage({ params, searchParams }: { params:
     notFound()
   }
 
-  const autoPrint = searchParams.print === 'true';
+  // This page is now only for A4 preview, not for automatic POS printing.
+  const autoPrint = false;
 
   return <SaleInvoice sale={sale} items={items} customer={customer} productsMap={productsMap} unitsMap={unitsMap} settings={settings} autoPrint={autoPrint} />
 }

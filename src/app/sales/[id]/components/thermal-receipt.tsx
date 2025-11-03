@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import React from 'react'
@@ -71,14 +72,20 @@ const ThermalReceipt = React.forwardRef<HTMLDivElement, ThermalReceiptProps>(
                         const product = productsMap.get(item.productId);
                         if (!product) return null;
                         
-                        const saleUnitInfo = getUnitInfo(product.unitId);
-                        const baseUnit = saleUnitInfo.baseUnit || unitsMap.get(product.unitId);
                         const lineTotal = item.quantity * item.price;
                         
                         return (
-                            <tr key={index}>
-                                <td className="text-left" colSpan={4}>{product.name}</td>
-                            </tr>
+                            <React.Fragment key={index}>
+                                <tr>
+                                    <td className="text-left" colSpan={4}>{product.name}</td>
+                                </tr>
+                                <tr>
+                                    <td className="text-left"></td>
+                                    <td className="text-right">{item.quantity}</td>
+                                    <td className="text-right">{formatCurrency(item.price)}</td>
+                                    <td className="text-right">{formatCurrency(lineTotal)}</td>
+                                </tr>
+                            </React.Fragment>
                         )
                     })}
                 </tbody>

@@ -22,7 +22,6 @@ import {
 import Image from 'next/image'
 import { formatCurrency } from "@/lib/utils"
 import type { Customer, Sale, SalesItem, Product, Unit, ThemeSettings } from "@/lib/types"
-import { updateSaleStatus } from '../../actions'
 
 interface SaleInvoiceProps {
     sale: Sale;
@@ -36,11 +35,9 @@ interface SaleInvoiceProps {
 
 export function SaleInvoice({ sale, items, customer, productsMap, unitsMap, settings, autoPrint }: SaleInvoiceProps) {
   const invoiceRef = useRef<HTMLDivElement>(null);
-  const invoicePrintRef = useRef<HTMLDivElement>(null);
-
 
   const handlePrint = async () => {
-    const printContents = invoicePrintRef.current?.innerHTML;
+    const printContents = invoiceRef.current?.innerHTML;
     const originalContents = document.body.innerHTML;
 
     if (printContents) {
@@ -48,7 +45,7 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap, sett
       window.print();
       document.body.innerHTML = originalContents;
       // We need to reload to re-initialize React app and its event handlers
-      window.location.href = '/pos'; 
+      window.location.reload(); 
     }
   };
 
@@ -59,6 +56,7 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap, sett
       }, 500); 
       return () => clearTimeout(timer);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoPrint]);
 
 
@@ -127,7 +125,7 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap, sett
   const loyaltyTier = settings?.loyalty?.tiers.find(t => t.name === customer?.loyaltyTier);
 
   return (
-    <div ref={invoiceRef}>
+    <div>
       <div className="flex items-center gap-4 mb-4">
         <Button variant="outline" size="icon" className="h-7 w-7" asChild>
           <Link href="/sales">
@@ -146,7 +144,7 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap, sett
           </Button>
         </div>
       </div>
-        <Card className="p-6 sm:p-8 invoice-card" ref={invoicePrintRef}>
+        <Card className="p-6 sm:p-8" ref={invoiceRef}>
             <header className="flex items-start justify-between mb-8">
                 <div className="flex items-center gap-4">
                      {settings?.companyLogo ? (

@@ -462,7 +462,7 @@ export default function POSPage() {
       customerPayment: customerPayment,
       previousDebt: previousDebt, 
       remainingDebt: remainingDebt,
-      status: 'printed',
+      status: settings?.printerType === 'none' ? 'printed' : 'unprinted',
       isChangeReturned: isChangeReturned,
     }
 
@@ -474,6 +474,16 @@ export default function POSPage() {
         description: `Đã tạo đơn hàng ${result.saleData.invoiceNumber}.`,
       });
 
+      // Prepare for printing if enabled
+      if (settings?.printerType && settings.printerType !== 'none') {
+        const saleItems = itemsData.map((item, index) => ({
+          ...item,
+          id: `${result.saleData!.id}-item-${index}`, // Temporary ID for component key
+          salesTransactionId: result.saleData!.id
+        }));
+        setReceiptData({ sale: result.saleData, items: saleItems });
+      }
+
       // Reset state for new sale
       setCart([])
       setCustomerPayment(0)
@@ -482,9 +492,6 @@ export default function POSPage() {
       setDiscountType('amount')
       setPointsUsed(0);
       router.refresh();
-
-      // Open new tab for printing preview
-      window.open(`/sales/${result.saleData.id}?print=true`, '_blank');
 
     } else {
       toast({
@@ -495,6 +502,14 @@ export default function POSPage() {
     }
      setIsSubmitting(false)
   }
+
+  // Trigger print when receiptData is set
+  useEffect(() => {
+    if (receiptData) {
+      handlePrint();
+    }
+  }, [receiptData, handlePrint]);
+
 
   // Auto-focus barcode input
   useEffect(() => {
