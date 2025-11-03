@@ -30,7 +30,7 @@ const ThermalReceipt = (props: ThermalReceiptProps) => {
     }
 
     const handlePrint = useReactToPrint({
-        content: () => componentRef.current,
+        contentRef: componentRef,
         onAfterPrint: onAfterPrint,
     });
     
@@ -55,6 +55,8 @@ const ThermalReceipt = (props: ThermalReceiptProps) => {
     return (
         <div className="bg-gray-100 p-4 flex flex-col items-center">
             {/* Component to be printed */}
+           
+
             <div ref={componentRef} className={`p-1 font-mono text-[10px] bg-white text-black ${paperWidth}`}>
                 <div className="text-center space-y-1">
                     {settings?.companyBusinessLine && <p className="font-bold">{settings.companyBusinessLine}</p>}

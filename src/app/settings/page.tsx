@@ -5,6 +5,7 @@
 
 
 
+
 'use client'
 
 import * as React from 'react'
@@ -33,6 +34,16 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import {
+  Dialog,
+  DialogTrigger,
+  DialogClose,
+  DialogContent as ReauthDialogContent,
+  DialogDescription as ReauthDialogDescription,
+  DialogFooter as ReauthDialogFooter,
+  DialogHeader as ReauthDialogHeader,
+  DialogTitle as ReauthDialogTitle,
+} from '@/components/ui/dialog'
+import {
   Form,
   FormControl,
   FormDescription,
@@ -44,17 +55,18 @@ import {
 import { Input } from "@/components/ui/input"
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
-import { useDoc, useFirestore, useMemoFirebase } from '@/firebase'
+import { useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase'
 import { doc } from 'firebase/firestore'
 import { upsertThemeSettings, recalculateAllLoyaltyPoints, deleteAllTransactionalData, backupAllTransactionalData } from './actions'
 import type { ThemeSettings, LoyaltySettings, SoftwarePackage } from '@/lib/types'
 import { hexToHsl, hslToHex } from '@/lib/utils'
 import { Separator } from '@/components/ui/separator'
-import { AlertCircle, FileDown, Loader2, Trash2 } from 'lucide-react'
+import { AlertCircle, FileDown, Loader2, Trash2, Lock } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth'
 
 const loyaltyTierSchema = z.object({
   name: z.enum(['bronze', 'silver', 'gold', 'diamond']),
@@ -120,10 +132,16 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const router = useRouter();
   const firestore = useFirestore();
+  const { user } = useUser();
   const [isRecalculating, startRecalculatingTransition] = useTransition();
   const [isDeletingData, startDataDeletionTransition] = useTransition();
   const [isBackingUp, startBackupTransition] = useTransition();
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
+  const [isDangerZoneUnlocked, setIsDangerZoneUnlocked] = React.useState(false);
+  const [isAuthDialogOpen, setIsAuthDialogOpen] = React.useState(false);
+  const [password, setPassword] = React.useState('');
+  const [authError, setAuthError] = React.useState<string | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = React.useState(false);
 
 
   const settingsRef = useMemoFirebase(() => {
@@ -331,6 +349,26 @@ export default function SettingsPage() {
         });
       }
     });
+  };
+  
+  const handleReauthentication = async () => {
+    if (!user || !user.email) {
+      setAuthError("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.");
+      return;
+    }
+    setIsAuthenticating(true);
+    setAuthError(null);
+    try {
+      const auth = getAuth();
+      await signInWithEmailAndPassword(auth, user.email, password);
+      setIsDangerZoneUnlocked(true);
+      setIsAuthDialogOpen(false);
+      setPassword('');
+    } catch (error: any) {
+      setAuthError("Mật khẩu không chính xác. Vui lòng thử lại.");
+    } finally {
+      setIsAuthenticating(false);
+    }
   };
 
 
@@ -768,29 +806,70 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle>Khu vực nguy hiểm</CardTitle>
             <CardDescription>
-              Các hành động này không thể hoàn tác. Hãy sao lưu dữ liệu trước khi thực hiện.
+              Các hành động này yêu cầu xác thực lại để đảm bảo an toàn.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-             <div>
-                <Button variant="outline" onClick={handleBackup} disabled={isBackingUp}>
-                    {isBackingUp ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
-                    {isBackingUp ? 'Đang sao lưu...' : 'Sao lưu toàn bộ dữ liệu'}
-                </Button>
-                 <p className="text-sm text-muted-foreground mt-2">
-                    Tải xuống một tệp Excel chứa toàn bộ dữ liệu giao dịch của bạn.
-                </p>
-            </div>
-            <Separator />
-            <div>
-                <Button variant="destructive" onClick={() => setShowDeleteConfirm(true)}>
-                <Trash2 className="mr-2 h-4 w-4" />
-                Xóa tất cả dữ liệu giao dịch
-                </Button>
-                <p className="text-sm text-muted-foreground mt-2">
-                Thao tác này sẽ xóa toàn bộ lịch sử bán hàng, nhập hàng, thanh toán và reset điểm khách hàng.
-                </p>
-            </div>
+             {isDangerZoneUnlocked ? (
+                <>
+                    <div>
+                        <Button variant="outline" onClick={handleBackup} disabled={isBackingUp}>
+                            {isBackingUp ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
+                            {isBackingUp ? 'Đang sao lưu...' : 'Sao lưu toàn bộ dữ liệu'}
+                        </Button>
+                        <p className="text-sm text-muted-foreground mt-2">
+                            Tải xuống một tệp Excel chứa toàn bộ dữ liệu giao dịch của bạn.
+                        </p>
+                    </div>
+                    <Separator />
+                    <div>
+                        <Button variant="destructive" onClick={() => setShowDeleteConfirm(true)}>
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Xóa tất cả dữ liệu giao dịch
+                        </Button>
+                        <p className="text-sm text-muted-foreground mt-2">
+                        Thao tác này sẽ xóa toàn bộ lịch sử bán hàng, nhập hàng, thanh toán và reset điểm khách hàng.
+                        </p>
+                    </div>
+                </>
+             ) : (
+                 <Dialog open={isAuthDialogOpen} onOpenChange={setIsAuthDialogOpen}>
+                    <DialogTrigger asChild>
+                        <Button variant="destructive">
+                            <Lock className="mr-2 h-4 w-4" />
+                            Mở khóa Khu vực nguy hiểm
+                        </Button>
+                    </DialogTrigger>
+                    <ReauthDialogContent>
+                        <ReauthDialogHeader>
+                            <ReauthDialogTitle>Xác thực quyền Admin</ReauthDialogTitle>
+                            <ReauthDialogDescription>
+                                Vui lòng nhập lại mật khẩu của bạn để tiếp tục.
+                            </ReauthDialogDescription>
+                        </ReauthDialogHeader>
+                        <div className="space-y-2">
+                            <Label htmlFor="password">Mật khẩu</Label>
+                            <Input
+                                id="password"
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') handleReauthentication() }}
+                            />
+                            {authError && <p className="text-sm text-destructive">{authError}</p>}
+                        </div>
+                        <ReauthDialogFooter>
+                             <DialogClose asChild>
+                                <Button type="button" variant="secondary">Hủy</Button>
+                            </DialogClose>
+                            <Button onClick={handleReauthentication} disabled={isAuthenticating}>
+                                {isAuthenticating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Xác nhận
+                            </Button>
+                        </ReauthDialogFooter>
+                    </ReauthDialogContent>
+                 </Dialog>
+             )}
           </CardContent>
         </Card>
     </div>
