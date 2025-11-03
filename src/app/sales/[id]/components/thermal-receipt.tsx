@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useRef } from 'react'
-import ReactToPrint from 'react-to-print';
+import { useReactToPrint } from 'react-to-print';
 import type { Customer, Sale, SalesItem, Product, Unit, ThemeSettings } from "@/lib/types"
 import { formatCurrency } from "@/lib/utils"
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ interface ThermalReceiptProps {
     settings: ThemeSettings | null;
 }
 
-const ReceiptContent = React.forwardRef<HTMLDivElement, ThermalReceiptProps>((props, ref) => {
+const ReceiptContent = React.forwardRef<HTMLDivElement, Omit<ThermalReceiptProps, 'onAfterPrint'>>((props, ref) => {
     const { sale, items, customer, productsMap, unitsMap, settings } = props;
     const paperWidth = settings?.invoiceFormat === '58mm' ? 'w-[58mm]' : 'w-[80mm]';
     const isChange = (sale.remainingDebt || 0) < 0;
@@ -123,6 +123,11 @@ const ThermalReceipt = (props: ThermalReceiptProps) => {
         window.close();
     }
     
+    const handlePrint = useReactToPrint({
+        content: () => componentRef.current,
+        onAfterPrint: onAfterPrint,
+    });
+    
     return (
         <div className="bg-gray-100 p-4 flex flex-col items-center">
             {/* Component to be printed */}
@@ -130,15 +135,9 @@ const ThermalReceipt = (props: ThermalReceiptProps) => {
 
             {/* Print trigger */}
             <div className="mt-4 flex justify-center no-print">
-                 <ReactToPrint
-                    trigger={() => (
-                        <Button>
-                            <Printer className="mr-2 h-4 w-4" /> In hóa đơn
-                        </Button>
-                    )}
-                    content={() => componentRef.current}
-                    onAfterPrint={onAfterPrint}
-                />
+                 <Button onClick={handlePrint}>
+                    <Printer className="mr-2 h-4 w-4" /> In hóa đơn
+                </Button>
             </div>
         </div>
     );
