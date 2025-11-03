@@ -20,7 +20,7 @@ export type SuggestProductInfoInput = z.infer<typeof SuggestProductInfoInputSche
 
 
 const SuggestProductInfoOutputSchema = z.object({
-  description: z.string().describe('A compelling, SEO-friendly product description in Vietnamese.'),
+  description: z.string().describe('A compelling, SEO-friendly product description in Vietnamese, including a brief justification for the suggested price.'),
   suggestedSellingPrice: z.number().describe('A suggested retail price for the product, taking into account the cost and market standards.'),
 });
 export type SuggestProductInfoOutput = z.infer<
@@ -59,11 +59,11 @@ const prompt = ai.definePrompt({
     - **Your logic must be based on the product category:**
         - For common, low-value items (e.g., basic fertilizers, common seeds), apply a lower profit margin (around 20-35%) to stay competitive.
         - For specialized, high-value, or technical products (e.g., specific pesticides, growth stimulants, high-tech fertilizers), apply a higher profit margin (around 35-55%).
-    - **Crucially, briefly explain your reasoning in the description.** For example: "Đây là sản phẩm phổ thông nên đề xuất mức lợi nhuận vừa phải để cạnh tranh" or "Sản phẩm kỹ thuật cao, đề xuất mức lợi nhuận cao hơn."
+    - **Crucially, you must append a brief explanation of your reasoning to the 'description' field.** For example: "Đây là sản phẩm phổ thông nên đề xuất mức lợi nhuận vừa phải để cạnh tranh." or "Sản phẩm kỹ thuật cao, đề xuất mức lợi nhuận cao hơn."
     - Round the final suggested price to a sensible number (e.g., end in 000 or 500).
 
 **Output Format:**
-Return a JSON object that strictly adheres to the 'SuggestProductInfoOutputSchema'. The description field should now contain both the product description and your brief reasoning for the price suggestion.
+Return a JSON object that strictly adheres to the 'SuggestProductInfoOutputSchema'. The 'description' field must contain both the product description and your brief reasoning for the price suggestion.
   `,
 });
 
