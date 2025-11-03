@@ -48,8 +48,7 @@ async function updateLoyaltyOnPayment(
   
   const sortedTiers = loyaltySettings.tiers.sort((a, b) => b.threshold - a.threshold);
   const newTier = sortedTiers.find(tier => newLifetimePoints >= tier.threshold);
-  const newTierName = newTier?.name || undefined;
-
+  
   const loyaltyUpdate: { 
     loyaltyPoints: number; 
     lifetimePoints: number;
@@ -59,8 +58,14 @@ async function updateLoyaltyOnPayment(
     lifetimePoints: newLifetimePoints,
   };
 
-  if (newTierName !== customerData.loyaltyTier) {
-    loyaltyUpdate.loyaltyTier = newTierName || FieldValue.delete();
+  if (newTier) {
+    if (newTier.name !== customerData.loyaltyTier) {
+        loyaltyUpdate.loyaltyTier = newTier.name;
+    }
+  } else {
+    if (customerData.loyaltyTier) {
+        loyaltyUpdate.loyaltyTier = FieldValue.delete();
+    }
   }
 
   transaction.update(customerRef, loyaltyUpdate);

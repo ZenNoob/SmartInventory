@@ -13,7 +13,7 @@ export async function upsertCustomer(customer: Partial<Customer>): Promise<{ suc
     
     const customerData: Partial<Customer> = { ...customer };
 
-    // If lifetimePoints are being updated, we need to recalculate the tier
+    // If lifetimePoints are being updated manually, we need to recalculate the tier
     if (customerData.lifetimePoints !== undefined) {
       const settingsDoc = await firestore.collection('settings').doc('theme').get();
       if (settingsDoc.exists) {
@@ -21,10 +21,9 @@ export async function upsertCustomer(customer: Partial<Customer>): Promise<{ suc
         if (loyaltySettings && loyaltySettings.enabled) {
           const sortedTiers = [...loyaltySettings.tiers].sort((a, b) => b.threshold - a.threshold);
           const newTier = sortedTiers.find(tier => customerData.lifetimePoints! >= tier.threshold);
-          const newTierName = newTier?.name || undefined;
           
-          if (newTierName) {
-            customerData.loyaltyTier = newTierName;
+          if (newTier) {
+            customerData.loyaltyTier = newTier.name;
           } else {
             // Use FieldValue.delete() to remove the field if no tier is matched
             (customerData as any).loyaltyTier = FieldValue.delete();
