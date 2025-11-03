@@ -199,10 +199,11 @@ export function useUserRole() {
     const userPermissions = userProfile?.permissions;
     const softwarePackage = settings?.softwarePackage || 'advanced';
     
-    // Start with the user's base permissions (either from custom field or role default)
-    let basePermissions: Permissions = userPermissions !== undefined && role === 'custom'
-      ? userPermissions
-      : (role ? defaultPermissions[role] : {});
+    // Always prioritize the specific permissions stored on the user object.
+    // Fall back to the role's default permissions if the permissions field doesn't exist.
+    let basePermissions: Permissions = userPermissions 
+        ? userPermissions 
+        : (role ? defaultPermissions[role] : {});
 
     // If a software package is set, filter the base permissions
     if (softwarePackage) {
