@@ -1,0 +1,902 @@
+
+
+
+
+{
+  "entities": {
+    "Category": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Category",
+      "type": "object",
+      "description": "Represents a category of products.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the category."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the category."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the category."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "Unit": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Unit",
+      "type": "object",
+      "description": "Represents a unit of measure for products, with optional conversion to a base unit.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the unit."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the unit (e.g., 'cái', 'kg', 'hộp')."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the unit."
+        },
+        "baseUnitId": {
+          "type": "string",
+          "description": "Reference to the base unit for conversion (e.g., 'kg' is the base for 'bao')."
+        },
+        "conversionFactor": {
+          "type": "number",
+          "description": "The factor to convert this unit to its base unit (e.g., 40, if 1 'bao' = 40 'kg')."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "PurchaseLot": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PurchaseLot",
+      "type": "object",
+      "description": "Represents a single batch or lot of a product purchased.",
+      "properties": {
+        "importDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The date the product lot was imported."
+        },
+        "quantity": {
+          "type": "number",
+          "description": "The quantity of items in this lot."
+        },
+        "cost": {
+          "type": "number",
+          "description": "The cost per unit for this lot."
+        },
+        "unitId": {
+          "type": "string",
+          "description": "The unit of measure ID for the product (e.g., id for 'cái', 'kg', 'hộp')."
+        }
+      },
+      "required": [
+        "importDate",
+        "quantity",
+        "cost",
+        "unitId"
+      ]
+    },
+    "Product": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Product",
+      "type": "object",
+      "description": "Represents a product in the inventory. Stock is tracked via purchase lots.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the product."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the product."
+        },
+        "barcode": {
+          "type": "string",
+          "description": "The barcode for the product, used for scanning."
+        },
+        "categoryId": {
+          "type": "string",
+          "description": "Reference to Category. (Relationship: Category 1:N Product)"
+        },
+        "unitId": {
+          "type": "string",
+          "description": "The primary unit of measure ID for this product (e.g., ID for 'Bao', 'Cái'). This cannot be changed after the first purchase."
+        },
+        "sellingPrice": {
+          "type": "number",
+          "description": "The suggested selling price for the product's base unit."
+        },
+        "purchaseLots": {
+          "type": "array",
+          "description": "An array of purchase lots, tracking each time the product was imported.",
+          "items": {
+            "$ref": "#/entities/PurchaseLot"
+          }
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the product.",
+          "enum": [
+            "active",
+            "draft",
+            "archived"
+          ]
+        },
+        "lowStockThreshold": {
+          "type": "number",
+          "description": "Product-specific low stock threshold, measured in the product's primary unit (unitId). If not set, the global setting is used."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "categoryId",
+        "unitId",
+        "status"
+      ]
+    },
+     "Supplier": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Supplier",
+      "type": "object",
+      "description": "Represents a supplier of goods.",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "description": "Name of the supplier." },
+        "contactPerson": { "type": "string", "description": "Primary contact person." },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "taxCode": { "type": "string", "description": "Supplier's tax identification number." },
+        "notes": { "type": "string", "description": "General notes about the supplier." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "createdAt", "updatedAt"]
+    },
+    "SupplierPayment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SupplierPayment",
+      "type": "object",
+      "description": "Represents a payment made to a supplier.",
+      "properties": {
+        "id": { "type": "string" },
+        "supplierId": { "type": "string", "description": "Reference to Supplier." },
+        "paymentDate": { "type": "string", "format": "date-time" },
+        "amount": { "type": "number" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "supplierId", "paymentDate", "amount"]
+    },
+    "Customer": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Customer",
+      "type": "object",
+      "description": "Represents a customer.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the customer."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the customer."
+        },
+        "address": {
+          "type": "string",
+          "description": "Address of the customer."
+        },
+        "phone": {
+          "type": "string",
+          "description": "Phone number of the customer."
+        },
+        "creditLimit": {
+          "type": "number",
+          "description": "Credit limit for the customer."
+        },
+        "customerType": {
+          "type": "string",
+          "description": "Type of customer.",
+          "enum": [
+            "personal",
+            "business"
+          ]
+        },
+        "customerGroup": {
+          "type": "string",
+          "description": "Group of the customer."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Email of the customer."
+        },
+        "zalo": {
+          "type": "string",
+          "description": "Zalo account of the customer."
+        },
+        "bankName": {
+          "type": "string",
+          "description": "Name of the customer's bank."
+        },
+        "bankAccountNumber": {
+          "type": "string",
+          "description": "Customer's bank account number."
+        },
+        "bankBranch": {
+          "type": "string",
+          "description": "The branch address of the customer's bank."
+        },
+        "gender": {
+          "type": "string",
+          "description": "Gender of the customer.",
+          "enum": [
+            "male",
+            "female",
+            "other"
+          ]
+        },
+        "birthday": {
+          "type": "string",
+          "format": "date",
+          "description": "Birthday of the customer."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation date of the customer record."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update date of the customer record."
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the customer.",
+          "enum": [
+            "active",
+            "inactive"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "customerType",
+        "createdAt",
+        "updatedAt",
+        "status"
+      ]
+    },
+    "SalesTransaction": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SalesTransaction",
+      "type": "object",
+      "description": "Represents a sales transaction.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the sales transaction document."
+        },
+        "invoiceNumber": {
+          "type": "string",
+          "description": "The human-readable invoice number (e.g., HD2024010100001)."
+        },
+        "customerId": {
+          "type": "string",
+          "description": "Reference to Customer. (Relationship: Customer 1:N SalesTransaction)"
+        },
+        "shiftId": {
+          "type": "string",
+          "description": "Reference to the Shift during which this sale occurred."
+        },
+        "transactionDate": {
+          "type": "string",
+          "description": "Date of the sales transaction.",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the sales transaction.",
+          "enum": [
+            "pending",
+            "unprinted",
+            "printed"
+          ]
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "Total amount of the sales transaction before discount and VAT."
+        },
+        "vatAmount": {
+            "type": "number",
+            "description": "VAT amount for the sales transaction."
+        },
+        "finalAmount": {
+            "type": "number",
+            "description": "Total amount of the sales transaction after discount and VAT."
+        },
+        "discount": {
+          "type": "number",
+          "description": "Discount applied to the sales transaction."
+        }
+      },
+      "required": [
+        "id",
+        "invoiceNumber",
+        "customerId",
+        "transactionDate",
+        "totalAmount",
+        "finalAmount",
+        "status"
+      ]
+    },
+    "SalesItem": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SalesItem",
+      "type": "object",
+      "description": "Represents an item in a sales transaction.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the sales item."
+        },
+        "salesTransactionId": {
+          "type": "string",
+          "description": "Reference to SalesTransaction. (Relationship: SalesTransaction 1:N SalesItem)"
+        },
+        "productId": {
+          "type": "string",
+          "description": "Reference to Product. (Relationship: Product 1:N SalesItem)"
+        },
+        "quantity": {
+          "type": "number",
+          "description": "Quantity of the product sold."
+        },
+        "price": {
+          "type": "number",
+          "description": "Price of the product at the time of sale."
+        }
+      },
+      "required": [
+        "id",
+        "salesTransactionId",
+        "productId",
+        "quantity",
+        "price"
+      ]
+    },
+    "Payment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Payment",
+      "type": "object",
+      "description": "Represents a payment made by a customer.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the payment."
+        },
+        "customerId": {
+          "type": "string",
+          "description": "Reference to Customer. (Relationship: Customer 1:N Payment)"
+        },
+        "paymentDate": {
+          "type": "string",
+          "description": "Date of the payment.",
+          "format": "date-time"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Amount of the payment."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Additional notes about the payment."
+        }
+      },
+      "required": [
+        "id",
+        "customerId",
+        "paymentDate",
+        "amount"
+      ]
+    },
+    "CashTransaction": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CashTransaction",
+      "type": "object",
+      "description": "Represents a cash flow transaction (income or expense).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the transaction."
+        },
+        "type": {
+          "type": "string",
+          "description": "Type of transaction.",
+          "enum": ["thu", "chi"]
+        },
+        "transactionDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The date of the transaction."
+        },
+        "amount": {
+          "type": "number",
+          "description": "The amount of money."
+        },
+        "reason": {
+          "type": "string",
+          "description": "The reason or description for the transaction."
+        },
+        "category": {
+          "type": "string",
+          "description": "Category of the transaction (e.g., Salary, Rent, Other Income)."
+        },
+        "relatedInvoiceId": {
+          "type": "string",
+          "description": "Optional reference to a sales or purchase invoice."
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "The UID of the user who created the transaction."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of when the transaction was created."
+        }
+      },
+      "required": ["id", "type", "transactionDate", "amount", "reason"]
+    },
+     "Shift": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Shift",
+      "type": "object",
+      "description": "Represents a work shift for a salesperson.",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "closed"] },
+        "startTime": { "type": "string", "format": "date-time" },
+        "endTime": { "type": "string", "format": "date-time" },
+        "startingCash": { "type": "number" },
+        "endingCash": { "type": "number" },
+        "cashSales": { "type": "number" },
+        "cashPayments": { "type": "number" },
+        "totalCashInDrawer": { "type": "number" },
+        "cashDifference": { "type": "number" },
+        "totalRevenue": { "type": "number" },
+        "salesCount": { "type": "number" }
+      },
+      "required": ["id", "userId", "userName", "status", "startTime", "startingCash"]
+    },
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the system.",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "The user's email address.",
+          "format": "email"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The user's display name."
+        },
+        "role": {
+          "type": "string",
+          "description": "The user's role.",
+          "enum": ["admin", "accountant", "inventory_manager", "salesperson", "custom"]
+        },
+        "permissions": {
+            "type": "object",
+            "description": "A map of module names to an array of allowed permissions.",
+            "additionalProperties": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "enum": ["view", "add", "edit", "delete"]
+                }
+            }
+        }
+      },
+      "required": [
+        "role",
+        "email"
+      ]
+    },
+    "ThemeSettings": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ThemeSettings",
+      "type": "object",
+      "description": "Stores theme customization settings for the application.",
+      "properties": {
+        "primary": {
+          "type": "string",
+          "description": "The primary color for the theme, as an HSL string (e.g., '24 95% 53%')."
+        },
+        "primaryForeground": {
+          "type": "string",
+          "description": "The foreground color for primary elements, as an HSL string."
+        },
+        "background": {
+          "type": "string",
+          "description": "The background color for the theme, as an HSL string (e.g., '220 17% 95%')."
+        },
+        "foreground": {
+          "type": "string",
+          "description": "The foreground color for text, as an HSL string."
+        },
+        "accent": {
+          "type": "string",
+          "description": "The accent color for the theme, used for hover and focus states, as an HSL string."
+        },
+        "accentForeground": {
+          "type": "string",
+          "description": "The foreground color for accent elements, as an HSL string."
+        },
+        "lowStockThreshold": {
+          "type": "number",
+          "description": "The threshold below which a product is considered to have low stock."
+        },
+        "vatRate": {
+            "type": "number",
+            "description": "The Value Added Tax rate in percentage."
+        },
+        "invoiceFormat": {
+          "type": "string",
+          "description": "The paper size for printing invoices.",
+          "enum": ["A4", "A5", "80mm", "58mm", "none"]
+        },
+        "companyName": {
+          "type": "string",
+          "description": "The name of the company."
+        },
+        "companyBusinessLine": {
+          "type": "string",
+          "description": "The business line of the company."
+        },
+        "companyAddress": {
+          "type": "string",
+          "description": "The address of the company."
+        },
+        "companyPhone": {
+          "type": "string",
+          "description": "The phone number of the company."
+        },
+        "companyLogo": {
+          "type": "string",
+          "description": "A Base64 encoded data URI of the company logo."
+        },
+        "softwarePackage": {
+          "type": "string",
+          "description": "The selected software package which determines feature availability.",
+          "enum": ["basic", "standard", "advanced"]
+        }
+      },
+      "required": [
+        "primary",
+        "primaryForeground",
+        "background",
+        "foreground",
+        "accent",
+        "accentForeground"
+      ]
+    },
+     "PurchaseOrderItem": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PurchaseOrderItem",
+      "type": "object",
+      "description": "Represents an item within a purchase order.",
+      "properties": {
+        "id": { "type": "string" },
+        "purchaseOrderId": { "type": "string" },
+        "productId": { "type": "string" },
+        "productName": { "type": "string" },
+        "quantity": { "type": "number" },
+        "cost": { "type": "number" },
+        "unitId": { "type": "string" }
+      },
+      "required": ["id", "purchaseOrderId", "productId", "quantity", "cost", "unitId"]
+    },
+    "PurchaseOrder": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PurchaseOrder",
+      "type": "object",
+      "description": "Represents a purchase order for importing multiple products.",
+      "properties": {
+        "id": { "type": "string" },
+        "orderNumber": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "importDate": { "type": "string", "format": "date-time" },
+        "totalAmount": { "type": "number" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/entities/PurchaseOrderItem" }
+        }
+      },
+      "required": ["id", "orderNumber", "importDate", "totalAmount", "createdAt", "items"]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/categories/{categoryId}",
+        "definition": {
+          "entityName": "Category",
+          "schema": {
+            "$ref": "#/backend/entities/Category"
+          },
+          "description": "Stores product categories. Requires admin or inventory manager role to create, update, or delete.",
+          "params": [
+            {
+              "name": "categoryId",
+              "description": "Unique identifier for the category."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/units/{unitId}",
+        "definition": {
+          "entityName": "Unit",
+          "schema": {
+            "$ref": "#/backend/entities/Unit"
+          },
+          "description": "Stores units of measure for products. Requires admin or inventory manager role to create, update, or delete.",
+          "params": [
+            {
+              "name": "unitId",
+              "description": "Unique identifier for the unit."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/products/{productId}",
+        "definition": {
+          "entityName": "Product",
+          "schema": {
+            "$ref": "#/backend/entities/Product"
+          },
+          "description": "Stores product information. Requires admin or inventory manager role to create, update, or delete.",
+          "params": [
+            {
+              "name": "productId",
+              "description": "Unique identifier for the product."
+            }
+          ]
+        }
+      },
+       {
+        "path": "/suppliers/{supplierId}",
+        "definition": {
+          "entityName": "Supplier",
+          "schema": { "$ref": "#/entities/Supplier" },
+          "description": "Stores supplier information. Accessible to inventory managers and admins."
+        }
+      },
+       {
+        "path": "/supplier_payments/{paymentId}",
+        "definition": {
+          "entityName": "SupplierPayment",
+          "schema": { "$ref": "#/entities/SupplierPayment" },
+          "description": "Stores payments made to suppliers."
+        }
+      },
+       {
+        "path": "/purchase_orders/{purchaseOrderId}",
+        "definition": {
+          "entityName": "PurchaseOrder",
+          "schema": { "$ref": "#/entities/PurchaseOrder" },
+          "description": "Stores purchase orders for inventory. Accessible to inventory managers and admins."
+        }
+      },
+      {
+        "path": "/purchase_orders/{purchaseOrderId}/purchase_order_items/{purchaseOrderItemId}",
+        "definition": {
+          "entityName": "PurchaseOrderItem",
+          "schema": { "$ref": "#/entities/PurchaseOrderItem" },
+          "description": "Stores items within a purchase order."
+        }
+      },
+      {
+        "path": "/customers/{customerId}",
+        "definition": {
+          "entityName": "Customer",
+          "schema": {
+            "$ref": "#/backend/entities/Customer"
+          },
+          "description": "Stores customer information. Accessible to accountants and admins.",
+          "params": [
+            {
+              "name": "customerId",
+              "description": "Unique identifier for the customer."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/sales_transactions/{salesTransactionId}",
+        "definition": {
+          "entityName": "SalesTransaction",
+          "schema": {
+            "$ref": "#/backend/entities/SalesTransaction"
+          },
+          "description": "Stores sales transaction data. Accessible to accountants and admins.",
+          "params": [
+            {
+              "name": "salesTransactionId",
+              "description": "Unique identifier for the sales transaction."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/sales_transactions/{salesTransactionId}/sales_items/{salesItemId}",
+        "definition": {
+          "entityName": "SalesItem",
+          "schema": {
+            "$ref": "#/backend/entities/SalesItem"
+          },
+          "description": "Stores individual items within a sales transaction. Accessible to accountants and admins.",
+          "params": [
+            {
+              "name": "salesTransactionId",
+              "description": "Unique identifier for the sales transaction."
+            },
+            {
+              "name": "salesItemId",
+              "description": "Unique identifier for the sales item."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/payments/{paymentId}",
+        "definition": {
+          "entityName": "Payment",
+          "schema": {
+            "$ref": "#/backend/entities/Payment"
+          },
+          "description": "Stores payment information. Accessible to accountants and admins.",
+          "params": [
+            {
+              "name": "paymentId",
+              "description": "Unique identifier for the payment."
+            }
+          ]
+        }
+      },
+       {
+        "path": "/shifts/{shiftId}",
+        "definition": {
+          "entityName": "Shift",
+          "schema": { "$ref": "#/entities/Shift" },
+          "description": "Stores work shift information for POS users."
+        }
+      },
+      {
+        "path": "/cash_transactions/{cashTransactionId}",
+        "definition": {
+          "entityName": "CashTransaction",
+          "schema": {
+            "$ref": "#/entities/CashTransaction"
+          },
+          "description": "Stores cash flow transactions (income/expense). Requires accountant or admin role to manage."
+        }
+      },
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user role information.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "Unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Documents in this collection denote users with admin roles.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "Unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_accountant/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Documents in this collection denote users with accountant roles.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "Unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_inventory_manager/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Documents in this collection denote users with inventory manager roles.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "Unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/settings/{settingId}",
+        "definition": {
+          "entityName": "ThemeSettings",
+          "schema": {
+            "$ref": "#/backend/entities/ThemeSettings"
+          },
+          "description": "Stores application-wide settings, like theme colors. Publicly readable, admin writable.",
+          "params": [
+            {
+              "name": "settingId",
+              "description": "Identifier for the setting, e.g., 'theme'."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to manage categories, products, customers, sales transactions, sales items, and payments while ensuring secure role-based access for employees (inventory managers, accountants, and admins). The structure leverages denormalization and structural segregation to support atomic operations and simplified security rules.\n\n*   **Authorization Independence:** The structure avoids chained `get()` calls in security rules by denormalizing authorization data where needed. User roles, stored in `/users/{userId}`, are used to determine access to different collections. Role existence is preferred over content checks for simplicity and security.\n*   **Structural Segregation:** Data with different security requirements are stored in separate collections. For instance, products and categories are accessible with the appropriate role.\n*   **Access Modeling:** Path-based ownership is used for user-specific data (e.g., `/users/{userId}`). Membership maps are not explicitly required given the limited collaboration requirements described in the user story, however, for more complex authorization requirements, this can be adapted.\n*   **QAPs:** The structure is designed to support secure `list` operations by segregating data based on access levels and using role-based authorization. For instance, listing products requires an inventory manager or admin role.\n*   **Invariants:** The structure supports data integrity by enforcing ownership and using server timestamps where applicable (though not explicitly defined in the schema, timestamp fields should be added where valuable). Denormalized data (e.g., user roles) are managed to ensure consistency.\n\nEach main entity is stored in its top-level collection, while relationships are maintained via ID references. This structure enables efficient querying and data retrieval while simplifying security rules and minimizing the risk of privilege escalation."
+  }
+}
+
+
+    

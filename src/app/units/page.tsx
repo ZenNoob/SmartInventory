@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useState, useMemo } from "react"
@@ -52,6 +53,8 @@ import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { useUserRole } from "@/hooks/use-user-role"
+import Link from "next/link"
 
 type SortKey = 'name' | 'description' | 'quyDoi';
 
@@ -67,13 +70,14 @@ export default function UnitsPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
+  const { permissions, isLoading: isRoleLoading } = useUserRole();
 
   const unitsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(collection(firestore, "units"));
   }, [firestore]);
 
-  const { data: units, isLoading } = useCollection<Unit>(unitsQuery);
+  const { data: units, isLoading: unitsLoading } = useCollection<Unit>(unitsQuery);
 
   const unitsMap = useMemo(() => {
     if (!units) return new Map<string, string>();
@@ -175,6 +179,29 @@ export default function UnitsPage() {
     </TableHead>
   );
 
+  const isLoading = unitsLoading || isRoleLoading;
+  const canView = permissions?.units?.includes('view');
+  const canAdd = permissions?.units?.includes('add');
+  const canEdit = permissions?.units?.includes('edit');
+  const canDelete = permissions?.units?.includes('delete');
+
+  if (isLoading) {
+      return <p>Đang tải...</p>
+  }
+  
+  if (!canView) {
+      return (
+          <Card>
+              <CardHeader>
+                  <CardTitle>Truy cập bị từ chối</CardTitle>
+                  <CardDescription>Bạn không có quyền xem trang này.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                  <Button asChild><Link href="/dashboard">Quay lại Bảng điều khiển</Link></Button>
+              </CardContent>
+          </Card>
+      )
+  }
 
   return (
     <>
@@ -209,14 +236,14 @@ export default function UnitsPage() {
                 Thêm, sửa, xóa và tìm kiếm các đơn vị tính cho sản phẩm của bạn.
             </p>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        {canAdd && <div className="ml-auto flex items-center gap-2">
           <Button size="sm" className="h-8 gap-1" onClick={handleAddUnit}>
             <PlusCircle className="h-3.5 w-3.5" />
             <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
               Thêm đơn vị
             </span>
           </Button>
-        </div>
+        </div>}
       </div>
       <Card>
         <CardHeader>
@@ -276,8 +303,8 @@ export default function UnitsPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Hành động</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => handleEditUnit(unit)}>Sửa</DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive" onClick={() => setUnitToDelete(unit)}>Xóa</DropdownMenuItem>
+                          {canEdit && <DropdownMenuItem onClick={() => handleEditUnit(unit)}>Sửa</DropdownMenuItem>}
+                          {canDelete && <DropdownMenuItem className="text-destructive" onClick={() => setUnitToDelete(unit)}>Xóa</DropdownMenuItem>}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

@@ -6,11 +6,11 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(amount: number) {
-  // Use Vietnamese locale but customize it to match user's request: 6,769 VNĐ
-  return new Intl.NumberFormat('en-US', { // Using en-US to get comma separators
+  // Use a non-breaking space (\u00A0) to prevent the currency symbol from wrapping to the next line.
+  return new Intl.NumberFormat('en-US', {
     style: 'decimal',
     maximumFractionDigits: 0,
-  }).format(amount) + ' VNĐ';
+  }).format(amount);
 }
 
 /**

@@ -1,3 +1,5 @@
+
+
 'use client'
 
 import { useState, useMemo, useEffect, useTransition } from "react"
@@ -80,11 +82,13 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { format } from "date-fns"
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns"
+import { DateRange } from "react-day-picker"
 import { cn, formatCurrency } from "@/lib/utils"
-import { useCollection, useDoc, useFirestore, useMemoFirebase } from "@/firebase"
+import { useCollection, useDoc, useFirestore, useMemoFirebase, useUser } from "@/firebase"
+import { useUserRole } from "@/hooks/use-user-role"
 import { Customer, Sale, Product, Unit, SalesItem, Payment, ThemeSettings } from "@/lib/types"
-import { collection, query, getDocs, doc } from "firebase/firestore"
+import { collection, query, getDocs, doc, where, orderBy } from "firebase/firestore"
 import { SaleForm } from "./components/sale-form"
 import { Input } from "@/components/ui/input"
 import { Calendar } from "@/components/ui/calendar"
@@ -120,7 +124,10 @@ export default function SalesPage() {
   const [allSalesItems, setAllSalesItems] = useState<SalesItem[]>([]);
   const [salesItemsLoading, setSalesItemsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [searchDate, setSearchDate] = useState<Date | undefined>();
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: startOfWeek(new Date(), { weekStartsOn: 1 }),
+    to: endOfWeek(new Date(), { weekStartsOn: 1 }),
+  });
   const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sale | undefined>(undefined);
@@ -130,15 +137,51 @@ export default function SalesPage() {
   const [sortKey, setSortKey] = useState<SortKey>('invoiceNumber');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [customerPopoverOpen, setCustomerPopoverOpen] = useState(false);
+  const { permissions, isLoading: isRoleLoading } = useUserRole();
 
   const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
 
+  const fullSalesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "sales_transactions")) : null, [firestore]);
+  const fullPaymentsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "payments")) : null, [firestore]);
+
+  const { data: allSales, isLoading: allSalesLoading } = useCollection<Sale>(fullSalesQuery);
+  const { data: allPayments, isLoading: allPaymentsLoading } = useCollection<Payment>(fullPaymentsQuery);
+
   const salesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, "sales_transactions"));
-  }, [firestore]);
+
+    // If dateRange is undefined, fetch all sales ordered by date.
+    if (!dateRange) {
+      return query(
+        collection(firestore, "sales_transactions"),
+        orderBy('transactionDate', 'desc')
+      );
+    }
+    
+    // If only `from` date is set, use it for both start and end of range.
+    if (dateRange.from && !dateRange.to) {
+       return query(
+        collection(firestore, "sales_transactions"),
+        where('transactionDate', '>=', dateRange.from.toISOString()),
+        where('transactionDate', '<=', dateRange.from.toISOString())
+      );
+    }
+
+    // If both `from` and `to` are set.
+    if (dateRange.from && dateRange.to) {
+        return query(
+        collection(firestore, "sales_transactions"),
+        where('transactionDate', '>=', dateRange.from.toISOString()),
+        where('transactionDate', '<=', dateRange.to.toISOString())
+      );
+    }
+
+    return null;
+
+  }, [firestore, dateRange]);
+
 
   const customersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -155,10 +198,6 @@ export default function SalesPage() {
     return query(collection(firestore, "units"));
   }, [firestore]);
   
-  const paymentsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, "payments"));
-  }, [firestore]);
 
   const settingsRef = useMemoFirebase(() => {
     if(!firestore) return null;
@@ -170,7 +209,6 @@ export default function SalesPage() {
   const { data: customers, isLoading: customersLoading } = useCollection<Customer>(customersQuery);
   const { data: products, isLoading: productsLoading } = useCollection<Product>(productsQuery);
   const { data: units, isLoading: unitsLoading } = useCollection<Unit>(unitsQuery);
-  const { data: payments, isLoading: paymentsLoading } = useCollection<Payment>(paymentsQuery);
   const { data: settings, isLoading: settingsLoading } = useDoc<ThemeSettings>(settingsRef);
   
   const customersMap = useMemo(() => {
@@ -188,11 +226,13 @@ export default function SalesPage() {
       setSalesItemsLoading(true);
       const items: SalesItem[] = [];
       try {
-        for (const sale of sales) {
-          const itemsCollectionRef = collection(firestore, `sales_transactions/${sale.id}/sales_items`);
+        // We fetch items for all sales, not just the date-filtered ones, for accurate stock calcs.
+        const allSalesSnapshot = await getDocs(query(collection(firestore, 'sales_transactions')));
+        for (const saleDoc of allSalesSnapshot.docs) {
+          const itemsCollectionRef = collection(firestore, `sales_transactions/${saleDoc.id}/sales_items`);
           const itemsSnapshot = await getDocs(itemsCollectionRef);
           itemsSnapshot.forEach(doc => {
-            items.push({ id: doc.id, ...doc.data() } as SalesItem);
+            items.push({ id: doc.id, salesTransactionId: saleDoc.id, ...doc.data() } as SalesItem);
           });
         }
         setAllSalesItems(items);
@@ -203,7 +243,7 @@ export default function SalesPage() {
       }
     }
     fetchAllSalesItems();
-  }, [sales, firestore, salesLoading]);
+  }, [firestore, salesLoading]); // Depend on salesLoading to refetch when allSales is available
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -213,6 +253,28 @@ export default function SalesPage() {
       setSortDirection('asc');
     }
   };
+  
+  const setDatePreset = (preset: 'this_week' | 'this_month' | 'this_quarter' | 'this_year' | 'all') => {
+    const now = new Date();
+    if (preset === 'all') {
+      setDateRange(undefined);
+      return;
+    }
+    switch (preset) {
+      case 'this_week':
+        setDateRange({ from: startOfWeek(now, { weekStartsOn: 1 }), to: endOfWeek(now, { weekStartsOn: 1 }) });
+        break;
+      case 'this_month':
+        setDateRange({ from: startOfMonth(now), to: endOfMonth(now) });
+        break;
+      case 'this_quarter':
+        setDateRange({ from: startOfQuarter(now), to: endOfQuarter(now) });
+        break;
+      case 'this_year':
+        setDateRange({ from: startOfYear(now), to: endOfYear(now) });
+        break;
+    }
+  }
 
   const sortedSales = useMemo(() => {
     let sortableItems = sales?.filter(sale => {
@@ -221,14 +283,10 @@ export default function SalesPage() {
       const term = searchTerm.toLowerCase();
       
       const termMatch = term ? (invoiceNumber.includes(term) || customerName.includes(term)) : true;
-      
-      const dateMatch = searchDate ? format(new Date(sale.transactionDate), 'yyyy-MM-dd') === format(searchDate, 'yyyy-MM-dd') : true;
-
       const statusMatch = statusFilter !== 'all' ? sale.status === statusFilter : true;
-
       const customerMatch = customerFilter !== 'all' ? sale.customerId === customerFilter : true;
 
-      return termMatch && dateMatch && statusMatch && customerMatch;
+      return termMatch && statusMatch && customerMatch;
     }) || [];
 
     sortableItems.sort((a, b) => {
@@ -265,7 +323,7 @@ export default function SalesPage() {
     });
 
     return sortableItems;
-  }, [sales, searchTerm, searchDate, customersMap, statusFilter, customerFilter, sortKey, sortDirection]);
+  }, [sales, searchTerm, customersMap, statusFilter, customerFilter, sortKey, sortDirection]);
 
 
   const totalRevenue = useMemo(() => {
@@ -273,7 +331,7 @@ export default function SalesPage() {
   }, [sortedSales]);
 
 
-  const isLoading = salesLoading || customersLoading || productsLoading || unitsLoading || salesItemsLoading || paymentsLoading || settingsLoading;
+  const isLoading = salesLoading || customersLoading || productsLoading || unitsLoading || salesItemsLoading || allSalesLoading || allPaymentsLoading || settingsLoading;
 
   const handleAddSale = () => {
     setSelectedSale(undefined);
@@ -391,8 +449,8 @@ export default function SalesPage() {
         products={products || []}
         units={units || []}
         allSalesItems={allSalesItems || []}
-        sales={sales || []}
-        payments={payments || []}
+        sales={allSales || []}
+        payments={allPayments || []}
         settings={settings || null}
         sale={selectedSale}
       />
@@ -428,12 +486,14 @@ export default function SalesPage() {
                 Xuất Excel
               </span>
             </Button>
-            <Button size="sm" className="h-8 gap-1" onClick={handleAddSale} disabled={isLoading}>
-              <PlusCircle className="h-3.5 w-3.5" />
-              <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                {isLoading ? 'Đang tải...' : 'Tạo đơn hàng'}
-              </span>
-            </Button>
+            {permissions?.sales?.includes('add') && (
+              <Button size="sm" className="h-8 gap-1" onClick={handleAddSale} disabled={isLoading}>
+                <PlusCircle className="h-3.5 w-3.5" />
+                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                  {isLoading ? 'Đang tải...' : 'Tạo đơn hàng'}
+                </span>
+              </Button>
+            )}
           </div>
         </div>
         <TabsContent value={statusFilter}>
@@ -460,25 +520,29 @@ export default function SalesPage() {
                         variant={"outline"}
                         className={cn(
                             "w-[240px] justify-start text-left font-normal",
-                            !searchDate && "text-muted-foreground"
+                            !dateRange && "text-muted-foreground"
                         )}
                         >
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {searchDate ? format(searchDate, "dd/MM/yyyy") : <span>Lọc theo ngày</span>}
+                        {dateRange?.from ? (dateRange.to ? <>{format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}</> : format(dateRange.from, "dd/MM/yyyy")) : <span>Tất cả</span>}
                         </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
                         <Calendar
-                            mode="single"
-                            selected={searchDate}
-                            onSelect={setSearchDate}
+                            mode="range"
+                            selected={dateRange}
+                            onSelect={setDateRange}
                             initialFocus
                         />
+                         <div className="p-2 border-t grid grid-cols-3 gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_week')}>Tuần này</Button>
+                            <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_month')}>Tháng này</Button>
+                            <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_quarter')}>Quý này</Button>
+                            <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_year')}>Năm nay</Button>
+                            <Button variant="ghost" size="sm" onClick={() => setDatePreset('all')}>Tất cả</Button>
+                        </div>
                     </PopoverContent>
                  </Popover>
-                 {searchDate && (
-                    <Button variant="ghost" onClick={() => setSearchDate(undefined)}>Xóa lọc ngày</Button>
-                 )}
                 <Popover open={customerPopoverOpen} onOpenChange={setCustomerPopoverOpen}>
                   <PopoverTrigger asChild>
                     <Button
@@ -641,14 +705,20 @@ export default function SalesPage() {
                                 <DropdownMenuItem asChild>
                                   <Link href={`/sales/${sale.id}`}>Xem chi tiết</Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleEditSale(sale)}>
-                                  Sửa
-                                </DropdownMenuItem>
+                                {permissions?.sales?.includes('edit') && (
+                                  <DropdownMenuItem onClick={() => handleEditSale(sale)}>
+                                    Sửa
+                                  </DropdownMenuItem>
+                                )}
                                 <DropdownMenuItem onClick={() => window.open(`/sales/${sale.id}?print=true`, '_blank')}>In hóa đơn</DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-destructive" onClick={() => setSaleToDelete(sale)}>
-                                  Xóa
-                                </DropdownMenuItem>
+                                {permissions?.sales?.includes('delete') && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem className="text-destructive" onClick={() => setSaleToDelete(sale)}>
+                                      Xóa
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>

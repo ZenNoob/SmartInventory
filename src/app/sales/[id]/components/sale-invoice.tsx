@@ -1,3 +1,5 @@
+
+
 'use client'
 
 import { useRef, useEffect } from 'react'
@@ -17,10 +19,9 @@ import {
   TableRow,
   TableFooter,
 } from "@/components/ui/table"
-import { Logo } from "@/components/icons"
+import Image from 'next/image'
 import { formatCurrency } from "@/lib/utils"
 import type { Customer, Sale, SalesItem, Product, Unit, ThemeSettings } from "@/lib/types"
-import { updateSaleStatus } from '../../actions'
 
 interface SaleInvoiceProps {
     sale: Sale;
@@ -29,34 +30,24 @@ interface SaleInvoiceProps {
     productsMap: Map<string, Product>;
     unitsMap: Map<string, Unit>;
     settings: ThemeSettings | null;
-    autoPrint: boolean;
+    autoPrint?: boolean;
 }
 
-export function SaleInvoice({ sale, items, customer, productsMap, unitsMap, settings, autoPrint }: SaleInvoiceProps) {
+export function SaleInvoice({ sale, items, customer, productsMap, unitsMap, settings, autoPrint = false }: SaleInvoiceProps) {
   const invoiceRef = useRef<HTMLDivElement>(null);
-  const invoicePrintRef = useRef<HTMLDivElement>(null);
 
-
-  const handlePrint = async () => {
-    const printContents = invoicePrintRef.current?.innerHTML;
-    const originalContents = document.body.innerHTML;
-
-    if (printContents) {
-      document.body.innerHTML = printContents;
-      window.print();
-      document.body.innerHTML = originalContents;
-      // We need to reload to re-initialize React app and its event handlers
-      location.reload(); 
-      await updateSaleStatus(sale.id, 'printed');
-    }
+  const handlePrint = () => {
+    window.print();
   };
 
   useEffect(() => {
     if (autoPrint) {
-      const timer = setTimeout(() => {
+      setTimeout(() => {
         handlePrint();
-      }, 500); 
-      return () => clearTimeout(timer);
+        // Optional: Redirect or close after printing
+        // For example, to go back to sales list after a delay
+        // setTimeout(() => router.push('/sales'), 2000);
+      }, 500); // Delay to ensure content is fully rendered
     }
   }, [autoPrint]);
 
@@ -120,9 +111,60 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap, sett
     });
   };
 
+  const remainingDebt = sale.remainingDebt || 0;
+  const isChange = remainingDebt < 0;
+
+  const loyaltyTier = settings?.loyalty?.tiers.find(t => t.name === customer?.loyaltyTier);
+  const paperSizeClass = settings?.invoiceFormat === 'A5' ? 'a5-page' : 'a4-page';
+
+
   return (
-    <div ref={invoiceRef}>
-      <div className="flex items-center gap-4 mb-4">
+    <div className={paperSizeClass}>
+       <style jsx global>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          .printable-area, .printable-area * {
+            visibility: visible;
+          }
+          .printable-area {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+          }
+          .a4-page {
+            width: 210mm;
+            height: 297mm;
+            margin: 0;
+            padding: 0;
+          }
+          .a5-page {
+            width: 148mm;
+            height: 210mm;
+            margin: 0;
+            padding: 0;
+          }
+           @page {
+            size: ${settings?.invoiceFormat === 'A5' ? 'A5' : 'A4'};
+            margin: 0;
+          }
+          .no-print {
+            display: none !important;
+          }
+        }
+        .a5-page {
+          width: 148mm;
+          margin: 0 auto;
+        }
+        .a4-page {
+          width: 210mm;
+           margin: 0 auto;
+        }
+      `}</style>
+      <div className="flex items-center gap-4 mb-4 no-print">
         <Button variant="outline" size="icon" className="h-7 w-7" asChild>
           <Link href="/sales">
             <ChevronLeft className="h-4 w-4" />
@@ -140,10 +182,17 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap, sett
           </Button>
         </div>
       </div>
-        <Card className="p-6 sm:p-8 invoice-card" ref={invoicePrintRef}>
+        <div className="printable-area">
+        <Card className="p-6 sm:p-8" ref={invoiceRef}>
             <header className="flex items-start justify-between mb-8">
                 <div className="flex items-center gap-4">
-                    <Logo className="h-16 w-16 text-primary" />
+                     {settings?.companyLogo ? (
+                        <Image src={settings.companyLogo} alt="Company Logo" width={64} height={64} className="h-16 w-16 object-contain" />
+                    ) : (
+                        <div className="h-16 w-16 bg-muted rounded-md flex items-center justify-center">
+                            <span className="text-xs text-muted-foreground">Logo</span>
+                        </div>
+                    )}
                     <div>
                         <p className="font-semibold text-lg">{settings?.companyBusinessLine || 'CƠ SỞ SẢN XUẤT VÀ KINH DOANH GIỐNG CÂY TRỒNG'}</p>
                         <p className="font-bold text-2xl text-primary">{settings?.companyName || 'MINH PHÁT'}</p>
@@ -218,36 +267,52 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap, sett
                 </TableBody>
                 <TableFooter>
                     <TableRow>
-                        <TableCell colSpan={6} className="text-right font-medium">Tổng tiền hàng</TableCell>
-                        <TableCell className="text-right font-semibold">{formatCurrency(sale.totalAmount)}</TableCell>
+                        <TableCell colSpan={6} className="text-right font-medium py-1">Tổng tiền hàng</TableCell>
+                        <TableCell className="text-right font-semibold py-1">{formatCurrency(sale.totalAmount)}</TableCell>
                     </TableRow>
+                    {sale.tierDiscountAmount && sale.tierDiscountAmount > 0 ? (
+                        <TableRow>
+                            <TableCell colSpan={6} className="text-right font-medium py-1">Ưu đãi hạng {loyaltyTier?.vietnameseName} ({sale.tierDiscountPercentage}%)</TableCell>
+                            <TableCell className="text-right font-semibold py-1">-{formatCurrency(sale.tierDiscountAmount)}</TableCell>
+                        </TableRow>
+                    ) : null}
                     {sale.discount && sale.discount > 0 ? (
                         <TableRow>
-                            <TableCell colSpan={6} className="text-right font-medium">Giảm giá</TableCell>
-                            <TableCell className="text-right font-semibold">-{formatCurrency(sale.discount)}</TableCell>
+                            <TableCell colSpan={6} className="text-right font-medium py-1">Giảm giá</TableCell>
+                            <TableCell className="text-right font-semibold py-1">-{formatCurrency(sale.discount)}</TableCell>
+                        </TableRow>
+                    ) : null}
+                     {sale.pointsDiscount && sale.pointsDiscount > 0 ? (
+                        <TableRow>
+                            <TableCell colSpan={6} className="text-right font-medium py-1">Giảm giá điểm thưởng ({sale.pointsUsed} điểm)</TableCell>
+                            <TableCell className="text-right font-semibold py-1">-{formatCurrency(sale.pointsDiscount)}</TableCell>
                         </TableRow>
                     ) : null}
                      {sale.vatAmount && sale.vatAmount > 0 && settings?.vatRate ? (
                         <TableRow>
-                            <TableCell colSpan={6} className="text-right font-medium">Thuế VAT ({settings.vatRate}%)</TableCell>
-                            <TableCell className="text-right font-semibold">{formatCurrency(sale.vatAmount)}</TableCell>
+                            <TableCell colSpan={6} className="text-right font-medium py-1">Thuế VAT ({settings.vatRate}%)</TableCell>
+                            <TableCell className="text-right font-semibold py-1">{formatCurrency(sale.vatAmount)}</TableCell>
                         </TableRow>
                     ) : null}
                      <TableRow>
-                        <TableCell colSpan={6} className="text-right font-medium">Tổng cộng</TableCell>
-                        <TableCell className="text-right font-semibold">{formatCurrency(sale.finalAmount)}</TableCell>
+                        <TableCell colSpan={6} className="text-right font-medium py-1">Tổng cộng</TableCell>
+                        <TableCell className="text-right font-semibold py-1">{formatCurrency(sale.finalAmount)}</TableCell>
                     </TableRow>
                     <TableRow>
-                        <TableCell colSpan={6} className="text-right font-medium">Nợ cũ</TableCell>
-                        <TableCell className="text-right font-semibold">{formatCurrency(sale.previousDebt || 0)}</TableCell>
+                        <TableCell colSpan={6} className="text-right font-medium py-1">Nợ cũ</TableCell>
+                        <TableCell className="text-right font-semibold py-1">{formatCurrency(sale.previousDebt || 0)}</TableCell>
                     </TableRow>
                     <TableRow>
-                        <TableCell colSpan={6} className="text-right font-medium">Khách thanh toán</TableCell>
-                        <TableCell className="text-right font-semibold">{formatCurrency(sale.customerPayment || 0)}</TableCell>
+                        <TableCell colSpan={6} className="text-right font-medium py-1">Khách thanh toán</TableCell>
+                        <TableCell className="text-right font-semibold py-1">{formatCurrency(sale.customerPayment || 0)}</TableCell>
                     </TableRow>
                      <TableRow className="text-lg">
-                        <TableCell colSpan={6} className="text-right font-bold">Còn Nợ lại</TableCell>
-                        <TableCell className="text-right font-bold">{formatCurrency(sale.remainingDebt || 0)}</TableCell>
+                        <TableCell colSpan={6} className={`text-right font-bold py-2 ${isChange ? 'text-green-600' : ''}`}>
+                            {isChange ? 'Tiền thối lại' : 'Còn nợ lại'}
+                        </TableCell>
+                        <TableCell className={`text-right font-bold py-2 ${isChange ? 'text-green-600' : ''}`}>
+                            {formatCurrency(Math.abs(remainingDebt))}
+                        </TableCell>
                     </TableRow>
                 </TableFooter>
             </Table>
@@ -265,6 +330,7 @@ export function SaleInvoice({ sale, items, customer, productsMap, unitsMap, sett
                 </div>
             </div>
         </Card>
+        </div>
     </div>
   )
 }

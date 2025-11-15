@@ -2,11 +2,11 @@
 
 import { useState, useMemo, useEffect } from "react"
 import Link from "next/link"
-import { Search, ArrowUp, ArrowDown, File, Calendar as CalendarIcon } from "lucide-react"
+import { Search, ArrowUp, ArrowDown, File, Calendar as CalendarIcon, ChevronRight, ChevronDown, Undo2 } from "lucide-react"
 import * as xlsx from 'xlsx';
 import { DateRange } from "react-day-picker"
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns"
-import { vi } from "date-fns/locale"
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, startOfQuarter, endOfQuarter } from "date-fns"
+import * as React from "react"
 
 import {
   Card,
@@ -25,6 +25,12 @@ import {
   TableRow,
   TableFooter as ShadcnTableFooter
 } from "@/components/ui/table"
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
@@ -52,6 +58,7 @@ export default function SoldProductsReportPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>('totalRevenue');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: startOfMonth(new Date()),
     to: endOfMonth(new Date()),
@@ -63,11 +70,14 @@ export default function SoldProductsReportPage() {
   const categoriesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "categories")) : null, [firestore]);
   const unitsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "units")) : null, [firestore]);
   const salesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "sales_transactions")) : null, [firestore]);
+  const customersQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "customers")) : null, [firestore]);
 
   const { data: products, isLoading: productsLoading } = useCollection<Product>(productsQuery);
   const { data: categories, isLoading: categoriesLoading } = useCollection<Category>(categoriesQuery);
   const { data: units, isLoading: unitsLoading } = useCollection<Unit>(unitsQuery);
   const { data: sales, isLoading: salesLoading } = useCollection<Sale>(salesQuery);
+  const { data: customers, isLoading: customersLoading } = useCollection<any>(customersQuery);
+
 
   const [allSalesItems, setAllSalesItems] = useState<SalesItem[]>([]);
   const [salesItemsLoading, setSalesItemsLoading] = useState(true);
@@ -75,6 +85,8 @@ export default function SoldProductsReportPage() {
   const productsMap = useMemo(() => new Map(products?.map(p => [p.id, p])), [products]);
   const categoriesMap = useMemo(() => new Map(categories?.map(c => [c.id, c.name])), [categories]);
   const unitsMap = useMemo(() => new Map(units?.map(u => [u.id, u])), [units]);
+  const salesMap = useMemo(() => new Map(sales?.map(s => [s.id, s])), [sales]);
+  const customersMap = useMemo(() => new Map(customers?.map((c: any) => [c.id, c.name])), [customers]);
 
   useEffect(() => {
     async function fetchAllSalesItems() {
@@ -87,7 +99,7 @@ export default function SoldProductsReportPage() {
       const items: SalesItem[] = [];
       try {
         const salesToFetch = sales.filter(sale => {
-          if (!dateRange?.from) return true;
+          if (!dateRange || !dateRange.from) return true; // Fetch all if no date range
           const saleDate = new Date(sale.transactionDate);
           const toDate = dateRange.to || dateRange.from;
           return saleDate >= dateRange.from && saleDate <= toDate;
@@ -97,7 +109,7 @@ export default function SoldProductsReportPage() {
           const itemsCollectionRef = collection(firestore, `sales_transactions/${sale.id}/sales_items`);
           const itemsSnapshot = await getDocs(itemsCollectionRef);
           itemsSnapshot.forEach(doc => {
-            items.push({ id: doc.id, ...doc.data() } as SalesItem);
+            items.push({ id: doc.id, salesTransactionId: sale.id, ...doc.data() } as SalesItem);
           });
         }
         setAllSalesItems(items);
@@ -192,6 +204,18 @@ export default function SoldProductsReportPage() {
     }
   };
 
+  const toggleRow = (productId: string) => {
+    setExpandedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(productId)) {
+        newSet.delete(productId);
+      } else {
+        newSet.add(productId);
+      }
+      return newSet;
+    });
+  };
+
   const SortableHeader = ({ sortKey: key, children, className }: { sortKey: SortKey; children: React.ReactNode; className?: string }) => (
     <TableHead className={className}>
       <Button variant="ghost" onClick={() => handleSort(key)} className="px-2 py-1 h-auto">
@@ -203,8 +227,12 @@ export default function SoldProductsReportPage() {
     </TableHead>
   );
 
-  const setDatePreset = (preset: 'this_week' | 'this_month' | 'this_year') => {
+  const setDatePreset = (preset: 'this_week' | 'this_month' | 'this_year' | 'all') => {
     const now = new Date();
+    if (preset === 'all') {
+      setDateRange(undefined);
+      return;
+    }
     switch (preset) {
       case 'this_week':
         setDateRange({ from: startOfWeek(now, { weekStartsOn: 1 }), to: endOfWeek(now, { weekStartsOn: 1 }) });
@@ -258,7 +286,7 @@ export default function SoldProductsReportPage() {
     xlsx.writeFile(workbook, "bao_cao_san_pham_da_ban.xlsx");
   };
 
-  const isLoading = productsLoading || categoriesLoading || unitsLoading || salesLoading || salesItemsLoading;
+  const isLoading = productsLoading || categoriesLoading || unitsLoading || salesLoading || salesItemsLoading || customersLoading;
   const totalRevenue = useMemo(() => sortedSoldProducts.reduce((acc, curr) => acc + curr.totalRevenue, 0), [sortedSoldProducts]);
 
 
@@ -274,18 +302,19 @@ export default function SoldProductsReportPage() {
               <PopoverTrigger asChild>
                 <Button id="date" variant={"outline"} className={cn("w-[300px] justify-start text-left font-normal", !dateRange && "text-muted-foreground")}>
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}</>) : format(dateRange.from, "dd/MM/yyyy")) : (<span>Chọn ngày</span>)}
+                  {dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}</>) : format(dateRange.from, "dd/MM/yyyy")) : (<span>Tất cả thời gian</span>)}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                  <Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} />
+                  <div className="p-2 border-t flex justify-around">
+                    <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_week')}>Tuần này</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_month')}>Tháng này</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_year')}>Năm nay</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setDatePreset('all')}>Tất cả</Button>
+                 </div>
               </PopoverContent>
             </Popover>
-             <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_week')}>Tuần này</Button>
-                <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_month')}>Tháng này</Button>
-                <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_year')}>Năm nay</Button>
-            </div>
             <div className="relative ml-auto">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -306,7 +335,7 @@ export default function SoldProductsReportPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-16">STT</TableHead>
+              <TableHead className="w-12"></TableHead>
               <SortableHeader sortKey="productName">Tên sản phẩm</SortableHeader>
               <SortableHeader sortKey="categoryName">Loại</SortableHeader>
               <SortableHeader sortKey="totalQuantity" className="text-right">SL đã bán</SortableHeader>
@@ -315,26 +344,90 @@ export default function SoldProductsReportPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={6} className="text-center h-24">Đang tải dữ liệu...</TableCell></TableRow>}
-            {!isLoading && sortedSoldProducts.map((data, index) => (
-              <TableRow key={data.productId}>
-                <TableCell>{index + 1}</TableCell>
-                <TableCell className="font-medium">
-                  <Link href={`/products?q=${data.productName}`} className="hover:underline">
-                    {data.productName}
-                  </Link>
-                </TableCell>
-                <TableCell>{data.categoryName}</TableCell>
-                <TableCell className="text-right font-medium">{formatSoldQuantity(data)}</TableCell>
-                <TableCell className="text-right">{formatCurrency(data.avgPrice)}</TableCell>
-                <TableCell className="text-right font-semibold text-primary">{formatCurrency(data.totalRevenue)}</TableCell>
-              </TableRow>
-            ))}
-            {!isLoading && sortedSoldProducts.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center h-24">Không có sản phẩm nào được bán trong khoảng thời gian đã chọn.</TableCell>
-              </TableRow>
-            )}
+            <TooltipProvider>
+              {isLoading && <TableRow><TableCell colSpan={6} className="text-center h-24">Đang tải dữ liệu...</TableCell></TableRow>}
+              {!isLoading && sortedSoldProducts.map((data) => {
+                const isExpanded = expandedRows.has(data.productId);
+                const salesForProduct = allSalesItems.filter(item => item.productId === data.productId);
+                
+                return (
+                  <React.Fragment key={data.productId}>
+                    <TableRow className="cursor-pointer" onClick={() => toggleRow(data.productId)}>
+                      <TableCell>
+                        <Button variant="ghost" size="icon" className="h-6 w-6">
+                            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </Button>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        <Link href={`/products?q=${data.productName}`} className="hover:underline" onClick={e => e.stopPropagation()}>
+                          {data.productName}
+                        </Link>
+                      </TableCell>
+                      <TableCell>{data.categoryName}</TableCell>
+                      <TableCell className="text-right font-medium">{formatSoldQuantity(data)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(data.avgPrice)}</TableCell>
+                      <TableCell className="text-right font-semibold text-primary">{formatCurrency(data.totalRevenue)}</TableCell>
+                    </TableRow>
+                    {isExpanded && (
+                      <TableRow className="bg-muted/50 hover:bg-muted/50">
+                        <TableCell colSpan={6}>
+                          <div className="p-4">
+                            <h4 className="font-semibold mb-2">Chi tiết các lần bán</h4>
+                             <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Mã đơn hàng</TableHead>
+                                  <TableHead>Ngày bán</TableHead>
+                                  <TableHead>Khách hàng</TableHead>
+                                  <TableHead className="text-right">Số lượng</TableHead>
+                                  <TableHead className="text-right">Đơn giá</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {salesForProduct.map(item => {
+                                  const sale = salesMap.get(item.salesTransactionId);
+                                  const isReturnOrder = sale ? sale.finalAmount < 0 : false;
+                                  return (
+                                    <TableRow key={item.id}>
+                                      <TableCell>
+                                        <div className="flex items-center gap-2">
+                                          {isReturnOrder && (
+                                            <Tooltip>
+                                              <TooltipTrigger>
+                                                <Undo2 className="h-4 w-4 text-muted-foreground" />
+                                              </TooltipTrigger>
+                                              <TooltipContent>
+                                                <p>Đơn hàng trả</p>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          )}
+                                          <Link href={`/sales/${sale?.id}`} className="hover:underline">
+                                            {sale?.invoiceNumber}
+                                          </Link>
+                                        </div>
+                                      </TableCell>
+                                      <TableCell>{sale ? format(new Date(sale.transactionDate), 'dd/MM/yyyy') : ''}</TableCell>
+                                      <TableCell>{sale ? customersMap.get(sale.customerId) : ''}</TableCell>
+                                      <TableCell className="text-right">{item.quantity.toLocaleString()} {data.baseUnitName}</TableCell>
+                                      <TableCell className="text-right">{formatCurrency(item.price)}</TableCell>
+                                    </TableRow>
+                                  )
+                                })}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
+                )
+              })}
+              {!isLoading && sortedSoldProducts.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center h-24">Không có sản phẩm nào được bán trong khoảng thời gian đã chọn.</TableCell>
+                </TableRow>
+              )}
+            </TooltipProvider>
           </TableBody>
           <ShadcnTableFooter>
             <TableRow className="text-base font-bold">

@@ -1,6 +1,7 @@
+
 'use client'
 
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -30,10 +31,11 @@ import {
 } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Input } from "@/components/ui/input"
-import { Product, Unit, PurchaseOrderItem, PurchaseOrder, SalesItem } from '@/lib/types'
+import { Textarea } from '@/components/ui/textarea'
+import { Product, Unit, PurchaseOrderItem, PurchaseOrder, SalesItem, Supplier } from '@/lib/types'
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
-import { Check, ChevronsUpDown, PlusCircle, Trash2, ChevronLeft } from 'lucide-react'
+import { Check, ChevronsUpDown, PlusCircle, Trash2, ChevronLeft, Barcode } from 'lucide-react'
 import { cn, formatCurrency } from '@/lib/utils'
 import { createPurchaseOrder, updatePurchaseOrder } from '../actions'
 import { Label } from '@/components/ui/label'
@@ -49,6 +51,7 @@ const purchaseOrderItemSchema = z.object({
 });
 
 const purchaseOrderSchema = z.object({
+  supplierId: z.string().optional(),
   importDate: z.string().min(1, "Ngày nhập là bắt buộc."),
   items: z.array(purchaseOrderItemSchema).min(1, "Đơn nhập phải có ít nhất một sản phẩm."),
   notes: z.string().optional(),
@@ -58,9 +61,11 @@ type PurchaseOrderFormValues = z.infer<typeof purchaseOrderSchema>;
 
 interface PurchaseOrderFormProps {
   products: Product[];
+  suppliers: Supplier[];
   units: Unit[];
   allSalesItems: SalesItem[];
   purchaseOrder?: PurchaseOrder;
+  draftItems?: PurchaseOrderItem[];
 }
 
 const FormattedNumberInput = ({ value, onChange, ...props }: { value: number; onChange: (value: number) => void; [key: string]: any }) => {
@@ -87,24 +92,38 @@ const FormattedNumberInput = ({ value, onChange, ...props }: { value: number; on
 };
 
 
-export function PurchaseOrderForm({ products, units, allSalesItems, purchaseOrder }: PurchaseOrderFormProps) {
+export function PurchaseOrderForm({ products, suppliers, units, allSalesItems, purchaseOrder, draftItems }: PurchaseOrderFormProps) {
   const { toast } = useToast();
   const router = useRouter();
   const [productSearchOpen, setProductSearchOpen] = useState(false);
+  const [supplierSearchOpen, setSupplierSearchOpen] = useState(false);
   const isEditMode = !!purchaseOrder;
+  const [barcode, setBarcode] = useState('');
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
 
   const unitsMap = useMemo(() => new Map(units.map(u => [u.id, u])), [units]);
   const productsMap = useMemo(() => new Map(products.map(p => [p.id, p])), [products]);
+  const productsByBarcode = useMemo(() => {
+    const map = new Map<string, Product>();
+    products.forEach(p => {
+      if (p.barcode) {
+        map.set(p.barcode, p);
+      }
+    });
+    return map;
+  }, [products]);
 
   const form = useForm<PurchaseOrderFormValues>({
     resolver: zodResolver(purchaseOrderSchema),
     defaultValues: isEditMode ? {
+        supplierId: purchaseOrder.supplierId,
         importDate: new Date(purchaseOrder.importDate).toISOString().split('T')[0],
         notes: purchaseOrder.notes || '',
         items: purchaseOrder.items || []
     } : {
+      supplierId: '',
       importDate: new Date().toISOString().split('T')[0],
-      items: [],
+      items: draftItems || [],
       notes: '',
     },
   });
@@ -115,14 +134,22 @@ export function PurchaseOrderForm({ products, units, allSalesItems, purchaseOrde
   });
 
   useEffect(() => {
-    if(isEditMode && purchaseOrder) {
+    if (isEditMode && purchaseOrder) {
       form.reset({
+        supplierId: purchaseOrder.supplierId,
         importDate: new Date(purchaseOrder.importDate).toISOString().split('T')[0],
         notes: purchaseOrder.notes || '',
-        items: purchaseOrder.items || []
-      })
+        items: purchaseOrder.items || [],
+      });
+    } else if (draftItems && draftItems.length > 0) {
+      form.reset({
+        supplierId: '',
+        importDate: new Date().toISOString().split('T')[0],
+        notes: 'Đơn hàng nháp tạo từ đề xuất của AI',
+        items: draftItems,
+      });
     }
-  }, [purchaseOrder, isEditMode, form])
+  }, [purchaseOrder, isEditMode, draftItems, form]);
   
   const getUnitInfo = useCallback((unitId: string): { baseUnit?: Unit; conversionFactor: number, name: string } => {
     const unit = unitsMap.get(unitId);
@@ -186,6 +213,7 @@ export function PurchaseOrderForm({ products, units, allSalesItems, purchaseOrde
     }));
     
     const orderData = {
+        supplierId: data.supplierId,
         importDate: data.importDate,
         notes: data.notes,
         totalAmount: totalAmount,
@@ -233,6 +261,27 @@ export function PurchaseOrderForm({ products, units, allSalesItems, purchaseOrde
     }
   }
 
+  const handleBarcodeScan = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!barcode) return;
+
+      const product = productsByBarcode.get(barcode);
+      
+      if (product) {
+        addProductToOrder(product.id);
+        setBarcode(''); // Clear input after adding
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Không tìm thấy sản phẩm",
+          description: `Không có sản phẩm nào khớp với mã vạch "${barcode}".`,
+        });
+      }
+    }
+  };
+
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -268,6 +317,51 @@ export function PurchaseOrderForm({ products, units, allSalesItems, purchaseOrde
                         <CardTitle>Chi tiết đơn nhập</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                         <div className="flex items-center gap-4">
+                            <div className="relative flex-grow">
+                                <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                <Input
+                                    ref={barcodeInputRef}
+                                    placeholder="Quét mã vạch sản phẩm..."
+                                    className="pl-10"
+                                    value={barcode}
+                                    onChange={(e) => setBarcode(e.target.value)}
+                                    onKeyDown={handleBarcodeScan}
+                                />
+                            </div>
+                            <Popover open={productSearchOpen} onOpenChange={setProductSearchOpen}>
+                                <PopoverTrigger asChild>
+                                    <Button type="button" variant="outline" size="sm" className="shrink-0">
+                                        <PlusCircle className="mr-2 h-4 w-4" />
+                                        Thêm thủ công
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[400px] p-0" align="start">
+                                    <Command>
+                                        <CommandInput placeholder="Tìm kiếm sản phẩm..." />
+                                        <CommandList>
+                                            <CommandEmpty>Không tìm thấy sản phẩm.</CommandEmpty>
+                                            <CommandGroup>
+                                                {products.map((product) => (
+                                                <CommandItem
+                                                    key={product.id}
+                                                    value={product.name}
+                                                    onSelect={() => {
+                                                        addProductToOrder(product.id);
+                                                        setProductSearchOpen(false);
+                                                    }}
+                                                >
+                                                    <Check className={cn("mr-2 h-4 w-4", watchedItems.some(i => i.productId === product.id) ? "opacity-100" : "opacity-0")} />
+                                                    {product.name}
+                                                </CommandItem>
+                                                ))}
+                                            </CommandGroup>
+                                        </CommandList>
+                                    </Command>
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+                        <Separator />
                         {fields.map((field, index) => {
                             const product = productsMap.get(watchedItems[index]?.productId);
                             if (!product) return null;
@@ -326,37 +420,6 @@ export function PurchaseOrderForm({ products, units, allSalesItems, purchaseOrde
                                 </div>
                             )
                         })}
-                        <Popover open={productSearchOpen} onOpenChange={setProductSearchOpen}>
-                            <PopoverTrigger asChild>
-                                <Button type="button" variant="outline" size="sm" className="mt-2">
-                                    <PlusCircle className="mr-2 h-4 w-4" />
-                                    Thêm sản phẩm
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[400px] p-0" align="start">
-                                <Command>
-                                    <CommandInput placeholder="Tìm kiếm sản phẩm..." />
-                                    <CommandList>
-                                        <CommandEmpty>Không tìm thấy sản phẩm.</CommandEmpty>
-                                        <CommandGroup>
-                                            {products.map((product) => (
-                                            <CommandItem
-                                                key={product.id}
-                                                value={product.name}
-                                                onSelect={() => {
-                                                    addProductToOrder(product.id);
-                                                    setProductSearchOpen(false);
-                                                }}
-                                            >
-                                                <Check className={cn("mr-2 h-4 w-4", watchedItems.some(i => i.productId === product.id) ? "opacity-100" : "opacity-0")} />
-                                                {product.name}
-                                            </CommandItem>
-                                            ))}
-                                        </CommandGroup>
-                                    </CommandList>
-                                </Command>
-                            </PopoverContent>
-                        </Popover>
                          <FormMessage>{form.formState.errors.items?.message || form.formState.errors.items?.root?.message}</FormMessage>
                     </CardContent>
                 </Card>
@@ -367,6 +430,64 @@ export function PurchaseOrderForm({ products, units, allSalesItems, purchaseOrde
                         <CardTitle>Thông tin chung</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                        <FormField
+                            control={form.control}
+                            name="supplierId"
+                            render={({ field }) => (
+                                <FormItem className="flex flex-col">
+                                    <FormLabel>Nhà cung cấp</FormLabel>
+                                    <Popover open={supplierSearchOpen} onOpenChange={setSupplierSearchOpen}>
+                                        <PopoverTrigger asChild>
+                                            <FormControl>
+                                            <Button
+                                                variant="outline"
+                                                role="combobox"
+                                                className={cn("w-full justify-between", !field.value && "text-muted-foreground")}
+                                            >
+                                                {field.value ? suppliers.find((s) => s.id === field.value)?.name : "Chọn nhà cung cấp"}
+                                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                            </Button>
+                                            </FormControl>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                            <Command>
+                                                <CommandInput placeholder="Tìm nhà cung cấp..." />
+                                                <CommandList>
+                                                    <CommandEmpty>Không tìm thấy.</CommandEmpty>
+                                                    <CommandGroup>
+                                                        <CommandItem
+                                                            key="clear"
+                                                            value=""
+                                                            onSelect={() => {
+                                                                form.setValue("supplierId", "")
+                                                                setSupplierSearchOpen(false)
+                                                            }}
+                                                        >
+                                                            <Check className={cn("mr-2 h-4 w-4", !field.value ? "opacity-100" : "opacity-0")}/>
+                                                            Không chọn (Tự sản xuất/Nhập lẻ)
+                                                        </CommandItem>
+                                                    {suppliers.map((supplier) => (
+                                                        <CommandItem
+                                                            value={supplier.name}
+                                                            key={supplier.id}
+                                                            onSelect={() => {
+                                                                form.setValue("supplierId", supplier.id)
+                                                                setSupplierSearchOpen(false)
+                                                            }}
+                                                        >
+                                                            <Check className={cn("mr-2 h-4 w-4", supplier.id === field.value ? "opacity-100" : "opacity-0")}/>
+                                                            {supplier.name}
+                                                        </CommandItem>
+                                                    ))}
+                                                    </CommandGroup>
+                                                </CommandList>
+                                            </Command>
+                                        </PopoverContent>
+                                    </Popover>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
                          <FormField
                             control={form.control}
                             name="importDate"
@@ -387,7 +508,7 @@ export function PurchaseOrderForm({ products, units, allSalesItems, purchaseOrde
                                 <FormItem>
                                 <FormLabel>Ghi chú</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="Thêm ghi chú..." {...field} />
+                                    <Textarea placeholder="Thêm ghi chú..." {...field} />
                                 </FormControl>
                                 <FormMessage />
                                 </FormItem>

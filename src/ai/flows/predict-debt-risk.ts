@@ -34,17 +34,17 @@ const PredictDebtRiskOutputSchema = z.object({
   riskAssessment: z
     .string()
     .describe(
-      'An overall risk assessment of the customer defaulting on their debt (e.g., low, medium, high).'
+      'Đánh giá rủi ro tổng thể của khách hàng về việc không trả được nợ (ví dụ: thấp, trung bình, cao).'
     ),
   riskFactors: z
     .string()
     .describe(
-      'A list of factors contributing to the risk assessment, such as late payments or exceeding credit limit.'
+      'Một danh sách các yếu tố góp phần vào việc đánh giá rủi ro, chẳng hạn như thanh toán trễ hoặc vượt quá giới hạn tín dụng.'
     ),
   recommendations: z
     .string()
     .describe(
-      'Recommendations for managing the risk, such as adjusting credit limits or contacting the customer.'
+      'Các khuyến nghị để quản lý rủi ro, chẳng hạn như điều chỉnh giới hạn tín dụng hoặc liên hệ với khách hàng.'
     ),
 });
 export type PredictDebtRiskOutput = z.infer<typeof PredictDebtRiskOutputSchema>;
@@ -57,7 +57,7 @@ const prompt = ai.definePrompt({
   name: 'predictDebtRiskPrompt',
   input: {schema: PredictDebtRiskInputSchema},
   output: {schema: PredictDebtRiskOutputSchema},
-  prompt: `You are an AI assistant specializing in financial risk assessment.
+  prompt: `You are an AI assistant specializing in financial risk assessment. Your task is to provide analysis and recommendations in VIETNAMESE.
 
   Analyze the provided customer data to predict the risk of debt default and provide actionable recommendations.
 
@@ -68,6 +68,9 @@ const prompt = ai.definePrompt({
   Recent Purchases: {{{recentPurchases}}}
 
   Based on this information, assess the risk of the customer defaulting on their debt. Identify key risk factors and provide recommendations for mitigating the risk.
+  
+  **IMPORTANT: All output text must be in VIETNAMESE.**
+
   Follow the schema descriptions when generating the output. Make sure to provide output as a JSON object and don't add any other information to the output.
   `,
 });

@@ -1,33 +1,59 @@
+
 'use server'
 
-import { Customer } from "@/lib/types";
+import { Customer, LoyaltySettings } from "@/lib/types";
 import { getAdminServices } from "@/lib/admin-actions";
 import { FieldValue } from "firebase-admin/firestore";
 import * as xlsx from 'xlsx';
 
-export async function upsertCustomer(customer: Partial<Customer>): Promise<{ success: boolean; error?: string }> {
+export async function upsertCustomer(customer: Partial<Customer>): Promise<{ success: boolean; error?: string; customerId?: string }> {
   try {
     const { firestore } = await getAdminServices();
+    let customerId: string;
+    
+    const customerData: Partial<Customer> = { ...customer };
 
-    if (customer.id) {
+    // If lifetimePoints are being updated manually, we need to recalculate the tier
+    if (customerData.lifetimePoints !== undefined) {
+      const settingsDoc = await firestore.collection('settings').doc('theme').get();
+      if (settingsDoc.exists) {
+        const loyaltySettings = settingsDoc.data()?.loyalty as LoyaltySettings | undefined;
+        if (loyaltySettings && loyaltySettings.enabled) {
+          const sortedTiers = [...loyaltySettings.tiers].sort((a, b) => b.threshold - a.threshold);
+          const newTier = sortedTiers.find(tier => customerData.lifetimePoints! >= tier.threshold);
+          
+          if (newTier) {
+            customerData.loyaltyTier = newTier.name;
+          } else {
+            // Use FieldValue.delete() to remove the field if no tier is matched
+            (customerData as any).loyaltyTier = FieldValue.delete();
+          }
+        }
+      }
+    }
+
+
+    if (customerData.id) {
       // Update existing customer
-      const customerRef = firestore.collection('customers').doc(customer.id);
+      customerId = customerData.id;
+      const customerRef = firestore.collection('customers').doc(customerId);
       await customerRef.set({
-        ...customer,
+        ...customerData,
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
     } else {
       // Create new customer
       const customerRef = firestore.collection('customers').doc();
+      customerId = customerRef.id;
       await customerRef.set({ 
-        ...customer, 
-        id: customerRef.id,
+        ...customerData, 
+        id: customerId,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
     }
 
-    return { success: true };
+    return { success: true, customerId };
   } catch (error: any) {
     console.error("Error upserting customer:", error);
     return { success: false, error: error.message || 'Không thể tạo hoặc cập nhật khách hàng.' };
@@ -140,5 +166,3 @@ export async function importCustomers(base64Data: string): Promise<{ success: bo
     return { success: false, error: error.message || 'Không thể nhập file khách hàng.' };
   }
 }
-
-    

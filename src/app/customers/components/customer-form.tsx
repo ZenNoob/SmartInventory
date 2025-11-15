@@ -56,13 +56,15 @@ const customerFormSchema = z.object({
   bankBranch: z.string().optional(),
   creditLimit: z.coerce.number().min(0, "Hạn mức tín dụng phải là số không âm."),
   status: z.enum(['active', 'inactive']),
+  loyaltyPoints: z.coerce.number().optional(),
+  lifetimePoints: z.coerce.number().optional(),
 });
 
 type CustomerFormValues = z.infer<typeof customerFormSchema>;
 
 interface CustomerFormProps {
   isOpen: boolean;
-  onOpenChange: (isOpen: boolean) => void;
+  onOpenChange: (isOpen: boolean, newCustomerId?: string) => void;
   customer?: Customer;
 }
 
@@ -86,12 +88,16 @@ export function CustomerForm({ isOpen, onOpenChange, customer }: CustomerFormPro
         bankBranch: customer.bankBranch || '',
         creditLimit: customer.creditLimit,
         status: customer.status,
+        loyaltyPoints: customer.loyaltyPoints || 0,
+        lifetimePoints: customer.lifetimePoints || 0,
       }
     : { 
         name: '',
         customerType: 'personal',
         creditLimit: 0,
         status: 'active',
+        loyaltyPoints: 0,
+        lifetimePoints: 0,
       };
   
   const form = useForm<CustomerFormValues>({
@@ -118,6 +124,8 @@ export function CustomerForm({ isOpen, onOpenChange, customer }: CustomerFormPro
             bankBranch: customer.bankBranch || '',
             creditLimit: customer.creditLimit,
             status: customer.status,
+            loyaltyPoints: customer.loyaltyPoints || 0,
+            lifetimePoints: customer.lifetimePoints || 0,
           }
         : { 
             name: '',
@@ -134,13 +142,15 @@ export function CustomerForm({ isOpen, onOpenChange, customer }: CustomerFormPro
             bankBranch: '',
             creditLimit: 0,
             status: 'active',
+            loyaltyPoints: 0,
+            lifetimePoints: 0,
           }
       );
     }
   }, [customer, isOpen, form]);
 
   const onSubmit = async (data: CustomerFormValues) => {
-    const dataToSubmit = {
+    const dataToSubmit: Partial<Customer> = {
       ...data,
       id: customer?.id,
       birthday: data.birthday ? data.birthday.toISOString() : undefined,
@@ -151,7 +161,7 @@ export function CustomerForm({ isOpen, onOpenChange, customer }: CustomerFormPro
         title: "Thành công!",
         description: `Đã ${customer ? 'cập nhật' : 'tạo'} khách hàng thành công.`,
       });
-      onOpenChange(false);
+      onOpenChange(false, result.customerId);
       router.refresh();
     } else {
       toast({
@@ -163,7 +173,7 @@ export function CustomerForm({ isOpen, onOpenChange, customer }: CustomerFormPro
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={(open) => onOpenChange(open)}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{customer ? 'Chỉnh sửa khách hàng' : 'Thêm khách hàng mới'}</DialogTitle>
@@ -424,6 +434,45 @@ export function CustomerForm({ isOpen, onOpenChange, customer }: CustomerFormPro
                             </FormItem>
                         )}
                     />
+                {customer && (
+                  <>
+                    <Separator />
+                    <div>
+                      <h3 className="text-md font-medium">Khách hàng thân thiết</h3>
+                      <p className="text-sm text-muted-foreground mb-4">Điều chỉnh điểm thưởng và điểm tích lũy của khách hàng.</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                            control={form.control}
+                            name="loyaltyPoints"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Điểm có thể tiêu</FormLabel>
+                                <FormControl>
+                                    <Input type="number" {...field} />
+                                </FormControl>
+                                <FormDescription>Số điểm khách hàng có thể dùng để giảm giá.</FormDescription>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="lifetimePoints"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Tổng điểm tích lũy</FormLabel>
+                                <FormControl>
+                                    <Input type="number" {...field} />
+                                </FormControl>
+                                <FormDescription>Tổng điểm để xét hạng. Thay đổi điểm này có thể thay đổi hạng của khách hàng.</FormDescription>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
             </div>
 
             <DialogFooter className="pt-4 border-t">
@@ -438,5 +487,3 @@ export function CustomerForm({ isOpen, onOpenChange, customer }: CustomerFormPro
     </Dialog>
   )
 }
-
-    

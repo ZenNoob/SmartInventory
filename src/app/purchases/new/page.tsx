@@ -1,20 +1,29 @@
+
 'use client'
 
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, getDocs } from "firebase/firestore";
-import { Customer, Product, Unit, SalesItem } from "@/lib/types";
+import { Customer, Product, Unit, SalesItem, PurchaseOrderItem, Supplier } from "@/lib/types";
 import { PurchaseOrderForm } from "../components/purchase-order-form";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 
 export default function NewPurchasePage() {
     const firestore = useFirestore();
+    const searchParams = useSearchParams();
     const [allSalesItems, setAllSalesItems] = useState<SalesItem[]>([]);
     const [salesItemsLoading, setSalesItemsLoading] = useState(true);
+    const [draftItems, setDraftItems] = useState<PurchaseOrderItem[]>([]);
 
     const productsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
         return query(collection(firestore, "products"));
+    }, [firestore]);
+    
+    const suppliersQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, "suppliers"));
     }, [firestore]);
 
     const unitsQuery = useMemoFirebase(() => {
@@ -28,6 +37,7 @@ export default function NewPurchasePage() {
     }, [firestore]);
 
     const { data: products, isLoading: productsLoading } = useCollection<Product>(productsQuery);
+    const { data: suppliers, isLoading: suppliersLoading } = useCollection<Supplier>(suppliersQuery);
     const { data: units, isLoading: unitsLoading } = useCollection<Unit>(unitsQuery);
     const { data: sales, isLoading: salesLoading } = useCollection<any>(salesQuery);
 
@@ -58,8 +68,24 @@ export default function NewPurchasePage() {
         fetchAllSalesItems();
     }, [sales, firestore, salesLoading]);
 
+    useEffect(() => {
+        if (searchParams.get('draft') === 'true') {
+            const storedItems = localStorage.getItem('draftPurchaseOrderItems');
+            if (storedItems) {
+                try {
+                    const parsedItems = JSON.parse(storedItems);
+                    setDraftItems(parsedItems);
+                    // Clear the local storage after reading to avoid re-using old data
+                    localStorage.removeItem('draftPurchaseOrderItems');
+                } catch (error) {
+                    console.error("Failed to parse draft items from localStorage:", error);
+                }
+            }
+        }
+    }, [searchParams]);
 
-    const isLoading = productsLoading || unitsLoading || salesItemsLoading;
+
+    const isLoading = productsLoading || unitsLoading || salesItemsLoading || suppliersLoading;
 
     if (isLoading) {
         return (
@@ -74,6 +100,8 @@ export default function NewPurchasePage() {
             products={products || []}
             units={units || []}
             allSalesItems={allSalesItems || []}
+            suppliers={suppliers || []}
+            draftItems={draftItems}
         />
     )
 }

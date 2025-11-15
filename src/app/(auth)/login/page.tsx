@@ -10,21 +10,49 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useAuth, useUser } from "@/firebase"
+import { useAuth, useUser, useFirestore } from "@/firebase"
 import { initiateEmailSignIn } from "@/firebase/non-blocking-login"
 import { useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useState, useCallback } from "react"
+import { doc, getDoc } from "firebase/firestore"
+import type { AppUser } from "@/lib/types"
 
 export default function LoginPage() {
   const auth = useAuth();
+  const firestore = useFirestore(); // Use the hook to get firestore instance
   const { user, isUserLoading } = useUser();
   const router = useRouter();
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
-  useEffect(() => {
-    if (user) {
+  const handleRedirect = useCallback(async (uid: string) => {
+    if (!firestore) return; // Wait until firestore is available
+
+    setIsRedirecting(true);
+    const userDocRef = doc(firestore, 'users', uid);
+    try {
+      const userDoc = await getDoc(userDocRef);
+      if (userDoc.exists()) {
+        const userData = userDoc.data() as AppUser;
+        if (userData.role === 'salesperson') {
+          router.push('/pos');
+        } else {
+          router.push('/dashboard');
+        }
+      } else {
+        // Fallback if user document doesn't exist
+        router.push('/dashboard');
+      }
+    } catch (error) {
+      console.error("Error fetching user role, redirecting to dashboard:", error);
       router.push('/dashboard');
     }
-  }, [user, router]);
+  }, [router, firestore]); // Add firestore to dependency array
+
+  useEffect(() => {
+    if (user && !isRedirecting) {
+      handleRedirect(user.uid);
+    }
+  }, [user, isRedirecting, handleRedirect]);
 
   const handleLogin = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -33,7 +61,7 @@ export default function LoginPage() {
     initiateEmailSignIn(auth, email, password);
   }
 
-  if (isUserLoading || user) {
+  if (isUserLoading || user || isRedirecting) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div>Đang tải...</div>

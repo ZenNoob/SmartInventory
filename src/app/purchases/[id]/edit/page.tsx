@@ -1,8 +1,9 @@
+
 'use client'
 
 import { useCollection, useDoc, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, query, getDocs, doc } from "firebase/firestore";
-import { Customer, Product, Unit, SalesItem, PurchaseOrder } from "@/lib/types";
+import { Customer, Product, Unit, SalesItem, PurchaseOrder, Supplier } from "@/lib/types";
 import { PurchaseOrderForm } from "../../components/purchase-order-form";
 import { useEffect, useState } from "react";
 import { notFound } from "next/navigation";
@@ -24,6 +25,11 @@ export default function EditPurchasePage({ params }: { params: { id: string } })
         if (!firestore) return null;
         return query(collection(firestore, "products"));
     }, [firestore]);
+    
+    const suppliersQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, "suppliers"));
+    }, [firestore]);
 
     const unitsQuery = useMemoFirebase(() => {
         if (!firestore) return null;
@@ -36,6 +42,7 @@ export default function EditPurchasePage({ params }: { params: { id: string } })
     }, [firestore]);
 
     const { data: products, isLoading: productsLoading } = useCollection<Product>(productsQuery);
+    const { data: suppliers, isLoading: suppliersLoading } = useCollection<Supplier>(suppliersQuery);
     const { data: units, isLoading: unitsLoading } = useCollection<Unit>(unitsQuery);
     const { data: sales, isLoading: salesLoading } = useCollection<any>(salesQuery);
 
@@ -67,7 +74,7 @@ export default function EditPurchasePage({ params }: { params: { id: string } })
     }, [sales, firestore, salesLoading]);
 
 
-    const isLoading = productsLoading || unitsLoading || salesItemsLoading || purchaseOrderLoading;
+    const isLoading = productsLoading || unitsLoading || salesItemsLoading || purchaseOrderLoading || suppliersLoading;
 
     if (isLoading) {
         return (
@@ -86,6 +93,7 @@ export default function EditPurchasePage({ params }: { params: { id: string } })
             products={products || []}
             units={units || []}
             allSalesItems={allSalesItems || []}
+            suppliers={suppliers || []}
             purchaseOrder={purchaseOrder || undefined}
         />
     )

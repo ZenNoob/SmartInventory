@@ -1,3 +1,5 @@
+
+
 'use client'
 
 import { useState, useMemo } from "react"
@@ -93,22 +95,22 @@ export default function DebtReportPage() {
     if (!customers || !sales || !payments) return [];
 
     return customers.map(customer => {
-      const customerSales = sales
-        .filter(s => s.customerId === customer.id)
-        .reduce((sum, s) => sum + (s.finalAmount || 0), 0);
+      const customerSales = sales.filter(s => s.customerId === customer.id);
       
-      const customerPayments = payments
+      const totalRevenue = customerSales.reduce((sum, s) => sum + (s.finalAmount || 0), 0);
+      
+      const totalPayments = payments
         .filter(p => p.customerId === customer.id)
         .reduce((sum, p) => sum + p.amount, 0);
 
-      const finalDebt = customerSales - customerPayments;
-
+      const finalDebt = totalRevenue - totalPayments;
+      
       return {
         customerId: customer.id,
         customerName: customer.name,
         customerPhone: customer.phone,
-        totalSales: customerSales,
-        totalPayments: customerPayments,
+        totalSales: totalRevenue,
+        totalPayments: totalPayments,
         finalDebt: finalDebt,
       };
     }).filter(data => data.totalSales > 0 || data.totalPayments > 0 || data.finalDebt !== 0);
@@ -256,7 +258,7 @@ export default function DebtReportPage() {
               <div>
                   <CardTitle>Báo cáo công nợ khách hàng</CardTitle>
                   <CardDescription>
-                  Tổng hợp công nợ của tất cả các khách hàng.
+                  Tổng hợp công nợ và thực hiện ghi nhận thanh toán nhanh cho khách hàng.
                   </CardDescription>
               </div>
               <div className="text-right">

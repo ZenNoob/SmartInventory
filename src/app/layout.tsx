@@ -4,13 +4,12 @@ import type { Metadata } from 'next'
 import { PT_Sans } from 'next/font/google'
 import './globals.css'
 import { cn } from '@/lib/utils'
-import { SidebarProvider } from '@/components/ui/sidebar'
-import { MainNav } from '@/components/main-nav'
-import { Header } from '@/components/header'
 import { Toaster } from '@/components/ui/toaster'
-import { FirebaseClientProvider } from '@/firebase'
 import GlobalError from './global-error'
 import { getThemeSettings } from './settings/actions'
+import { Providers } from './providers'
+import { MainNav } from '@/components/main-nav'
+import { Header } from '@/components/header'
 
 
 const ptSans = PT_Sans({
@@ -26,8 +25,10 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({
   children,
+  params
 }: Readonly<{
-  children: React.ReactNode
+  children: React.ReactNode,
+  params: { id: string }
 }>) {
   const themeSettings = await getThemeSettings();
 
@@ -39,6 +40,20 @@ export default async function RootLayout({
     '--accent': themeSettings.accent,
     '--accent-foreground': themeSettings.accentForeground,
   } as React.CSSProperties : {};
+  
+  // A bit of a hack to detect the print-only page.
+  // In a larger app, a dedicated layout file for the print route would be better.
+  const isPrintView = params.id && (children as React.ReactElement)?.props?.childProp?.segment === '[id]';
+
+  if (isPrintView) {
+     return (
+       <html lang="vi" suppressHydrationWarning>
+        <body className={cn('bg-gray-100', ptSans.variable)}>
+          {children}
+        </body>
+      </html>
+     )
+  }
 
   return (
     <html lang="vi" suppressHydrationWarning>
@@ -49,21 +64,17 @@ export default async function RootLayout({
         )}
         style={themeStyle}
       >
-        <FirebaseClientProvider>
-          <GlobalError>
-            <SidebarProvider>
-              <div className="flex min-h-screen">
-                <MainNav />
-                <div className="flex-1 flex flex-col p-6 gap-6 min-w-0">
-                  <Header />
-                  <main className="flex-1 overflow-y-auto">
-                    {children}
-                  </main>
-                </div>
+        <GlobalError>
+          <Providers>
+             <div className="flex min-h-screen">
+              <MainNav />
+              <div className="flex-1 flex flex-col p-6 gap-6 min-w-0">
+                <Header />
+                <main className="flex-1 overflow-y-auto">{children}</main>
               </div>
-            </SidebarProvider>
-          </GlobalError>
-        </FirebaseClientProvider>
+            </div>
+          </Providers>
+        </GlobalError>
         <Toaster />
       </body>
     </html>

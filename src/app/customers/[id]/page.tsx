@@ -1,5 +1,6 @@
+
 import { notFound } from "next/navigation"
-import { ChevronLeft, PlusCircle, CreditCard, Bot, Phone, Mail, MapPin, Cake, User, Building, Landmark } from "lucide-react"
+import { ChevronLeft, PlusCircle, CreditCard, Bot, Phone, Mail, MapPin, Cake, User, Building, Landmark, Trophy, Gem, Star, Shield } from "lucide-react"
 
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
@@ -23,10 +24,10 @@ import {
 
 import { formatCurrency, toPlainObject } from "@/lib/utils"
 import { PredictRiskForm } from "./components/predict-risk-form"
-import { useDoc, useFirestore, useMemoFirebase } from "@/firebase"
 import { Customer, Payment, Sale } from "@/lib/types"
-import { doc, collection, query, where, getDocs } from "firebase/firestore"
 import { getAdminServices } from "@/lib/admin-actions"
+import { cookies } from "next/headers"
+import { getAuth } from "firebase-admin/auth"
 
 async function getCustomerData(customerId: string) {
     const { firestore } = await getAdminServices();
@@ -51,8 +52,55 @@ async function getCustomerData(customerId: string) {
     return { customer, sales, payments };
 }
 
+const defaultPermissions = {
+    admin: ['view', 'add', 'edit', 'delete'],
+    accountant: ['view', 'add', 'edit'],
+    salesperson: ['view', 'add'],
+};
+
+
+async function getUserPermissions(uid: string) {
+    const { firestore } = await getAdminServices();
+    const userDoc = await firestore.collection('users').doc(uid).get();
+    if (!userDoc.exists) return null;
+    const userData = userDoc.data() as any;
+    if (userData.role !== 'custom') {
+        // @ts-ignore
+        return defaultPermissions[userData.role] || [];
+    }
+    return userData.permissions?.customers || [];
+}
+
+const getTierIcon = (tier: string | undefined) => {
+  switch (tier) {
+    case 'diamond': return <Gem className="h-4 w-4 text-blue-500" />;
+    case 'gold': return <Trophy className="h-4 w-4 text-yellow-500" />;
+    case 'silver': return <Star className="h-4 w-4 text-slate-500" />;
+    case 'bronze': return <Shield className="h-4 w-4 text-orange-700" />;
+    default: return null;
+  }
+}
+const getTierName = (tier: string | undefined) => {
+  switch (tier) {
+    case 'diamond': return 'Kim Cương';
+    case 'gold': return 'Vàng';
+    case 'silver': return 'Bạc';
+    case 'bronze': return 'Đồng';
+    default: return 'Chưa có hạng';
+  }
+}
 
 export default async function CustomerDetailPage({ params }: { params: { id: string } }) {
+  const session = cookies().get('__session')?.value;
+  if (!session) notFound();
+
+  const { uid } = await getAuth().verifySessionCookie(session, true);
+  const permissions = await getUserPermissions(uid);
+
+  if (!permissions?.includes('view')) {
+    notFound();
+  }
+
   const { customer, sales, payments } = await getCustomerData(params.id);
 
   if (!customer) {
@@ -84,10 +132,9 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
         </Badge>
         <div className="hidden items-center gap-2 md:ml-auto md:flex">
           <PredictRiskForm customer={customer} sales={sales} payments={payments} />
-          <Button size="sm">Ghi lại thanh toán</Button>
         </div>
       </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Tổng nợ</CardDescription>
@@ -100,11 +147,20 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
               Hạn mức tín dụng: {formatCurrency(customer.creditLimit)}
             </div>
           </CardContent>
-          <CardFooter>
-            <Button className="w-full">
-              <PlusCircle className="mr-2 h-4 w-4" /> Ghi lại thanh toán
-            </Button>
-          </CardFooter>
+        </Card>
+         <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Khách hàng thân thiết</CardDescription>
+            <CardTitle className="text-2xl flex items-center gap-2">
+              {getTierIcon(customer.loyaltyTier)}
+              {getTierName(customer.loyaltyTier)}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xs text-muted-foreground">
+              Điểm tích lũy: {customer.loyaltyPoints?.toLocaleString() || 0} điểm
+            </div>
+          </CardContent>
         </Card>
         <Card className="lg:col-span-2">
           <CardHeader>

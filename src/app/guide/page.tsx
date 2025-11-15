@@ -1,3 +1,4 @@
+
 import {
   Card,
   CardContent,
@@ -11,21 +12,140 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { List, ListChecks, ListPlus } from "lucide-react"
+import { List, ListChecks, ListPlus, Truck, BarChart2, DollarSign, FileText, History, Home, Settings, ShoppingCart, Store, User, Users2, Warehouse, Wallet, Building, Briefcase, Sparkles, PackagePlus, LineChart, Star, Zap, Gem } from "lucide-react"
 
 export default function GuidePage() {
   return (
     <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-2">Hướng dẫn sử dụng</h1>
+      <h1 className="text-3xl font-bold mb-2">Hướng dẫn sử dụng Hệ thống</h1>
       <p className="text-muted-foreground mb-8">
-        Chào mừng bạn đến với hệ thống Quản lý Bán hàng. Dưới đây là hướng dẫn chi tiết về các chức năng chính.
+        Chào mừng bạn đến với hệ thống Quản lý Bán hàng Thông minh. Dưới đây là hướng dẫn chi tiết về các chức năng chính, mục đích và vai trò người dùng tương ứng.
       </p>
 
       <div className="space-y-6">
+
+        {/* =======================
+              Các Gói Triển Khai
+        ======================== */}
         <Card>
           <CardHeader>
-            <CardTitle>Quản lý Sản phẩm & Kho</CardTitle>
-            <CardDescription>Các chức năng liên quan đến việc thiết lập và quản lý sản phẩm.</CardDescription>
+            <CardTitle>Các Gói Triển Khai & Báo giá</CardTitle>
+            <CardDescription>Lựa chọn gói dịch vụ phù hợp nhất với nhu cầu kinh doanh của bạn.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-3 gap-6">
+              {/* Gói Cơ bản */}
+              <Card className="flex flex-col">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Star className="h-6 w-6 text-yellow-500" />
+                    <CardTitle>Gói Cơ bản</CardTitle>
+                  </div>
+                  <CardDescription>Dành cho các cửa hàng cần những chức năng thiết yếu để bắt đầu.</CardDescription>
+                </CardHeader>
+                <CardContent className="flex-grow space-y-4">
+                    <p className="text-3xl font-bold">1.500.000 <span className="text-sm font-normal text-muted-foreground">VNĐ/năm</span></p>
+                    <ul className="text-sm text-muted-foreground space-y-2 list-disc pl-5">
+                      <li>POS - Bán hàng tại quầy</li>
+                      <li>Quản lý Sản phẩm, Đơn vị, Danh mục</li>
+                      <li>Quản lý Khách hàng & Nhà cung cấp</li>
+                      <li>Quản lý Nhập - Bán hàng</li>
+                      <li>Sổ quỹ Thu-Chi</li>
+                      <li>Báo cáo cơ bản (Doanh thu, Tồn kho)</li>
+                    </ul>
+                </CardContent>
+              </Card>
+
+              {/* Gói Tiêu chuẩn */}
+              <Card className="border-primary flex flex-col">
+                 <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-6 w-6 text-blue-500" />
+                    <CardTitle>Gói Tiêu chuẩn</CardTitle>
+                  </div>
+                  <CardDescription>Mở rộng quy mô với các công cụ quản lý và báo cáo nâng cao.</CardDescription>
+                </CardHeader>
+                <CardContent className="flex-grow space-y-4">
+                    <p className="text-3xl font-bold">3.000.000 <span className="text-sm font-normal text-muted-foreground">VNĐ/năm</span></p>
+                    <ul className="text-sm text-muted-foreground space-y-2 list-disc pl-5">
+                      <li><strong className="text-foreground">Tất cả tính năng của Gói Cơ bản</strong></li>
+                      <li>Quản lý Ca làm việc</li>
+                      <li>Báo cáo nâng cao (Lợi nhuận, Công nợ chi tiết)</li>
+                      <li>Quản lý Người dùng & Phân quyền chi tiết</li>
+                      <li>Tùy chỉnh Cài đặt (logo, màu sắc, VAT)</li>
+                       <li>Chương trình Khách hàng thân thiết (Tích điểm)</li>
+                    </ul>
+                </CardContent>
+              </Card>
+
+              {/* Gói Nâng cao */}
+              <Card className="flex flex-col">
+                 <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Gem className="h-6 w-6 text-violet-500" />
+                    <CardTitle>Gói Nâng cao</CardTitle>
+                  </div>
+                  <CardDescription>Tối ưu hóa kinh doanh với sức mạnh của Trí tuệ nhân tạo (AI).</CardDescription>
+                </CardHeader>
+                <CardContent className="flex-grow space-y-4">
+                    <p className="text-3xl font-bold">5.000.000 <span className="text-sm font-normal text-muted-foreground">VNĐ/năm</span></p>
+                    <ul className="text-sm text-muted-foreground space-y-2 list-disc pl-5">
+                      <li><strong className="text-foreground">Tất cả tính năng của Gói Tiêu chuẩn</strong></li>
+                      <li>Phân tích & Phân khúc Khách hàng bằng AI</li>
+                      <li>Phân tích Rổ hàng hóa (sản phẩm mua kèm) bằng AI</li>
+                      <li>Dự báo Doanh số & Đề xuất nhập hàng bằng AI</li>
+                    </ul>
+                </CardContent>
+              </Card>
+            </div>
+          </CardContent>
+        </Card>
+
+
+        {/* =======================
+              Bảng điều khiển
+        ======================== */}
+        <Card>
+          <CardHeader>
+            <CardTitle>1. Bảng điều khiển (Dashboard)</CardTitle>
+            <CardDescription>Nơi tổng quan nhanh về tình hình kinh doanh của bạn.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="item-1">
+                <AccordionTrigger>
+                  <div className="flex items-center gap-2">
+                    <Home className="h-5 w-5 text-primary" />
+                    <span>Tổng quan và Ý nghĩa</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="prose prose-sm max-w-none pl-7 text-muted-foreground">
+                  <p><strong>Ý nghĩa:</strong> Cung cấp một cái nhìn tổng thể, nhanh chóng về các chỉ số kinh doanh quan trọng nhất trong một khoảng thời gian tùy chọn.</p>
+                  <p><strong>Dành cho ai?</strong></p>
+                  <ul>
+                    <li><strong>Quản trị viên & Kế toán:</strong> Có thể xem tất cả các thẻ chỉ số (Doanh thu, Công nợ, Tồn kho) và các biểu đồ, báo cáo chi tiết.</li>
+                    <li><strong>Quản lý kho:</strong> Thường chỉ thấy các thông tin liên quan đến sản phẩm và tồn kho.</li>
+                    <li><strong>Nhân viên bán hàng:</strong> Thường không có quyền truy cập Bảng điều khiển, thay vào đó sẽ làm việc chính trên giao diện POS.</li>
+                  </ul>
+                  <p><strong>Cách sử dụng:</strong></p>
+                   <ul>
+                    <li><strong>Bộ lọc thời gian:</strong> Sử dụng bộ lọc ngày ở góc trên bên phải để xem dữ liệu theo tuần, tháng, năm hoặc một khoảng thời gian tùy chỉnh.</li>
+                    <li><strong>Xem chi tiết:</strong> Nhấp vào các thẻ chỉ số như "Tổng doanh thu", "Tổng nợ phải thu" để xem danh sách chi tiết các giao dịch liên quan.</li>
+                    <li><strong>Biểu đồ:</strong> Biểu đồ doanh thu trực quan hóa xu hướng kinh doanh theo thời gian.</li>
+                  </ul>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </CardContent>
+        </Card>
+
+        {/* =======================
+              Thiết lập ban đầu
+        ======================== */}
+        <Card>
+          <CardHeader>
+            <CardTitle>2. Thiết lập Dữ liệu nền tảng</CardTitle>
+            <CardDescription>Các bước cấu hình ban đầu cần thiết để hệ thống hoạt động chính xác.</CardDescription>
           </CardHeader>
           <CardContent>
             <Accordion type="single" collapsible className="w-full">
@@ -33,111 +153,141 @@ export default function GuidePage() {
                 <AccordionTrigger>
                   <div className="flex items-center gap-2">
                     <ListChecks className="h-5 w-5 text-primary" />
-                    <span>Bước 1: Quản lý Danh mục & Đơn vị tính</span>
+                    <span>Bước 1: Danh mục & Đơn vị tính</span>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="prose prose-sm max-w-none pl-7 text-muted-foreground">
-                  <p>Đây là bước thiết lập nền tảng, cần thực hiện trước khi thêm sản phẩm.</p>
-                  <p><strong>Danh mục:</strong></p>
+                  <p><strong>Ý nghĩa:</strong> Đây là bước nền tảng để phân loại sản phẩm và quản lý số lượng một cách chính xác. Cần thực hiện trước khi thêm sản phẩm.</p>
+                  <p><strong>Dành cho ai:</strong> Quản trị viên, Quản lý kho.</p>
+                  
+                  <p><strong>Danh mục (Trang "Danh mục"):</strong></p>
                   <ul>
-                    <li>Truy cập trang <strong>Danh mục</strong> từ menu bên trái.</li>
-                    <li>Nhấn nút "Thêm danh mục".</li>
-                    <li>Điền tên danh mục (ví dụ: "Giống lúa", "Phân bón") và mô tả nếu cần, sau đó lưu lại.</li>
+                    <li>Giúp nhóm các sản phẩm có cùng tính chất (ví dụ: "Phân bón lá", "Thuốc trừ sâu").</li>
+                    <li>Nhấn "Thêm danh mục" và điền tên để tạo mới.</li>
                   </ul>
-                  <p><strong>Đơn vị tính (Rất quan trọng):</strong></p>
+
+                  <p><strong>Đơn vị tính (Trang "Đơn vị tính"):</strong></p>
                   <ul>
-                    <li>Truy cập trang <strong>Đơn vị tính</strong>.</li>
-                    <li><strong>Tạo đơn vị cơ sở:</strong> Thêm các đơn vị nhỏ nhất như "kg", "cái", "chai". Khi thêm, để trống phần "Quy đổi đơn vị".</li>
-                    <li><strong>Tạo đơn vị quy đổi:</strong> Thêm các đơn vị lớn hơn như "Bao", "Thùng".
-                      <ul>
-                        <li>Trong form, điền tên "Bao".</li>
-                        <li>Ở phần "Quy đổi", chọn "Đơn vị cơ sở" là "kg".</li>
-                        <li>Nhập "Hệ số quy đổi" là 40 (nếu 1 Bao = 40 kg).</li>
-                      </ul>
-                    </li>
-                     <li>Làm tương tự cho các đơn vị khác (ví dụ: 1 Thùng = 24 Chai).</li>
+                    <li><strong>Đơn vị cơ sở:</strong> Thêm các đơn vị nhỏ nhất bạn dùng để quản lý (kg, lít, cái, chai). Khi thêm, để trống phần "Quy đổi".</li>
+                    <li><strong>Đơn vị quy đổi:</strong> Thêm các đơn vị lớn hơn (Bao, Thùng). Ví dụ: để tạo "Bao", chọn "Đơn vị cơ sở" là "kg" và nhập "Hệ số quy đổi" là 40 (nếu 1 Bao = 40 kg).</li>
+                  </ul>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="item-2">
+                <AccordionTrigger>
+                  <div className="flex items-center gap-2">
+                    <Building className="h-5 w-5 text-primary" />
+                    <span>Bước 2: Nhà cung cấp</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="prose prose-sm max-w-none pl-7 text-muted-foreground">
+                    <p><strong>Ý nghĩa:</strong> Quản lý danh sách các đối tác cung cấp hàng hóa, là cơ sở để tạo phiếu nhập và theo dõi công nợ phải trả.</p>
+                    <p><strong>Dành cho ai:</strong> Quản trị viên, Quản lý kho.</p>
+                    <p><strong>Cách sử dụng:</strong></p>
+                    <ul>
+                        <li>Truy cập trang "Nhà cung cấp" từ menu Danh mục.</li>
+                        <li>Nhấn "Thêm NCC" và điền các thông tin cần thiết như tên, số điện thoại, địa chỉ...</li>
+                    </ul>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="item-3">
+                <AccordionTrigger>
+                  <div className="flex items-center gap-2">
+                    <ListPlus className="h-5 w-5 text-primary" />
+                    <span>Bước 3: Sản phẩm</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="prose prose-sm max-w-none pl-7 text-muted-foreground">
+                    <p><strong>Ý nghĩa:</strong> Quản lý toàn bộ hàng hóa kinh doanh, bao gồm giá bán, thông tin và quan trọng nhất là lịch sử nhập kho.</p>
+                    <p><strong>Dành cho ai:</strong> Quản trị viên, Quản lý kho.</p>
+                    <p><strong>Cách sử dụng:</strong></p>
+                    <ul>
+                        <li>Truy cập trang "Sản phẩm", nhấn "Thêm sản phẩm".</li>
+                        <li>Điền tên, chọn Danh mục và Đơn vị tính chính (là đơn vị bạn thường dùng để bán).</li>
+                        <li>Nhập giá bán đề xuất (tính trên 1 đơn vị cơ sở).</li>
+                        <li><strong>Nhập hàng:</strong> Trong form sản phẩm, nhấn "Thêm đợt nhập" để ghi nhận các lô hàng đã mua, bao gồm ngày nhập, số lượng và giá nhập. Đây là cơ sở để hệ thống tính tồn kho và giá vốn.</li>
+                    </ul>
+                </AccordionContent>
+              </AccordionItem>
+
+            </Accordion>
+          </CardContent>
+        </Card>
+
+        {/* =======================
+              Nghiệp vụ hằng ngày
+        ======================== */}
+        <Card>
+          <CardHeader>
+            <CardTitle>3. Nghiệp vụ Hằng ngày</CardTitle>
+            <CardDescription>Các hoạt động chính diễn ra mỗi ngày tại cửa hàng.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="item-1">
+                <AccordionTrigger>
+                  <div className="flex items-center gap-2">
+                    <Truck className="h-5 w-5 text-primary" />
+                    <span>Nhập hàng (Tạo phiếu nhập kho)</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="prose prose-sm max-w-none pl-7 text-muted-foreground">
+                  <p><strong>Ý nghĩa:</strong> Ghi nhận việc nhập hàng hóa từ nhà cung cấp một cách có hệ thống, tự động cập nhật tồn kho cho nhiều sản phẩm cùng lúc.</p>
+                  <p><strong>Dành cho ai:</strong> Quản trị viên, Quản lý kho.</p>
+                  <p><strong>Cách sử dụng:</strong></p>
+                  <ul>
+                    <li>Truy cập trang "Nhập hàng", nhấn "Tạo đơn nhập".</li>
+                    <li>Chọn Nhà cung cấp, ngày nhập.</li>
+                    <li>Dùng thanh tìm kiếm hoặc quét mã vạch để thêm các sản phẩm vào phiếu.</li>
+                    <li>Với mỗi sản phẩm, nhập Số lượng và Giá nhập (trên một đơn vị cơ sở).</li>
+                    <li>Lưu đơn nhập để hoàn tất. Tồn kho của các sản phẩm sẽ được tự động cộng thêm.</li>
                   </ul>
                 </AccordionContent>
               </AccordionItem>
               <AccordionItem value="item-2">
                 <AccordionTrigger>
                   <div className="flex items-center gap-2">
-                    <ListPlus className="h-5 w-5 text-primary" />
-                    <span>Bước 2: Quản lý Sản phẩm</span>
+                    <Store className="h-5 w-5 text-primary" />
+                    <span>POS - Bán hàng tại quầy</span>
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="prose prose-sm max-w-none pl-7 text-muted-foreground">
-                  <p>Trang <strong>Sản phẩm</strong> là nơi bạn quản lý toàn bộ hàng hóa của mình.</p>
-                  <p><strong>Thêm sản phẩm mới:</strong></p>
-                  <ul>
-                    <li>Truy cập trang <strong>Sản phẩm</strong> và nhấn "Thêm sản phẩm".</li>
-                    <li>Điền tên sản phẩm, chọn Danh mục và Đơn vị tính chính (ví dụ: đơn vị bán ra chủ yếu là "Bao").</li>
-                    <li><strong>Lưu ý:</strong> Đơn vị tính chính sẽ không thể thay đổi sau khi bạn thêm lô nhập hàng đầu tiên.</li>
-                  </ul>
-                   <p><strong>Nhập hàng (Thêm lô hàng):</strong></p>
-                   <ul>
-                    <li>Trong form sản phẩm (khi thêm mới hoặc sửa), nhấn nút "Thêm đợt nhập".</li>
-                    <li>Điền thông tin cho từng đợt nhập: Ngày nhập, Đơn vị (có thể là "Bao" hoặc "kg"), Số lượng, và Giá nhập trên một đơn vị cơ sở (ví dụ: giá trên 1 kg).</li>
-                    <li>Bạn có thể thêm nhiều đợt nhập hàng cho một sản phẩm. Đây là cơ sở để hệ thống tính giá vốn trung bình và tồn kho.</li>
-                   </ul>
-                  <p><strong>Tồn kho:</strong></p>
-                  <ul>
-                    <li>Hệ thống tự động tính toán tồn kho dựa trên tổng lượng hàng đã nhập và tổng lượng hàng đã bán.</li>
-                    <li>Cột "Tồn kho" trên danh sách sản phẩm hiển thị số lượng còn lại theo đơn vị tính chính của sản phẩm đó.</li>
-                  </ul>
+                  <p><strong>Ý nghĩa:</strong> Giao diện tối ưu cho việc bán hàng nhanh chóng, hiệu quả tại quầy. Hỗ trợ quét mã vạch, quản lý ca làm việc và tự động tính toán công nợ.</p>
+                  <p><strong>Dành cho ai:</strong> Nhân viên bán hàng, Quản trị viên, Kế toán, Quản lý kho.</p>
+                  <p><strong>Quy trình làm việc:</strong></p>
+                   <ol>
+                        <li><strong>Bắt đầu ca:</strong> Khi bắt đầu, nhân viên cần nhập số tiền mặt có sẵn trong ngăn kéo để hệ thống theo dõi.</li>
+                        <li><strong>Bán hàng:</strong>
+                            <ul>
+                                <li>Quét mã vạch hoặc tìm kiếm để thêm sản phẩm vào đơn hàng.</li>
+                                <li>Chọn khách hàng (có thể chọn "Khách lẻ").</li>
+                                <li>Điều chỉnh số lượng, giá bán nếu cần.</li>
+                                <li>Nhập thông tin giảm giá, điểm thưởng (nếu có).</li>
+                                <li>Nhập số tiền khách đưa, hệ thống sẽ tự tính tiền thối lại.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Thanh toán:</strong> Nhấn "Thanh toán" để hoàn tất. Đơn hàng và công nợ (nếu có) sẽ được tự động ghi nhận.</li>
+                        <li><strong>Đóng ca:</strong> Cuối ca làm việc, nhân viên chọn "Đóng ca", nhập số tiền mặt thực tế trong ngăn kéo. Hệ thống sẽ tạo một báo cáo ca chi tiết, so sánh doanh thu và chênh lệch tiền mặt.</li>
+                   </ol>
                 </AccordionContent>
               </AccordionItem>
-            </Accordion>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Bán hàng & Khách hàng</CardTitle>
-            <CardDescription>Các chức năng liên quan đến giao dịch và quản lý khách hàng.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Accordion type="single" collapsible className="w-full">
-              <AccordionItem value="item-1">
+              <AccordionItem value="item-3">
                 <AccordionTrigger>
-                    <div className="flex items-center gap-2">
-                        <ListPlus className="h-5 w-5 text-primary" />
-                        <span>Tạo và Quản lý Đơn hàng</span>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <Wallet className="h-5 w-5 text-primary" />
+                    <span>Sổ quỹ (Thu - Chi)</span>
+                  </div>
                 </AccordionTrigger>
                 <AccordionContent className="prose prose-sm max-w-none pl-7 text-muted-foreground">
-                   <p>Trang <strong>Bán hàng</strong> là nơi thực hiện các giao dịch.</p>
-                   <p><strong>Tạo đơn hàng mới:</strong></p>
-                   <ul>
-                    <li>Truy cập trang <strong>Bán hàng</strong> và nhấn "Tạo đơn hàng".</li>
-                    <li>Chọn khách hàng từ danh sách (có thể tìm kiếm theo tên/SĐT) và chọn ngày bán.</li>
-                    <li>Nhấn "Thêm sản phẩm" và chọn các sản phẩm khách mua từ danh sách.</li>
-                    <li>Với mỗi sản phẩm, nhập Số lượng bán (theo đơn vị bán) và Đơn giá (trên 1 đơn vị cơ sở). Hệ thống sẽ hiển thị tồn kho và giá nhập trung bình để bạn tham khảo.</li>
-                    <li>Phía bên phải, nhập thông tin thanh toán: Giảm giá (nếu có), và số tiền Khách thanh toán.</li>
-                    <li>Hệ thống sẽ tự động tính toán Nợ cũ, Tổng tiền phải trả và Nợ còn lại.</li>
-                    <li>Nhấn "Tạo đơn hàng" để hoàn tất. Sau khi tạo, bạn sẽ được chuyển đến trang chi tiết hóa đơn.</li>
-                   </ul>
-                   <p><strong>In và quản lý hóa đơn:</strong></p>
-                   <ul>
-                    <li>Tại trang chi tiết, bạn có thể "In hóa đơn" hoặc "Xuất PDF".</li>
-                    <li>Tại trang danh sách đơn hàng, bạn có thể sửa, xem chi tiết, in lại hoặc xóa đơn hàng.</li>
-                   </ul>
-                </AccordionContent>
-              </AccordionItem>
-              <AccordionItem value="item-2">
-                <AccordionTrigger>
-                    <div className="flex items-center gap-2">
-                        <List className="h-5 w-5 text-primary" />
-                        <span>Quản lý Khách hàng</span>
-                    </div>
-                </AccordionTrigger>
-                <AccordionContent className="prose prose-sm max-w-none pl-7 text-muted-foreground">
-                    <p>Trang <strong>Khách hàng</strong> giúp bạn quản lý thông tin và công nợ.</p>
+                    <p><strong>Ý nghĩa:</strong> Ghi nhận tất cả các khoản thu và chi tiền mặt không liên quan trực tiếp đến việc bán hàng hay nhập hàng (ví dụ: chi tiền điện, thu tiền cho thuê mặt bằng).</p>
+                    <p><strong>Dành cho ai:</strong> Quản trị viên, Kế toán.</p>
+                    <p><strong>Cách sử dụng:</strong></p>
                     <ul>
-                      <li><strong>Thêm/Sửa khách hàng:</strong> Quản lý thông tin chi tiết của khách hàng, bao gồm thông tin liên hệ, địa chỉ, hạn mức tín dụng và thông tin ngân hàng.</li>
-                      <li><strong>Nhập/Xuất file:</strong> Bạn có thể tải về file Excel mẫu, điền thông tin khách hàng và nhập hàng loạt vào hệ thống.</li>
-                      <li><strong>Theo dõi Công nợ:</strong> Cột "Công nợ" hiển thị tổng số tiền khách hàng đã trả và số nợ còn lại. Nhấp vào tên khách hàng để xem trang chi tiết lịch sử giao dịch và thanh toán.</li>
-                      <li><strong>Dự đoán rủi ro:</strong> Trong trang chi tiết khách hàng, sử dụng chức năng AI "Dự đoán rủi ro" để phân tích khả năng thanh toán nợ của khách hàng.</li>
+                        <li>Truy cập trang "Sổ quỹ", nhấn "Tạo phiếu mới".</li>
+                        <li>Chọn loại "Phiếu thu" hoặc "Phiếu chi".</li>
+                        <li>Điền ngày, số tiền, lý do và danh mục (nếu có) rồi lưu lại.</li>
                     </ul>
                 </AccordionContent>
               </AccordionItem>
@@ -145,28 +295,107 @@ export default function GuidePage() {
           </CardContent>
         </Card>
 
+        {/* =======================
+              Báo cáo & Phân tích
+        ======================== */}
         <Card>
           <CardHeader>
-            <CardTitle>Báo cáo & Thống kê</CardTitle>
-            <CardDescription>Các công cụ giúp bạn phân tích tình hình kinh doanh.</CardDescription>
+            <CardTitle>4. Báo cáo, Phân tích & Quản lý</CardTitle>
+            <CardDescription>Các công cụ giúp bạn theo dõi, phân tích và quản lý hoạt động kinh doanh.</CardDescription>
           </CardHeader>
           <CardContent>
              <Accordion type="single" collapsible className="w-full">
               <AccordionItem value="item-1">
                 <AccordionTrigger>
                     <div className="flex items-center gap-2">
-                        <List className="h-5 w-5 text-primary" />
+                        <LineChart className="h-5 w-5 text-primary" />
                         <span>Các loại báo cáo</span>
                     </div>
                 </AccordionTrigger>
                 <AccordionContent className="prose prose-sm max-w-none pl-7 text-muted-foreground">
-                    <p>Menu <strong>Báo cáo</strong> cung cấp các báo cáo chi tiết:</p>
+                   <p>Menu "Báo cáo & Quản lý" cung cấp các báo cáo chi tiết, mỗi báo cáo phục vụ một mục đích và vai trò cụ thể.</p>
                    <ul>
-                    <li><strong>Báo cáo Công nợ:</strong> Tổng hợp công nợ của tất cả khách hàng. Cho phép bạn ghi nhận thanh toán công nợ nhanh chóng cho những khách hàng có nợ cuối kỳ.</li>
-                    <li><strong>Báo cáo Doanh thu:</strong> Phân tích doanh thu theo khoảng thời gian tùy chọn (tuần, tháng, năm) hoặc một khoảng ngày cụ thể. Có biểu đồ trực quan hóa dữ liệu.</li>
-                    <li><strong>Báo cáo Sản phẩm đã bán:</strong> Thống kê các sản phẩm đã bán trong một khoảng thời gian, giúp bạn biết sản phẩm nào bán chạy nhất, đóng góp bao nhiêu vào tổng doanh thu.</li>
-                    <li><strong>Xuất Excel:</strong> Tất cả các báo cáo đều có chức năng xuất ra file Excel để bạn lưu trữ hoặc phân tích sâu hơn.</li>
+                    <li><strong>Quản lý Ca:</strong> (Quản trị viên) Xem lại lịch sử các ca làm việc, chi tiết doanh thu, chênh lệch tiền mặt của từng ca.</li>
+                    <li><strong>Báo cáo Thu-Chi:</strong> (Quản trị viên, Kế toán) Tổng hợp tất cả doanh thu bán hàng, chi phí nhập hàng và các khoản thu/chi khác từ sổ quỹ để cho ra lợi nhuận cuối cùng.</li>
+                    <li><strong>Báo cáo Lợi nhuận:</strong> (Quản trị viên, Kế toán) Phân tích lợi nhuận trên từng sản phẩm, dựa trên doanh thu và giá vốn trung bình.</li>
+                    <li><strong>Công nợ KH:</strong> (Quản trị viên, Kế toán) Tổng hợp công nợ của tất cả khách hàng. Cho phép ghi nhận thanh toán nhanh.</li>
+                    <li><strong>Công nợ NCC:</strong> (Quản trị viên, Kế toán, Quản lý kho) Tổng hợp công nợ phải trả cho tất cả nhà cung cấp.</li>
+                    <li><strong>Lịch sử Giao dịch:</strong> (Quản trị viên, Kế toán) Xem chi tiết biến động công nợ (phát sinh, thanh toán) của từng khách hàng trong một kỳ.</li>
+                    <li><strong>Đối soát Công nợ NCC:</strong> (Quản trị viên, Kế toán, Quản lý kho) Xem chi tiết biến động công nợ với nhà cung cấp.</li>
+                    <li><strong>Doanh thu & Sản phẩm đã bán:</strong> (Quản trị viên, Kế toán) Phân tích doanh thu theo thời gian, xem sản phẩm nào bán chạy nhất.</li>
+                    <li><strong>Tồn kho:</strong> (Quản trị viên, Quản lý kho) Báo cáo nhập - xuất - tồn chi tiết cho từng sản phẩm.</li>
                    </ul>
+                </AccordionContent>
+              </AccordionItem>
+              <AccordionItem value="item-2">
+                <AccordionTrigger>
+                    <div className="flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-primary" />
+                        <span>Phân tích bằng Trí tuệ nhân tạo (AI)</span>
+                    </div>
+                </AccordionTrigger>
+                <AccordionContent className="prose prose-sm max-w-none pl-7 text-muted-foreground">
+                    <p><strong>Ý nghĩa:</strong> Tận dụng AI để khám phá các thông tin chi tiết ẩn sau dữ liệu bán hàng, giúp đưa ra quyết định kinh doanh tốt hơn.</p>
+                    <p><strong>Dành cho ai:</strong> Quản trị viên, Kế toán.</p>
+                    <ul>
+                      <li><strong>Phân khúc khách hàng:</strong> AI sẽ tự động phân nhóm khách hàng (VIP, Tiềm năng, Nguy cơ rời bỏ...) dựa trên lịch sử mua hàng và đưa ra gợi ý chăm sóc phù hợp cho từng nhóm.</li>
+                      <li><strong>Phân tích rổ hàng:</strong> AI phân tích các đơn hàng để tìm ra những sản phẩm nào thường được mua cùng nhau, từ đó đề xuất các chiến lược bán chéo, tạo combo khuyến mãi.</li>
+                      <li><strong>Dự báo & Đề xuất (trên trang Sản phẩm):</strong> AI dự báo nhu cầu sản phẩm trong tương lai và đề xuất số lượng cần nhập hàng, giúp tối ưu tồn kho.</li>
+                    </ul>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </CardContent>
+        </Card>
+
+        {/* =======================
+              Quản trị hệ thống
+        ======================== */}
+        <Card>
+          <CardHeader>
+            <CardTitle>5. Quản trị Hệ thống</CardTitle>
+            <CardDescription>Các chức năng dành riêng cho Quản trị viên.</CardDescription>
+          </CardHeader>
+          <CardContent>
+             <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="item-1">
+                <AccordionTrigger>
+                    <div className="flex items-center gap-2">
+                        <Users2 className="h-5 w-5 text-primary" />
+                        <span>Quản lý Người dùng & Phân quyền</span>
+                    </div>
+                </AccordionTrigger>
+                <AccordionContent className="prose prose-sm max-w-none pl-7 text-muted-foreground">
+                    <p><strong>Ý nghĩa:</strong> Tạo tài khoản cho nhân viên và kiểm soát chặt chẽ quyền truy cập của họ vào từng chức năng.</p>
+                    <p><strong>Dành cho ai:</strong> Quản trị viên.</p>
+                     <p><strong>Cách sử dụng:</strong></p>
+                    <ul>
+                      <li>Truy cập trang "Người dùng", nhấn "Thêm người dùng".</li>
+                      <li>Nhập thông tin tài khoản, mật khẩu và chọn một vai trò (Role).</li>
+                      <li>Nếu chọn vai trò "Tùy chỉnh", bạn có thể tích vào các ô để cấp quyền chi tiết cho từng module (Xem, Thêm, Sửa, Xóa).</li>
+                      <li>Sử dụng nút "Áp dụng mặc định" để nhanh chóng gán bộ quyền chuẩn cho một vai trò, sau đó tùy chỉnh thêm nếu cần.</li>
+                    </ul>
+                </AccordionContent>
+              </AccordionItem>
+              <AccordionItem value="item-2">
+                <AccordionTrigger>
+                    <div className="flex items-center gap-2">
+                        <Settings className="h-5 w-5 text-primary" />
+                        <span>Cài đặt</span>
+                    </div>
+                </AccordionTrigger>
+                <AccordionContent className="prose prose-sm max-w-none pl-7 text-muted-foreground">
+                    <p><strong>Ý nghĩa:</strong> Tùy chỉnh các thông số chung của toàn bộ hệ thống.</p>
+                    <p><strong>Dành cho ai:</strong> Quản trị viên.</p>
+                     <p><strong>Các cài đặt chính:</strong></p>
+                    <ul>
+                      <li><strong>Thông tin doanh nghiệp:</strong> Cập nhật tên, địa chỉ, SĐT để hiển thị trên hóa đơn.</li>
+                      <li><strong>Giao diện:</strong> Thay đổi màu sắc chủ đạo của ứng dụng.</li>
+                      <li><strong>Hàng tồn kho:</strong> Thiết lập ngưỡng cảnh báo tồn kho tối thiểu chung cho tất cả sản phẩm.</li>
+                      <li><strong>Thuế:</strong> Cấu hình tỷ lệ VAT.</li>
+                      <li><strong>Khách hàng thân thiết:</strong> Bật/tắt và cấu hình chương trình tích điểm, phân hạng thành viên.</li>
+                      <li><strong>Khu vực nguy hiểm:</strong> Sao lưu toàn bộ dữ liệu ra file Excel hoặc xóa dữ liệu giao dịch để làm mới hệ thống. <strong>Hãy thận trọng với chức năng này.</strong></li>
+                    </ul>
                 </AccordionContent>
               </AccordionItem>
             </Accordion>

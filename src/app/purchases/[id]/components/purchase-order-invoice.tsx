@@ -1,7 +1,10 @@
+
+
 'use client'
 
 import { useRef } from 'react'
 import Link from "next/link"
+import Image from 'next/image'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import { ChevronLeft, File, Printer, Pencil } from "lucide-react"
@@ -17,9 +20,8 @@ import {
   TableRow,
   TableFooter,
 } from "@/components/ui/table"
-import { Logo } from "@/components/icons"
 import { formatCurrency } from "@/lib/utils"
-import type { PurchaseOrder, PurchaseOrderItem, Product, Unit, ThemeSettings } from "@/lib/types"
+import type { PurchaseOrder, PurchaseOrderItem, Product, Unit, ThemeSettings, Supplier } from "@/lib/types"
 
 interface PurchaseOrderInvoiceProps {
     purchaseOrder: PurchaseOrder;
@@ -27,9 +29,10 @@ interface PurchaseOrderInvoiceProps {
     productsMap: Map<string, Product>;
     unitsMap: Map<string, Unit>;
     settings: ThemeSettings | null;
+    supplier: Supplier | null;
 }
 
-export function PurchaseOrderInvoice({ purchaseOrder, items, productsMap, unitsMap, settings }: PurchaseOrderInvoiceProps) {
+export function PurchaseOrderInvoice({ purchaseOrder, items, productsMap, unitsMap, settings, supplier }: PurchaseOrderInvoiceProps) {
   const invoiceRef = useRef<HTMLDivElement>(null);
 
   const handlePrint = () => {
@@ -133,7 +136,13 @@ export function PurchaseOrderInvoice({ purchaseOrder, items, productsMap, unitsM
         <Card className="p-6 sm:p-8" ref={invoiceRef}>
             <header className="flex items-start justify-between mb-8">
                 <div className="flex items-center gap-4">
-                    <Logo className="h-16 w-16 text-primary" />
+                    {settings?.companyLogo ? (
+                        <Image src={settings.companyLogo} alt="Company Logo" width={64} height={64} className="h-16 w-16 object-contain" />
+                    ) : (
+                        <div className="h-16 w-16 bg-muted rounded-md flex items-center justify-center">
+                            <span className="text-xs text-muted-foreground">Logo</span>
+                        </div>
+                    )}
                     <div>
                         <p className="font-semibold text-lg">{settings?.companyBusinessLine || 'CƠ SỞ SẢN XUẤT VÀ KINH DOANH GIỐNG CÂY TRỒNG'}</p>
                         <p className="font-bold text-2xl text-primary">{settings?.companyName || 'MINH PHÁT'}</p>
@@ -155,8 +164,11 @@ export function PurchaseOrderInvoice({ purchaseOrder, items, productsMap, unitsM
                 </div>
             </div>
 
-            <div className="text-sm mb-6">
-                <p><span className="font-semibold">Ghi chú:</span> {purchaseOrder.notes || 'Không có'}</p>
+            <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm mb-6">
+                <p><span className="font-semibold">Nhà cung cấp:</span> {supplier?.name || 'N/A'}</p>
+                <p><span className="font-semibold">Điện thoại:</span> {supplier?.phone || 'N/A'}</p>
+                <p className="col-span-2"><span className="font-semibold">Địa chỉ:</span> {supplier?.address || 'N/A'}</p>
+                <p className="col-span-2"><span className="font-semibold">Ghi chú:</span> {purchaseOrder.notes || 'Không có'}</p>
             </div>
             
             <Table>

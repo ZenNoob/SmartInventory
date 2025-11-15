@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useState, useMemo, useTransition } from "react"
@@ -8,8 +9,11 @@ import {
   Search,
   ArrowUp,
   ArrowDown,
-  File
+  File,
+  Calendar as CalendarIcon
 } from "lucide-react"
+import { DateRange } from "react-day-picker"
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns"
 
 import {
   Card,
@@ -36,6 +40,11 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -47,15 +56,16 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy } from "firebase/firestore"
-import { PurchaseOrder } from "@/lib/types"
+import { collection, query, where, orderBy } from "firebase/firestore"
+import { PurchaseOrder, Supplier } from "@/lib/types"
 import { Input } from "@/components/ui/input"
-import { formatCurrency } from "@/lib/utils"
+import { formatCurrency, cn } from "@/lib/utils"
 import { deletePurchaseOrder, generatePurchaseOrdersExcel } from "./actions"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
+import { Calendar } from "@/components/ui/calendar"
 
-type SortKey = 'orderNumber' | 'importDate' | 'totalAmount' | 'itemCount';
+type SortKey = 'orderNumber' | 'importDate' | 'totalAmount' | 'itemCount' | 'notes' | 'supplier';
 
 export default function PurchasesPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -64,6 +74,10 @@ export default function PurchasesPage() {
   const [orderToDelete, setOrderToDelete] = useState<PurchaseOrder | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isExporting, startExportingTransition] = useTransition();
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: startOfMonth(new Date()),
+    to: endOfMonth(new Date()),
+  });
   
   const firestore = useFirestore();
   const { toast } = useToast();
@@ -72,19 +86,58 @@ export default function PurchasesPage() {
 
   const purchasesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, "purchase_orders"), orderBy("importDate", "desc"));
-  }, [firestore]);
+    
+    let q = query(collection(firestore, "purchase_orders"));
+
+    if (dateRange?.from) {
+       q = query(q, where('importDate', '>=', dateRange.from.toISOString()));
+    }
+    if (dateRange?.to) {
+       q = query(q, where('importDate', '<=', dateRange.to.toISOString()));
+    }
+    
+    q = query(q, orderBy("importDate", "desc"));
+    return q;
+  }, [firestore, dateRange]);
+
 
   const { data: purchases, isLoading } = useCollection<PurchaseOrder>(purchasesQuery);
+  const { data: suppliers, isLoading: suppliersLoading } = useCollection<Supplier>(useMemoFirebase(() => firestore ? query(collection(firestore, 'suppliers')) : null, [firestore]));
+  
+  const suppliersMap = useMemo(() => new Map(suppliers?.map(s => [s.id, s.name])), [suppliers]);
 
   const filteredPurchases = purchases?.filter(order => {
     const term = searchTerm.toLowerCase();
+    const supplierName = suppliersMap.get(order.supplierId)?.toLowerCase() || '';
     if (!term) return true;
     return (
       order.orderNumber.toLowerCase().includes(term) ||
-      (order.notes && order.notes.toLowerCase().includes(term))
+      (order.notes && order.notes.toLowerCase().includes(term)) ||
+      supplierName.includes(term)
     );
   });
+  
+  const setDatePreset = (preset: 'this_week' | 'this_month' | 'this_quarter' | 'this_year' | 'all') => {
+    const now = new Date();
+    if (preset === 'all') {
+      setDateRange(undefined);
+      return;
+    }
+    switch (preset) {
+      case 'this_week':
+        setDateRange({ from: startOfWeek(now, { weekStartsOn: 1 }), to: endOfWeek(now, { weekStartsOn: 1 }) });
+        break;
+      case 'this_month':
+        setDateRange({ from: startOfMonth(now), to: endOfMonth(now) });
+        break;
+      case 'this_quarter':
+        setDateRange({ from: startOfQuarter(now), to: endOfQuarter(now) });
+        break;
+      case 'this_year':
+        setDateRange({ from: startOfYear(now), to: endOfYear(now) });
+        break;
+    }
+  }
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -109,6 +162,14 @@ export default function PurchasesPage() {
                 valA = new Date(a.importDate).getTime();
                 valB = new Date(b.importDate).getTime();
                 break;
+            case 'notes':
+                valA = a.notes || '';
+                valB = b.notes || '';
+                break;
+            case 'supplier':
+                valA = suppliersMap.get(a.supplierId) || '';
+                valB = suppliersMap.get(b.supplierId) || '';
+                break;
             default:
                 valA = a[sortKey];
                 valB = b[sortKey];
@@ -125,7 +186,7 @@ export default function PurchasesPage() {
       });
     }
     return sortableItems;
-  }, [filteredPurchases, sortKey, sortDirection]);
+  }, [filteredPurchases, sortKey, sortDirection, suppliersMap]);
 
   const handleDelete = async () => {
     if (!orderToDelete) return;
@@ -158,7 +219,7 @@ export default function PurchasesPage() {
       return;
     }
     startExportingTransition(async () => {
-      const result = await generatePurchaseOrdersExcel(sortedPurchases);
+      const result = await generatePurchaseOrdersExcel(sortedPurchases, suppliers || []);
       if (result.success && result.data) {
         const link = document.createElement("a");
         link.href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${result.data}`;
@@ -204,42 +265,73 @@ export default function PurchasesPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="flex items-center gap-2 mb-4">
-        <div className="grid gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">Đơn nhập hàng</h1>
-            <p className="text-sm text-muted-foreground">
-                Tạo và quản lý các đợt nhập hàng của bạn.
-            </p>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-           <Button size="sm" variant="outline" className="h-8 gap-1" onClick={handleExport} disabled={isExporting}>
-              <File className="h-3.5 w-3.5" />
-              <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                {isExporting ? "Đang xuất..." : "Xuất Excel"}
-              </span>
-            </Button>
-          <Button size="sm" className="h-8 gap-1" asChild>
-            <Link href="/purchases/new">
-              <PlusCircle className="h-3.5 w-3.5" />
-              <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                Tạo đơn nhập
-              </span>
-            </Link>
-          </Button>
-        </div>
-      </div>
       <Card>
         <CardHeader>
-             <div className="relative">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <CardTitle>Đơn nhập hàng</CardTitle>
+              <CardDescription>
+                  Tạo và quản lý các đợt nhập hàng của bạn.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" className="h-8 gap-1" onClick={handleExport} disabled={isExporting}>
+                  <File className="h-3.5 w-3.5" />
+                  <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                    {isExporting ? "Đang xuất..." : "Xuất Excel"}
+                  </span>
+                </Button>
+              <Button size="sm" className="h-8 gap-1" asChild>
+                <Link href="/purchases/new">
+                  <PlusCircle className="h-3.5 w-3.5" />
+                  <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                    Tạo đơn nhập
+                  </span>
+                </Link>
+              </Button>
+            </div>
+          </div>
+           <div className="flex flex-wrap items-center gap-4 pt-4">
+              <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                     type="search"
-                    placeholder="Tìm theo mã đơn, ghi chú..."
-                    className="w-full rounded-lg bg-background pl-8 md:w-1/3"
+                    placeholder="Tìm theo mã đơn, nhà cung cấp..."
+                    className="w-full rounded-lg bg-background pl-8 md:w-64"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
-            </div>
+              </div>
+              <Popover>
+                  <PopoverTrigger asChild>
+                      <Button
+                      variant={"outline"}
+                      className={cn(
+                          "w-[240px] justify-start text-left font-normal",
+                          !dateRange && "text-muted-foreground"
+                      )}
+                      >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateRange?.from ? (dateRange.to ? <>{format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}</> : format(dateRange.from, "dd/MM/yyyy")) : <span>Tất cả</span>}
+                      </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                          mode="range"
+                          selected={dateRange}
+                          onSelect={setDateRange}
+                          initialFocus
+                      />
+                        <div className="p-2 border-t grid grid-cols-3 gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_week')}>Tuần này</Button>
+                          <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_month')}>Tháng này</Button>
+                          <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_quarter')}>Quý này</Button>
+                          <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_year')}>Năm nay</Button>
+                          <Button variant="ghost" size="sm" onClick={() => setDatePreset('all')}>Tất cả</Button>
+                      </div>
+                  </PopoverContent>
+              </Popover>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -248,16 +340,18 @@ export default function PurchasesPage() {
                 <TableHead className="w-16 hidden md:table-cell">STT</TableHead>
                 <SortableHeader sortKey="orderNumber">Mã đơn</SortableHeader>
                 <SortableHeader sortKey="importDate">Ngày nhập</SortableHeader>
+                <SortableHeader sortKey="supplier">Nhà cung cấp</SortableHeader>
                 <SortableHeader sortKey="itemCount" className="text-right">Số SP</SortableHeader>
                 <SortableHeader sortKey="totalAmount" className="text-right">Tổng tiền</SortableHeader>
+                <SortableHeader sortKey="notes">Ghi chú</SortableHeader>
                 <TableHead>
                   <span className="sr-only">Hành động</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && <TableRow><TableCell colSpan={6} className="text-center">Đang tải...</TableCell></TableRow>}
-              {!isLoading && sortedPurchases?.map((order, index) => (
+              {isLoading || suppliersLoading && <TableRow><TableCell colSpan={8} className="text-center">Đang tải...</TableCell></TableRow>}
+              {!isLoading && !suppliersLoading && sortedPurchases?.map((order, index) => (
                   <TableRow key={order.id}>
                     <TableCell className="font-medium hidden md:table-cell">{index + 1}</TableCell>
                     <TableCell className="font-medium">
@@ -268,11 +362,17 @@ export default function PurchasesPage() {
                     <TableCell>
                       {new Date(order.importDate).toLocaleDateString()}
                     </TableCell>
+                     <TableCell>
+                      {suppliersMap.get(order.supplierId) || 'N/A'}
+                    </TableCell>
                     <TableCell className="text-right">
                       {order.items.length}
                     </TableCell>
                     <TableCell className="text-right">
                       {formatCurrency(order.totalAmount)}
+                    </TableCell>
+                    <TableCell>
+                      {order.notes}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -301,9 +401,9 @@ export default function PurchasesPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {!isLoading && sortedPurchases?.length === 0 && (
+                {!isLoading && !suppliersLoading && sortedPurchases?.length === 0 && (
                     <TableRow>
-                        <TableCell colSpan={6} className="text-center h-24">
+                        <TableCell colSpan={8} className="text-center h-24">
                            Chưa có đơn nhập hàng nào.
                         </TableCell>
                     </TableRow>

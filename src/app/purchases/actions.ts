@@ -1,6 +1,7 @@
+
 'use server'
 
-import { PurchaseOrder, PurchaseOrderItem, PurchaseLot } from "@/lib/types";
+import { PurchaseOrder, PurchaseOrderItem, PurchaseLot, Supplier } from "@/lib/types";
 import { getAdminServices } from "@/lib/admin-actions";
 import { FieldValue } from "firebase-admin/firestore";
 import * as xlsx from 'xlsx';
@@ -166,6 +167,11 @@ export async function deletePurchaseOrder(orderId: string): Promise<{ success: b
           purchaseLots: FieldValue.arrayRemove(purchaseLotToRemove),
         });
       }
+      
+      // Also delete any associated supplier payments
+      const paymentsQuery = firestore.collection('supplier_payments').where('notes', '==', `Thanh toán cho đơn nhập ${order.orderNumber}`);
+      const paymentsSnapshot = await transaction.get(paymentsQuery);
+      paymentsSnapshot.docs.forEach(doc => transaction.delete(doc.ref));
 
       // 3. Delete the main purchase order document
       transaction.delete(purchaseOrderRef);
@@ -178,12 +184,14 @@ export async function deletePurchaseOrder(orderId: string): Promise<{ success: b
   }
 }
 
-export async function generatePurchaseOrdersExcel(orders: PurchaseOrder[]): Promise<{ success: boolean; data?: string; error?: string }> {
+export async function generatePurchaseOrdersExcel(orders: PurchaseOrder[], suppliers: Supplier[]): Promise<{ success: boolean; data?: string; error?: string }> {
   try {
+    const suppliersMap = new Map(suppliers.map(s => [s.id, s.name]));
     const dataToExport = orders.map((order, index) => ({
       'STT': index + 1,
       'Mã đơn': order.orderNumber,
       'Ngày nhập': new Date(order.importDate).toLocaleDateString('vi-VN'),
+      'Nhà cung cấp': suppliersMap.get(order.supplierId) || 'N/A',
       'Số SP': order.items.length,
       'Tổng tiền': order.totalAmount,
       'Ghi chú': order.notes || '',
@@ -195,6 +203,7 @@ export async function generatePurchaseOrdersExcel(orders: PurchaseOrder[]): Prom
       'STT': '',
       'Mã đơn': 'Tổng cộng',
       'Ngày nhập': '',
+      'Nhà cung cấp': '',
       'Số SP': '',
       'Tổng tiền': totalAmount,
       'Ghi chú': '',
@@ -206,6 +215,7 @@ export async function generatePurchaseOrdersExcel(orders: PurchaseOrder[]): Prom
       { wch: 5 },  // STT
       { wch: 20 }, // Mã đơn
       { wch: 15 }, // Ngày nhập
+      { wch: 25 }, // Nhà cung cấp
       { wch: 10 }, // Số SP
       { wch: 20 }, // Tổng tiền
       { wch: 40 }, // Ghi chú
@@ -214,13 +224,13 @@ export async function generatePurchaseOrdersExcel(orders: PurchaseOrder[]): Prom
     const numberFormat = '#,##0';
     dataToExport.forEach((_, index) => {
         const rowIndex = index + 2; // 1-based index, +1 for header
-        worksheet[`E${rowIndex}`].z = numberFormat;
+        worksheet[`F${rowIndex}`].z = numberFormat;
     });
 
     const totalRowIndex = dataToExport.length + 2;
-    worksheet[`E${totalRowIndex}`].z = numberFormat;
+    worksheet[`F${totalRowIndex}`].z = numberFormat;
     worksheet[`B${totalRowIndex}`].s = { font: { bold: true } };
-    worksheet[`E${totalRowIndex}`].s = { font: { bold: true } };
+    worksheet[`F${totalRowIndex}`].s = { font: { bold: true } };
 
 
     const workbook = xlsx.utils.book_new();

@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useState, useMemo } from "react"
@@ -51,6 +52,8 @@ import { deleteCategory } from "./actions"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
+import { useUserRole } from "@/hooks/use-user-role"
+import Link from "next/link"
 
 type SortKey = 'name' | 'description';
 
@@ -66,13 +69,14 @@ export default function CategoriesPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
+  const { permissions, isLoading: isRoleLoading } = useUserRole();
 
   const categoriesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(collection(firestore, "categories"));
   }, [firestore]);
 
-  const { data: categories, isLoading } = useCollection<Category>(categoriesQuery);
+  const { data: categories, isLoading: categoriesLoading } = useCollection<Category>(categoriesQuery);
 
   const filteredCategories = categories?.filter(category => {
     const term = searchTerm.toLowerCase();
@@ -148,6 +152,30 @@ export default function CategoriesPage() {
     setCategoryToDelete(null);
   }
 
+  const isLoading = categoriesLoading || isRoleLoading;
+  const canView = permissions?.categories?.includes('view');
+  const canAdd = permissions?.categories?.includes('add');
+  const canEdit = permissions?.categories?.includes('edit');
+  const canDelete = permissions?.categories?.includes('delete');
+
+  if (isLoading) {
+    return <p>Đang tải...</p>;
+  }
+
+  if (!canView) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Truy cập bị từ chối</CardTitle>
+          <CardDescription>Bạn không có quyền xem trang này.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild><Link href="/dashboard">Quay lại Bảng điều khiển</Link></Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <>
       <CategoryForm 
@@ -180,14 +208,14 @@ export default function CategoriesPage() {
                 Thêm, sửa, xóa và tìm kiếm các danh mục sản phẩm của bạn.
             </p>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        {canAdd && <div className="ml-auto flex items-center gap-2">
           <Button size="sm" className="h-8 gap-1" onClick={handleAddCategory}>
             <PlusCircle className="h-3.5 w-3.5" />
             <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
               Thêm danh mục
             </span>
           </Button>
-        </div>
+        </div>}
       </div>
       <Card>
         <CardHeader>
@@ -239,8 +267,8 @@ export default function CategoriesPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Hành động</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => handleEditCategory(category)}>Sửa</DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive" onClick={() => setCategoryToDelete(category)}>Xóa</DropdownMenuItem>
+                          {canEdit && <DropdownMenuItem onClick={() => handleEditCategory(category)}>Sửa</DropdownMenuItem>}
+                          {canDelete && <DropdownMenuItem className="text-destructive" onClick={() => setCategoryToDelete(category)}>Xóa</DropdownMenuItem>}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
