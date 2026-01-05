@@ -127,11 +127,3 @@ Giả sử bạn muốn thêm một chức năng mới, ví dụ "Quản lý Nh�
 4.  **Cập nhật Điều hướng:** Thêm một `SidebarMenuItem` mới vào `src/components/main-nav.tsx` để người dùng có thể truy cập trang "Quản lý Nhà cung cấp".
 
 Bằng cách tuân theo cấu trúc này, bạn có thể dễ dàng thêm các chức năng mới một cách nhất quán và có tổ chức.
-# TÀI KHOẢN
-
-Admin:
-- Admin:test@lhu.edu.vn
-- password:123456789
-User:
-- username:phuc@lhu.edu.vn
-- pass:123456789
