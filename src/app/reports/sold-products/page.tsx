@@ -33,8 +33,7 @@ import {
 } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
-import { collection, query, getDocs } from "firebase/firestore"
+import { useStore } from "@/contexts/store-context"
 import { Category, Product, Sale, SalesItem, Unit } from "@/lib/types"
 import { formatCurrency, cn } from "@/lib/utils"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -64,19 +63,75 @@ export default function SoldProductsReportPage() {
     to: endOfMonth(new Date()),
   });
 
-  const firestore = useFirestore();
+  const { currentStore } = useStore();
 
-  const productsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "products")) : null, [firestore]);
-  const categoriesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "categories")) : null, [firestore]);
-  const unitsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "units")) : null, [firestore]);
-  const salesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "sales_transactions")) : null, [firestore]);
-  const customersQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "customers")) : null, [firestore]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [unitsLoading, setUnitsLoading] = useState(true);
+  const [salesLoading, setSalesLoading] = useState(true);
+  const [customersLoading, setCustomersLoading] = useState(true);
 
-  const { data: products, isLoading: productsLoading } = useCollection<Product>(productsQuery);
-  const { data: categories, isLoading: categoriesLoading } = useCollection<Category>(categoriesQuery);
-  const { data: units, isLoading: unitsLoading } = useCollection<Unit>(unitsQuery);
-  const { data: sales, isLoading: salesLoading } = useCollection<Sale>(salesQuery);
-  const { data: customers, isLoading: customersLoading } = useCollection<any>(customersQuery);
+  useEffect(() => {
+    if (!currentStore) return;
+
+    const fetchData = async () => {
+      try {
+        setProductsLoading(true);
+        const productsRes = await fetch('/api/products');
+        if (productsRes.ok) {
+          const data = await productsRes.json();
+          setProducts(data.data || []);
+        }
+        setProductsLoading(false);
+
+        setCategoriesLoading(true);
+        const categoriesRes = await fetch('/api/categories');
+        if (categoriesRes.ok) {
+          const data = await categoriesRes.json();
+          setCategories(data.data || []);
+        }
+        setCategoriesLoading(false);
+
+        setUnitsLoading(true);
+        const unitsRes = await fetch('/api/units');
+        if (unitsRes.ok) {
+          const data = await unitsRes.json();
+          setUnits(data.data || []);
+        }
+        setUnitsLoading(false);
+
+        setSalesLoading(true);
+        const salesRes = await fetch('/api/sales');
+        if (salesRes.ok) {
+          const data = await salesRes.json();
+          setSales(data.data || []);
+        }
+        setSalesLoading(false);
+
+        setCustomersLoading(true);
+        const customersRes = await fetch('/api/customers');
+        if (customersRes.ok) {
+          const data = await customersRes.json();
+          setCustomers(data.data || []);
+        }
+        setCustomersLoading(false);
+      } catch (error) {
+        console.error('Error fetching sold products data:', error);
+        setProductsLoading(false);
+        setCategoriesLoading(false);
+        setUnitsLoading(false);
+        setSalesLoading(false);
+        setCustomersLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [currentStore]);
 
 
   const [allSalesItems, setAllSalesItems] = useState<SalesItem[]>([]);

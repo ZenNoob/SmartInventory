@@ -1,39 +1,62 @@
+'use client'
 
-'use server'
-
-import { notFound } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 
-import type { Shift } from '@/lib/types'
-import { getAdminServices } from '@/lib/admin-actions'
-import { toPlainObject } from '@/lib/utils'
-
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { EditShiftForm } from './components/edit-shift-form'
+import { getShift } from '../../actions'
+import { Shift } from '@/lib/repositories/shift-repository'
 
+export default function EditShiftPage() {
+  const params = useParams();
+  const shiftId = params.id as string;
+  
+  const [shift, setShift] = useState<Shift | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-async function getShift(shiftId: string): Promise<Shift | null> {
-    try {
-        const { firestore } = await getAdminServices();
-        const shiftDoc = await firestore.collection('shifts').doc(shiftId).get();
+  useEffect(() => {
+    async function fetchShift() {
+      setIsLoading(true);
+      setError(null);
 
-        if (!shiftDoc.exists) {
-            return null;
+      try {
+        const result = await getShift(shiftId);
+        if (!result.success || !result.shift) {
+          setError(result.error || 'Không tìm thấy ca làm việc');
+          return;
         }
-        return toPlainObject(shiftDoc.data()) as Shift;
-    } catch (error) {
-        console.error("Error fetching shift:", error);
-        return null;
+        setShift(result.shift);
+      } catch (err) {
+        setError('Đã xảy ra lỗi khi tải dữ liệu');
+      } finally {
+        setIsLoading(false);
+      }
     }
-}
 
+    fetchShift();
+  }, [shiftId]);
 
-export default async function EditShiftPage({ params }: { params: { id: string } }) {
-  const shift = await getShift(params.id);
+  if (isLoading) {
+    return <p>Đang tải...</p>;
+  }
 
-  if (!shift) {
-    notFound();
+  if (error || !shift) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Lỗi</CardTitle>
+          <CardDescription>{error || 'Không tìm thấy ca làm việc'}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild><Link href="/shifts">Quay lại</Link></Button>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (

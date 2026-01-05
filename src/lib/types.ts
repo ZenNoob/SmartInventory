@@ -244,3 +244,228 @@ export type Shift = {
   totalRevenue: number;
   salesCount: number;
 }
+
+
+// ==================== Online Store Types ====================
+
+export type OnlineStoreConfig = {
+  id: string;
+  storeId: string;
+  slug: string;
+  customDomain?: string;
+  isActive: boolean;
+  
+  // Branding
+  storeName: string;
+  logo?: string;
+  favicon?: string;
+  description?: string;
+  
+  // Theme
+  themeId: string;
+  primaryColor: string;
+  secondaryColor: string;
+  fontFamily: string;
+  
+  // Contact
+  contactEmail: string;
+  contactPhone?: string;
+  address?: string;
+  
+  // Social
+  facebookUrl?: string;
+  instagramUrl?: string;
+  
+  // Settings
+  currency: string;
+  timezone: string;
+  
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type OnlineCategory = {
+  id: string;
+  onlineStoreId: string;
+  name: string;
+  slug: string;
+  description?: string;
+  image?: string;
+  parentId?: string;
+  displayOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type OnlineProduct = {
+  id: string;
+  onlineStoreId: string;
+  productId: string;
+  categoryId?: string;
+  
+  isPublished: boolean;
+  onlinePrice?: number;
+  onlineDescription?: string;
+  displayOrder: number;
+  
+  // SEO
+  seoTitle?: string;
+  seoDescription?: string;
+  seoSlug: string;
+  
+  // Images (JSON array)
+  images: string[];
+  
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type OnlineCustomer = {
+  id: string;
+  onlineStoreId: string;
+  
+  email: string;
+  passwordHash?: string; // Not exposed in API responses
+  
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  
+  defaultAddressId?: string;
+  
+  isActive: boolean;
+  isVerified: boolean;
+  
+  createdAt: string;
+  updatedAt: string;
+  lastLoginAt?: string;
+}
+
+export type CustomerAddress = {
+  id: string;
+  customerId: string;
+  label: string;
+  fullName: string;
+  phone: string;
+  province: string;
+  district: string;
+  ward: string;
+  addressLine: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ShoppingCart = {
+  id: string;
+  onlineStoreId: string;
+  sessionId?: string;
+  customerId?: string;
+  
+  subtotal: number;
+  discountAmount: number;
+  shippingFee: number;
+  total: number;
+  
+  couponCode?: string;
+  
+  items?: CartItem[];
+  
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+}
+
+export type CartItem = {
+  id: string;
+  cartId: string;
+  onlineProductId: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  createdAt: string;
+}
+
+export type OrderStatus = 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+export type PaymentStatus = 'pending' | 'paid' | 'refunded' | 'failed';
+export type PaymentMethod = 'cod' | 'bank_transfer' | 'momo' | 'vnpay' | 'zalopay';
+
+export type ShippingAddress = {
+  fullName: string;
+  phone: string;
+  province: string;
+  district: string;
+  ward: string;
+  addressLine: string;
+  note?: string;
+}
+
+export type OnlineOrder = {
+  id: string;
+  orderNumber: string;
+  onlineStoreId: string;
+  
+  // Customer info
+  customerId?: string;
+  customerEmail: string;
+  customerName: string;
+  customerPhone: string;
+  
+  // Shipping
+  shippingAddress: ShippingAddress;
+  shippingMethod?: string;
+  shippingFee: number;
+  trackingNumber?: string;
+  carrier?: string;
+  estimatedDelivery?: string;
+  
+  // Order details
+  items?: OnlineOrderItem[];
+  subtotal: number;
+  discountAmount: number;
+  total: number;
+  
+  // Status
+  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  paymentMethod: PaymentMethod;
+  
+  // Notes
+  customerNote?: string;
+  internalNote?: string;
+  
+  createdAt: string;
+  updatedAt: string;
+  confirmedAt?: string;
+  shippedAt?: string;
+  deliveredAt?: string;
+  cancelledAt?: string;
+}
+
+export type OnlineOrderItem = {
+  id: string;
+  orderId: string;
+  onlineProductId: string;
+  productName: string;
+  productSku?: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  createdAt: string;
+}
+
+export type ShippingZone = {
+  id: string;
+  onlineStoreId: string;
+  name: string;
+  provinces: string[];
+  
+  flatRate?: number;
+  freeShippingThreshold?: number;
+  
+  isActive: boolean;
+  
+  createdAt: string;
+  updatedAt: string;
+}

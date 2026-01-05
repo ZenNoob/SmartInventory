@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useMemo, useEffect, useCallback } from "react"
-import { Search, ArrowUp, ArrowDown, File, Calendar as CalendarIcon, DollarSign } from "lucide-react"
+import { Search, ArrowUp, ArrowDown, File, FileText, Calendar as CalendarIcon } from "lucide-react"
 import * as xlsx from 'xlsx';
+import { exportToPDF, formatCurrencyForExport } from "@/lib/export-utils"
 import { DateRange } from "react-day-picker"
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns"
 
@@ -25,21 +26,36 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
-import { collection, query, getDocs } from "firebase/firestore"
-import { Product, Sale, SalesItem, Unit } from "@/lib/types"
+import { useStore } from "@/contexts/store-context"
 import { formatCurrency, cn } from "@/lib/utils"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 
-type ProfitReportItem = {
+interface ProfitReportItem {
   productId: string;
   productName: string;
+  barcode?: string;
+  categoryName?: string;
+  unitName?: string;
   totalQuantity: number;
   totalRevenue: number;
   totalCost: number;
   totalProfit: number;
-};
+  profitMargin: number;
+}
+
+interface ProfitReportResponse {
+  success: boolean;
+  data: ProfitReportItem[];
+  totals: {
+    totalQuantity: number;
+    totalRevenue: number;
+    totalCost: number;
+    totalProfit: number;
+    totalProducts: number;
+    profitMargin: number;
+  };
+}
 
 type SortKey = 'productName' | 'totalQuantity' | 'totalRevenue' | 'totalCost' | 'totalProfit';
 
@@ -51,133 +67,74 @@ export default function ProfitReportPage() {
     from: startOfMonth(new Date()),
     to: endOfMonth(new Date()),
   });
+  const [isLoading, setIsLoading] = useState(true);
+  const [reportData, setReportData] = useState<ProfitReportResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const firestore = useFirestore();
+  const { currentStore } = useStore();
 
-  const productsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "products")) : null, [firestore]);
-  const salesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "sales_transactions")) : null, [firestore]);
-  const unitsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "units")) : null, [firestore]);
+  const fetchReport = useCallback(async () => {
+    if (!currentStore?.id) return;
 
-  const { data: products, isLoading: productsLoading } = useCollection<Product>(productsQuery);
-  const { data: sales, isLoading: salesLoading } = useCollection<Sale>(salesQuery);
-  const { data: units, isLoading: unitsLoading } = useCollection<Unit>(unitsQuery);
+    setIsLoading(true);
+    setError(null);
 
-  const [allSalesItems, setAllSalesItems] = useState<SalesItem[]>([]);
-  const [salesItemsLoading, setSalesItemsLoading] = useState(true);
+    try {
+      const params = new URLSearchParams();
+      if (dateRange?.from) {
+        params.set('dateFrom', dateRange.from.toISOString());
+      }
+      if (dateRange?.to) {
+        params.set('dateTo', dateRange.to.toISOString());
+      }
+      if (searchTerm) {
+        params.set('search', searchTerm);
+      }
+      params.set('groupBy', 'product');
 
-  const productsMap = useMemo(() => new Map(products?.map(p => [p.id, p])), [products]);
-  const unitsMap = useMemo(() => new Map(units?.map(u => [u.id, u])), [units]);
+      const response = await fetch(`/api/reports/profit?${params.toString()}`, {
+        headers: {
+          'x-store-id': currentStore.id,
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch report');
+      }
+
+      const data = await response.json();
+      setReportData(data);
+    } catch (err) {
+      console.error('Error fetching profit report:', err);
+      setError('Đã xảy ra lỗi khi tải báo cáo');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentStore?.id, dateRange, searchTerm]);
 
   useEffect(() => {
-    async function fetchAllSalesItems() {
-      if (!firestore || !sales) {
-        if (!salesLoading) setSalesItemsLoading(false);
-        return;
-      }
-      setSalesItemsLoading(true);
-      const items: SalesItem[] = [];
-      try {
-        const salesInDateRange = sales.filter(sale => {
-          if (!dateRange || !dateRange.from) return true;
-          const saleDate = new Date(sale.transactionDate);
-          const toDate = dateRange.to || dateRange.from;
-          return saleDate >= dateRange.from && saleDate <= toDate;
-        });
+    const debounceTimer = setTimeout(() => {
+      fetchReport();
+    }, 300);
 
-        for (const sale of salesInDateRange) {
-          const itemsCollectionRef = collection(firestore, `sales_transactions/${sale.id}/sales_items`);
-          const itemsSnapshot = await getDocs(itemsCollectionRef);
-          itemsSnapshot.forEach(doc => {
-            items.push({ id: doc.id, salesTransactionId: sale.id, ...doc.data() } as SalesItem);
-          });
-        }
-        setAllSalesItems(items);
-      } catch (error) {
-        console.error("Error fetching sales items:", error);
-      } finally {
-        setSalesItemsLoading(false);
-      }
-    }
-    fetchAllSalesItems();
-  }, [sales, firestore, salesLoading, dateRange]);
-  
-  const getUnitInfo = useCallback((unitId: string) => {
-    const unit = unitsMap.get(unitId);
-    if (!unit) return { baseUnit: undefined, conversionFactor: 1 };
-    if (unit.baseUnitId && unit.conversionFactor) {
-      const baseUnit = unitsMap.get(unit.baseUnitId);
-      return { baseUnit, conversionFactor: unit.conversionFactor };
-    }
-    return { baseUnit: unit, conversionFactor: 1 };
-  }, [unitsMap]);
-
-  const getAverageCost = useCallback((product: Product) => {
-    if (!product.purchaseLots || product.purchaseLots.length === 0) return 0;
-    let totalCost = 0;
-    let totalQuantityInBaseUnit = 0;
-    product.purchaseLots.forEach(lot => {
-      const { conversionFactor } = getUnitInfo(lot.unitId);
-      const quantityInBaseUnit = lot.quantity * conversionFactor;
-      if (lot.cost > 0) { // Exclude adjustments from cost calculation
-        totalCost += lot.cost * quantityInBaseUnit;
-        totalQuantityInBaseUnit += quantityInBaseUnit;
-      }
-    });
-    return totalQuantityInBaseUnit > 0 ? totalCost / totalQuantityInBaseUnit : 0;
-  }, [getUnitInfo]);
-
-  const profitReportData = useMemo((): ProfitReportItem[] => {
-    if (allSalesItems.length === 0 || productsMap.size === 0) return [];
-    
-    const reportMap = new Map<string, ProfitReportItem>();
-
-    allSalesItems.forEach(item => {
-      const product = productsMap.get(item.productId);
-      if (!product) return;
-
-      const avgCost = getAverageCost(product);
-      const itemCost = item.quantity * avgCost;
-      const itemRevenue = item.quantity * item.price;
-      const itemProfit = itemRevenue - itemCost;
-      
-      const existing = reportMap.get(item.productId) || {
-        productId: item.productId,
-        productName: product.name,
-        totalQuantity: 0,
-        totalRevenue: 0,
-        totalCost: 0,
-        totalProfit: 0,
-      };
-
-      existing.totalQuantity += item.quantity;
-      existing.totalRevenue += itemRevenue;
-      existing.totalCost += itemCost;
-      existing.totalProfit += itemProfit;
-      
-      reportMap.set(item.productId, existing);
-    });
-
-    return Array.from(reportMap.values());
-  }, [allSalesItems, productsMap, getAverageCost]);
-
-  const filteredData = useMemo(() => {
-    return profitReportData.filter(item => 
-      item.productName.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [profitReportData, searchTerm]);
+    return () => clearTimeout(debounceTimer);
+  }, [fetchReport]);
 
   const sortedData = useMemo(() => {
-    let sortableItems = [...filteredData];
+    if (!reportData?.data) return [];
+    
+    let sortableItems = [...reportData.data];
     sortableItems.sort((a, b) => {
       const valA = a[sortKey];
       const valB = b[sortKey];
       if (typeof valA === 'string' && typeof valB === 'string') {
         return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
       }
-      return sortDirection === 'asc' ? valA - valB : valB - valA;
+      return sortDirection === 'asc' ? (valA as number) - (valB as number) : (valB as number) - (valA as number);
     });
     return sortableItems;
-  }, [filteredData, sortKey, sortDirection]);
+  }, [reportData, sortKey, sortDirection]);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -228,14 +185,43 @@ export default function ProfitReportPage() {
     xlsx.writeFile(workbook, "bao_cao_loi_nhuan.xlsx");
   };
 
-  const totalRow = useMemo(() => {
-    return sortedData.reduce((acc, curr) => ({
-      totalRevenue: acc.totalRevenue + curr.totalRevenue,
-      totalCost: acc.totalCost + curr.totalCost,
-      totalProfit: acc.totalProfit + curr.totalProfit,
-    }), { totalRevenue: 0, totalCost: 0, totalProfit: 0 });
-  }, [sortedData]);
+  const handleExportPDF = () => {
+    const headers = ["STT", "Sản phẩm", "SL bán", "Doanh thu", "Giá vốn", "Lợi nhuận"];
+    const data = sortedData.map((item, index) => [
+      index + 1,
+      item.productName,
+      item.totalQuantity.toLocaleString(),
+      formatCurrencyForExport(item.totalRevenue),
+      formatCurrencyForExport(item.totalCost),
+      formatCurrencyForExport(item.totalProfit),
+    ]);
 
+    const dateRangeStr = dateRange?.from 
+      ? `${format(dateRange.from, "dd/MM/yyyy")} - ${dateRange.to ? format(dateRange.to, "dd/MM/yyyy") : format(dateRange.from, "dd/MM/yyyy")}`
+      : 'Tất cả thời gian';
+
+    exportToPDF(
+      'BÁO CÁO LỢI NHUẬN THEO SẢN PHẨM',
+      headers,
+      data,
+      'bao_cao_loi_nhuan',
+      {
+        orientation: 'portrait',
+        dateRange: dateRangeStr,
+        totals: [
+          '',
+          'Tổng cộng',
+          '',
+          formatCurrencyForExport(totalRow.totalRevenue),
+          formatCurrencyForExport(totalRow.totalCost),
+          formatCurrencyForExport(totalRow.totalProfit),
+        ],
+        columnAligns: ['center', 'left', 'right', 'right', 'right', 'right'],
+      }
+    );
+  };
+
+  const totalRow = reportData?.totals || { totalRevenue: 0, totalCost: 0, totalProfit: 0, profitMargin: 0 };
 
   const SortableHeader = ({ sortKey: key, children, className }: { sortKey: SortKey; children: React.ReactNode; className?: string }) => (
     <TableHead className={className}>
@@ -246,58 +232,63 @@ export default function ProfitReportPage() {
     </TableHead>
   );
 
-  const isLoading = productsLoading || salesLoading || unitsLoading || salesItemsLoading;
-
   return (
     <Card>
       <CardHeader>
         <div className="flex justify-between items-start">
-            <div>
-                <CardTitle>Báo cáo Lợi nhuận theo Sản phẩm</CardTitle>
-                <CardDescription>
-                Phân tích doanh thu, giá vốn và lợi nhuận của từng sản phẩm.
-                </CardDescription>
-            </div>
-             <div className="text-right">
-                  <p className="text-sm text-muted-foreground">Tổng lợi nhuận</p>
-                  <p className={`text-2xl font-bold ${totalRow.totalProfit >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                      {formatCurrency(totalRow.totalProfit)}
-                  </p>
-              </div>
+          <div>
+            <CardTitle>Báo cáo Lợi nhuận theo Sản phẩm</CardTitle>
+            <CardDescription>
+              Phân tích doanh thu, giá vốn và lợi nhuận của từng sản phẩm.
+            </CardDescription>
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-muted-foreground">Tổng lợi nhuận</p>
+            <p className={`text-2xl font-bold ${totalRow.totalProfit >= 0 ? 'text-primary' : 'text-destructive'}`}>
+              {formatCurrency(totalRow.totalProfit)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Biên lợi nhuận: {totalRow.profitMargin.toFixed(1)}%
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-4 pt-4">
-           <Popover>
-              <PopoverTrigger asChild>
-                <Button id="date" variant={"outline"} className={cn("w-[300px] justify-start text-left font-normal", !dateRange && "text-muted-foreground")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}</>) : format(dateRange.from, "dd/MM/yyyy")) : (<span>Tất cả thời gian</span>)}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                 <Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} />
-                 <div className="p-2 border-t grid grid-cols-3 gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_week')}>Tuần này</Button>
-                    <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_month')}>Tháng này</Button>
-                    <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_quarter')}>Quý này</Button>
-                    <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_year')}>Năm nay</Button>
-                    <Button variant="ghost" size="sm" onClick={() => setDatePreset('all')}>Tất cả</Button>
-                </div>
-              </PopoverContent>
-            </Popover>
-            <div className="relative ml-auto">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Tìm sản phẩm..."
-                className="w-full rounded-lg bg-background pl-8 md:w-80"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <Button onClick={handleExportExcel} variant="outline">
-              <File className="mr-2 h-4 w-4" />
-              Xuất Excel
-            </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button id="date" variant={"outline"} className={cn("w-[300px] justify-start text-left font-normal", !dateRange && "text-muted-foreground")}>
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}</>) : format(dateRange.from, "dd/MM/yyyy")) : (<span>Tất cả thời gian</span>)}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} />
+              <div className="p-2 border-t grid grid-cols-3 gap-1">
+                <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_week')}>Tuần này</Button>
+                <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_month')}>Tháng này</Button>
+                <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_quarter')}>Quý này</Button>
+                <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_year')}>Năm nay</Button>
+                <Button variant="ghost" size="sm" onClick={() => setDatePreset('all')}>Tất cả</Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+          <div className="relative ml-auto">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Tìm sản phẩm..."
+              className="w-full rounded-lg bg-background pl-8 md:w-80"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <Button onClick={handleExportPDF} variant="outline">
+            <FileText className="mr-2 h-4 w-4" />
+            Xuất PDF
+          </Button>
+          <Button onClick={handleExportExcel} variant="outline">
+            <File className="mr-2 h-4 w-4" />
+            Xuất Excel
+          </Button>
         </div>
       </CardHeader>
       <CardContent>
@@ -314,7 +305,8 @@ export default function ProfitReportPage() {
           </TableHeader>
           <TableBody>
             {isLoading && <TableRow><TableCell colSpan={6} className="text-center h-24">Đang tải và tính toán dữ liệu...</TableCell></TableRow>}
-            {!isLoading && sortedData.map((item, index) => (
+            {error && <TableRow><TableCell colSpan={6} className="text-center h-24 text-destructive">{error}</TableCell></TableRow>}
+            {!isLoading && !error && sortedData.map((item, index) => (
               <TableRow key={item.productId}>
                 <TableCell>{index + 1}</TableCell>
                 <TableCell className="font-medium">{item.productName}</TableCell>
@@ -326,11 +318,11 @@ export default function ProfitReportPage() {
                 </TableCell>
               </TableRow>
             ))}
-            {!isLoading && sortedData.length === 0 && (
+            {!isLoading && !error && sortedData.length === 0 && (
               <TableRow><TableCell colSpan={6} className="text-center h-24">Không có dữ liệu.</TableCell></TableRow>
             )}
           </TableBody>
-           <ShadcnTableFooter>
+          <ShadcnTableFooter>
             <TableRow className="text-base font-bold">
               <TableCell colSpan={3}>Tổng cộng</TableCell>
               <TableCell className="text-right">{formatCurrency(totalRow.totalRevenue)}</TableCell>
@@ -340,11 +332,11 @@ export default function ProfitReportPage() {
           </ShadcnTableFooter>
         </Table>
       </CardContent>
-       <CardFooter>
-            <div className="text-xs text-muted-foreground">
-              Hiển thị <strong>{sortedData.length}</strong> sản phẩm.
-            </div>
-        </CardFooter>
+      <CardFooter>
+        <div className="text-xs text-muted-foreground">
+          Hiển thị <strong>{sortedData.length}</strong> sản phẩm.
+        </div>
+      </CardFooter>
     </Card>
   );
 }

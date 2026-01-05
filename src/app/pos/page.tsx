@@ -1,5 +1,3 @@
-
-
 'use client'
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
@@ -21,15 +19,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useReactToPrint } from 'react-to-print';
 
-
-import {
-  useCollection,
-  useFirestore,
-  useMemoFirebase,
-  useUser,
-  useDoc,
-} from '@/firebase'
-import { getDocs, query, doc, collection, where } from 'firebase/firestore'
+import { useStore } from '@/contexts/store-context'
 import {
   Customer,
   Payment,
@@ -41,6 +31,14 @@ import {
   Shift,
 } from '@/lib/types'
 import { upsertSaleTransaction, updateSaleStatus } from '@/app/sales/actions'
+import { 
+  getProducts, 
+  getProductByBarcode, 
+  getCustomers, 
+  getUnits, 
+  getStoreSettings,
+  getActiveShift,
+} from './actions'
 import { useToast } from '@/hooks/use-toast'
 import { cn, formatCurrency } from '@/lib/utils'
 import { useUserRole } from '@/hooks/use-user-role'
@@ -88,6 +86,18 @@ import { StartShiftDialog } from './components/start-shift-dialog'
 import { ShiftControls } from './components/shift-controls'
 import { ThermalReceipt } from '../sales/[id]/components/thermal-receipt'
 
+// Extended product type with stock info from SQL Server
+interface ProductWithStock extends Product {
+  currentStock: number;
+  averageCost: number;
+  categoryName?: string;
+  unitName?: string;
+}
+
+// Extended customer type with debt info
+interface CustomerWithDebt extends Customer {
+  currentDebt?: number;
+}
 
 type CartItem = {
   productId: string
@@ -128,18 +138,29 @@ const FormattedNumberInput = ({ value, onChange, ...props }: { value: number; on
 };
 
 export default function POSPage() {
-  const { user, isUserLoading } = useUser()
+  const { user, isLoading: isStoreLoading } = useStore()
   const router = useRouter()
-  const firestore = useFirestore()
   const { toast } = useToast()
   const { toggleSidebar } = useSidebar();
   const { permissions, isLoading: isRoleLoading } = useUserRole();
 
+  // Data state
+  const [products, setProducts] = useState<ProductWithStock[]>([])
+  const [customers, setCustomers] = useState<CustomerWithDebt[]>([])
+  const [units, setUnits] = useState<Unit[]>([])
+  const [settings, setSettings] = useState<ThemeSettings | null>(null)
+  const [activeShift, setActiveShift] = useState<Shift | null>(null)
+  
+  // Loading states
+  const [productsLoading, setProductsLoading] = useState(true)
+  const [customersLoading, setCustomersLoading] = useState(true)
+  const [unitsLoading, setUnitsLoading] = useState(true)
+  const [settingsLoading, setSettingsLoading] = useState(true)
+  const [shiftsLoading, setShiftsLoading] = useState(true)
 
+  // Cart and UI state
   const [cart, setCart] = useState<CartItem[]>([])
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>(
-    WALK_IN_CUSTOMER_ID
-  )
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>(WALK_IN_CUSTOMER_ID)
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false)
   const [productSearchOpen, setProductSearchOpen] = useState(false)
   const [barcode, setBarcode] = useState('')
@@ -152,59 +173,114 @@ export default function POSPage() {
   const [paymentSuggestions, setPaymentSuggestions] = useState<number[]>([]);
   const [isChangeReturned, setIsChangeReturned] = useState(true);
   const [isCustomerFormOpen, setIsCustomerFormOpen] = useState(false);
-  
-  
-  // #region Data Fetching
-  const activeShiftQuery = useMemoFirebase(() => 
-    (firestore && user && user.uid) ? query(collection(firestore, 'shifts'), where('userId', '==', user.uid), where('status', '==', 'active')) : null,
-  [firestore, user]);
 
-  const { data: activeShifts, isLoading: shiftsLoading } = useCollection<Shift>(activeShiftQuery);
-  const activeShift = useMemo(() => activeShifts?.[0], [activeShifts]);
+  // Fetch products from SQL Server
+  const fetchProducts = useCallback(async () => {
+    setProductsLoading(true);
+    try {
+      const result = await getProducts({ pageSize: 1000 }); // Get all active products
+      if (result.success && result.data) {
+        setProducts(result.data as ProductWithStock[]);
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Lỗi tải sản phẩm',
+          description: result.error,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    } finally {
+      setProductsLoading(false);
+    }
+  }, [toast]);
 
-  const customersQuery = useMemoFirebase(
-    () => (firestore ? query(collection(firestore, 'customers')) : null),
-    [firestore]
-  )
-  const productsQuery = useMemoFirebase(
-    () => (firestore ? query(collection(firestore, 'products')) : null),
-    [firestore]
-  )
-  const unitsQuery = useMemoFirebase(
-    () => (firestore ? query(collection(firestore, 'units')) : null),
-    [firestore]
-  )
-  const salesQuery = useMemoFirebase(
-    () => (firestore ? query(collection(firestore, 'sales_transactions')) : null),
-    [firestore]
-  )
-  const paymentsQuery = useMemoFirebase(
-    () => (firestore ? query(collection(firestore, 'payments')) : null),
-    [firestore]
-  )
-  const settingsRef = useMemoFirebase(() => {
-    if(!firestore) return null;
-    return doc(firestore, 'settings', 'theme');
-  }, [firestore]);
+  // Fetch customers from SQL Server
+  const fetchCustomers = useCallback(async () => {
+    setCustomersLoading(true);
+    try {
+      const result = await getCustomers({ pageSize: 1000 });
+      if (result.success && result.data) {
+        setCustomers(result.data as CustomerWithDebt[]);
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Lỗi tải khách hàng',
+          description: result.error,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+    } finally {
+      setCustomersLoading(false);
+    }
+  }, [toast]);
 
+  // Fetch units from SQL Server
+  const fetchUnits = useCallback(async () => {
+    setUnitsLoading(true);
+    try {
+      const result = await getUnits();
+      if (result.success && result.data) {
+        setUnits(result.data as Unit[]);
+      }
+    } catch (error) {
+      console.error('Error fetching units:', error);
+    } finally {
+      setUnitsLoading(false);
+    }
+  }, []);
 
-  const { data: customersData, isLoading: customersLoading } = useCollection<Customer>(customersQuery)
-  const { data: products, isLoading: productsLoading } = useCollection<Product>(productsQuery)
-  const { data: units, isLoading: unitsLoading } = useCollection<Unit>(unitsQuery)
-  const { data: sales, isLoading: salesLoading } = useCollection<Sale>(salesQuery)
-  const { data: payments, isLoading: paymentsLoading } = useCollection<Payment>(paymentsQuery)
-  const { data: settings, isLoading: settingsLoading } = useDoc<ThemeSettings>(settingsRef);
+  // Fetch store settings from SQL Server
+  const fetchSettings = useCallback(async () => {
+    setSettingsLoading(true);
+    try {
+      const result = await getStoreSettings();
+      if (result.success && result.settings) {
+        setSettings(result.settings as ThemeSettings);
+      }
+    } catch (error) {
+      console.error('Error fetching settings:', error);
+    } finally {
+      setSettingsLoading(false);
+    }
+  }, []);
 
+  // Fetch active shift from SQL Server
+  const fetchActiveShift = useCallback(async () => {
+    if (!user?.id) return;
+    setShiftsLoading(true);
+    try {
+      const result = await getActiveShift(user.id);
+      if (result.success && result.shift) {
+        setActiveShift(result.shift as Shift);
+      } else {
+        setActiveShift(null);
+      }
+    } catch (error) {
+      console.error('Error fetching active shift:', error);
+      setActiveShift(null);
+    } finally {
+      setShiftsLoading(false);
+    }
+  }, [user?.id]);
 
-  const [allSalesItems, setAllSalesItems] = useState<SalesItem[]>([])
-  const [salesItemsLoading, setSalesItemsLoading] = useState(true)
-  // #endregion
+  // Initial data fetch
+  useEffect(() => {
+    if (user) {
+      fetchProducts();
+      fetchCustomers();
+      fetchUnits();
+      fetchSettings();
+      fetchActiveShift();
+    }
+  }, [user, fetchProducts, fetchCustomers, fetchUnits, fetchSettings, fetchActiveShift]);
 
-  // #region Memos for data mapping
+  // Memos for data mapping
   const unitsMap = useMemo(() => new Map(units?.map((u) => [u.id, u])), [units])
   const productsMap = useMemo(() => new Map(products?.map((p) => [p.id, p])), [products])
   const productsByBarcode = useMemo(() => {
-    const map = new Map<string, Product>()
+    const map = new Map<string, ProductWithStock>()
     products?.forEach((p) => {
       if (p.barcode) {
         map.set(p.barcode, p)
@@ -212,7 +288,8 @@ export default function POSPage() {
     })
     return map
   }, [products])
-  const walkInCustomer: Customer = {
+  
+  const walkInCustomer: CustomerWithDebt = {
     id: WALK_IN_CUSTOMER_ID,
     name: 'Khách lẻ',
     customerType: 'personal',
@@ -220,38 +297,13 @@ export default function POSPage() {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     status: 'active',
+    currentDebt: 0,
   }
-  const customers = useMemo(() => (customersData ? [walkInCustomer, ...customersData] : [walkInCustomer]), [customersData])
-  const selectedCustomer = useMemo(() => customers.find(c => c.id === selectedCustomerId), [customers, selectedCustomerId]);
-  // #endregion
+  
+  const allCustomers = useMemo(() => (customers ? [walkInCustomer, ...customers] : [walkInCustomer]), [customers])
+  const selectedCustomer = useMemo(() => allCustomers.find(c => c.id === selectedCustomerId), [allCustomers, selectedCustomerId]);
 
-  // #region Sales Items Fetching Effect
-  useEffect(() => {
-    async function fetchAllSalesItems() {
-        if (!firestore) return; // Wait for firestore to be available
-        setSalesItemsLoading(true);
-        const items: SalesItem[] = [];
-        try {
-            const salesSnapshot = await getDocs(query(collection(firestore, 'sales_transactions')));
-            for (const saleDoc of salesSnapshot.docs) {
-                const itemsCollectionRef = collection(firestore, `sales_transactions/${saleDoc.id}/sales_items`);
-                const itemsSnapshot = await getDocs(itemsCollectionRef);
-                itemsSnapshot.forEach(doc => {
-                    items.push({ id: doc.id, ...doc.data() } as SalesItem);
-                });
-            }
-            setAllSalesItems(items);
-        } catch (error) {
-            console.error("Error fetching all sales items:", error);
-        } finally {
-            setSalesItemsLoading(false);
-        }
-    }
-    fetchAllSalesItems();
-  }, [firestore]); // Run only when firestore is initialized
-  // #endregion
-
-  // #region Stock and Unit Calculation Callbacks
+  // Unit info helper
   const getUnitInfo = useCallback((unitId: string): { baseUnit?: Unit; conversionFactor: number; name: string } => {
     const unit = unitsMap.get(unitId)
     if (!unit) return { conversionFactor: 1, name: '' }
@@ -262,107 +314,94 @@ export default function POSPage() {
     }
 
     return { baseUnit: unit, conversionFactor: 1, name: unit.name }
-  },[unitsMap])
+  }, [unitsMap])
 
+  // Get stock from SQL Server (already calculated in ProductWithStock)
   const getStockInBaseUnit = useCallback((productId: string): number => {
-      const product = productsMap.get(productId)
-      if (!product) return 0
-      let totalImportedInBaseUnit = 0
-      product.purchaseLots?.forEach((lot) => {
-        const { conversionFactor } = getUnitInfo(lot.unitId)
-        totalImportedInBaseUnit += lot.quantity * conversionFactor
-      })
+    const product = productsMap.get(productId)
+    if (!product) return 0
+    return (product as ProductWithStock).currentStock || 0
+  }, [productsMap])
 
-      const totalSoldInBaseUnit = allSalesItems
-        .filter((item) => item.productId === productId)
-        .reduce((acc, item) => acc + item.quantity, 0)
+  // Cart Management
+  const addProductToCart = useCallback((product: ProductWithStock) => {
+    const existingItemIndex = cart.findIndex((item) => item.productId === product.id)
+    const { name: saleUnitName, baseUnit, conversionFactor } = getUnitInfo(product.unitId)
 
-      return totalImportedInBaseUnit - totalSoldInBaseUnit
-    },[allSalesItems, getUnitInfo, productsMap])
-  // #endregion
-
-    const customerDebts = useMemo(() => {
-    if (!customersData || !sales || !payments) return new Map<string, number>();
-
-    const debtMap = new Map<string, number>();
-
-    customersData.forEach(customer => {
-        const customerSales = sales.filter(s => s.customerId === customer.id);
-        const customerPayments = payments.filter(p => p.customerId === customer.id);
-        
-        const totalRevenue = customerSales.reduce((sum, s) => sum + (s.finalAmount || 0), 0);
-        const totalPaid = customerPayments.reduce((sum, p) => sum + p.amount, 0);
-        
-        debtMap.set(customer.id, totalRevenue - totalPaid);
-    });
-    return debtMap;
-  }, [customersData, sales, payments]);
-
-  // #region Cart Management
-  const addProductToCart = useCallback((product: Product) => {
-      const existingItemIndex = cart.findIndex((item) => item.productId === product.id)
-      const { name: saleUnitName, baseUnit, conversionFactor } = getUnitInfo(product.unitId)
-
-      if (existingItemIndex > -1) {
-        const newCart = [...cart]
-        newCart[existingItemIndex].quantity += 1
-        setCart(newCart)
-      } else {
-        const stockInBaseUnit = getStockInBaseUnit(product.id)
-        setCart([
-          ...cart,
-          {
-            productId: product.id,
-            productName: product.name,
-            quantity: 1,
-            price: product.sellingPrice || 0,
-            saleUnitName: saleUnitName,
-            stockInfo: {
-              stockInBaseUnit: stockInBaseUnit,
-              baseUnitName: baseUnit?.name || 'N/A',
-              conversionFactor: conversionFactor,
-            },
+    if (existingItemIndex > -1) {
+      const newCart = [...cart]
+      newCart[existingItemIndex].quantity += 1
+      setCart(newCart)
+    } else {
+      const stockInBaseUnit = getStockInBaseUnit(product.id)
+      setCart([
+        ...cart,
+        {
+          productId: product.id,
+          productName: product.name,
+          quantity: 1,
+          price: product.sellingPrice || 0,
+          saleUnitName: saleUnitName,
+          stockInfo: {
+            stockInBaseUnit: stockInBaseUnit,
+            baseUnitName: baseUnit?.name || 'N/A',
+            conversionFactor: conversionFactor,
           },
-        ])
-      }
-    },[cart, getStockInBaseUnit, getUnitInfo])
+        },
+      ])
+    }
+  }, [cart, getStockInBaseUnit, getUnitInfo])
 
   const updateCartItem = (productId: string, newQuantity: number) => {
     const newCart = cart.map((item) =>
       item.productId === productId ? { ...item, quantity: newQuantity } : item
     )
-    setCart(newCart.filter((item) => item.quantity > 0)) // Remove if quantity is 0
+    setCart(newCart.filter((item) => item.quantity > 0))
   }
 
-  const handleBarcodeScan = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  // Barcode scanning with SQL Server lookup
+  const handleBarcodeScan = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault()
       if (!barcode) return
 
-      const product = productsByBarcode.get(barcode)
+      // First try local lookup
+      const localProduct = productsByBarcode.get(barcode)
+      if (localProduct) {
+        addProductToCart(localProduct)
+        setBarcode('')
+        return
+      }
 
-      if (product) {
+      // If not found locally, try SQL Server API
+      const result = await getProductByBarcode(barcode)
+      if (result.success && result.product) {
+        const product = result.product as ProductWithStock
+        // Add to local products cache
+        setProducts(prev => {
+          const exists = prev.some(p => p.id === product.id)
+          if (!exists) return [...prev, product]
+          return prev
+        })
         addProductToCart(product)
         setBarcode('')
       } else {
         toast({
           variant: 'destructive',
           title: 'Không tìm thấy sản phẩm',
-          description: `Không có sản phẩm nào khớp với mã vạch "${barcode}".`,
+          description: result.error || `Không có sản phẩm nào khớp với mã vạch "${barcode}".`,
         })
       }
     }
   }
-  // #endregion
 
-  // #region Financial Calculations
+  // Financial Calculations
   const totalAmount = useMemo(() =>
-      cart.reduce((acc, item) => {
-        const quantityInBase = item.quantity * item.stockInfo.conversionFactor
-        return acc + quantityInBase * item.price
-      }, 0),
-    [cart]
-  )
+    cart.reduce((acc, item) => {
+      const quantityInBase = item.quantity * item.stockInfo.conversionFactor
+      return acc + quantityInBase * item.price
+    }, 0),
+  [cart])
 
   const { tierDiscountPercentage, tierDiscountAmount } = useMemo(() => {
     if (!selectedCustomer || !settings?.loyalty?.enabled) {
@@ -377,7 +416,6 @@ export default function POSPage() {
       tierDiscountAmount: (totalAmount * customerTier.discountPercentage) / 100,
     };
   }, [selectedCustomer, totalAmount, settings]);
-  
 
   const calculatedDiscount = useMemo(() => 
     discountType === 'percentage' ? (totalAmount * discountValue) / 100 : discountValue,
@@ -394,16 +432,16 @@ export default function POSPage() {
   const vatAmount = (amountAfterDiscount * vatRate) / 100;
   const finalAmount = amountAfterDiscount + vatAmount;
 
+  // Previous debt from SQL Server (stored in customer.currentDebt)
   const previousDebt = useMemo(() => {
     if (!selectedCustomerId || selectedCustomerId === WALK_IN_CUSTOMER_ID) return 0;
-    return customerDebts.get(selectedCustomerId) || 0;
-  }, [selectedCustomerId, customerDebts]);
+    return selectedCustomer?.currentDebt || 0;
+  }, [selectedCustomerId, selectedCustomer]);
 
   const totalPayable = finalAmount + previousDebt;
   const remainingDebt = totalPayable - customerPayment;
   const changeAmount = customerPayment - finalAmount;
-  // #endregion
-  
+
   // Auto-fill customer payment
   useEffect(() => {
     if (finalAmount > 0) {
@@ -412,8 +450,8 @@ export default function POSPage() {
       setCustomerPayment(0);
     }
   }, [finalAmount]);
-  
-  // #region Form Submission
+
+  // Form Submission - Create sale via SQL Server API
   const handleCreateSale = async () => {
     if (cart.length === 0) {
       toast({
@@ -432,7 +470,7 @@ export default function POSPage() {
     }))
 
     const saleData: Partial<Sale> & { isChangeReturned?: boolean } = {
-      customerId: selectedCustomerId,
+      customerId: selectedCustomerId === WALK_IN_CUSTOMER_ID ? undefined : selectedCustomerId,
       shiftId: activeShift?.id,
       transactionDate: new Date().toISOString(),
       totalAmount: totalAmount,
@@ -479,7 +517,11 @@ export default function POSPage() {
       setDiscountValue(0)
       setDiscountType('amount')
       setPointsUsed(0);
-      router.refresh();
+      
+      // Refresh data to get updated stock and customer debt
+      fetchProducts();
+      fetchCustomers();
+      fetchActiveShift();
 
     } else {
       toast({
@@ -488,7 +530,7 @@ export default function POSPage() {
         description: result.error,
       })
     }
-     setIsSubmitting(false)
+    setIsSubmitting(false)
   }
 
   // Auto-focus barcode input
@@ -498,48 +540,55 @@ export default function POSPage() {
 
   // Redirect if not logged in
   useEffect(() => {
-    if (!isUserLoading && !user) {
+    if (!isStoreLoading && !user) {
       router.push('/login');
     }
-  }, [isUserLoading, user, router]);
-
+  }, [isStoreLoading, user, router]);
 
   const handleCustomerPaymentChange = (value: number) => {
     setCustomerPayment(value);
     if (value > 0) {
-        const s = value.toString();
-        const suggestions = [
-            parseInt(s + '000'),
-            parseInt(s.slice(0, -1) + '0000'),
-            parseInt(s.slice(0, -2) + '00000'),
-        ].filter(n => n > value && n.toString().length <= 9);
+      const s = value.toString();
+      const suggestions = [
+        parseInt(s + '000'),
+        parseInt(s.slice(0, -1) + '0000'),
+        parseInt(s.slice(0, -2) + '00000'),
+      ].filter(n => n > value && n.toString().length <= 9);
 
-        const finalAmountStr = Math.ceil(finalAmount).toString();
-        const len = finalAmountStr.length;
-        const powerOf10 = Math.pow(10, len - 1);
-        const firstDigit = parseInt(finalAmountStr[0]);
-        
-        const nextRoundUp = (firstDigit + 1) * powerOf10;
-        if (nextRoundUp > value) suggestions.push(nextRoundUp);
+      const finalAmountStr = Math.ceil(finalAmount).toString();
+      const len = finalAmountStr.length;
+      const powerOf10 = Math.pow(10, len - 1);
+      const firstDigit = parseInt(finalAmountStr[0]);
+      
+      const nextRoundUp = (firstDigit + 1) * powerOf10;
+      if (nextRoundUp > value) suggestions.push(nextRoundUp);
 
-        setPaymentSuggestions([...new Set(suggestions)].sort((a,b) => a - b));
+      setPaymentSuggestions([...new Set(suggestions)].sort((a,b) => a - b));
     } else {
-        setPaymentSuggestions([]);
+      setPaymentSuggestions([]);
     }
   };
   
   const handleNewCustomerCreated = (newCustomerId?: string) => {
     setIsCustomerFormOpen(false);
-    router.refresh();
+    fetchCustomers(); // Refresh customers list
     if(newCustomerId){
-        setSelectedCustomerId(newCustomerId);
+      setSelectedCustomerId(newCustomerId);
     }
   }
 
+  const handleShiftStarted = () => {
+    fetchActiveShift();
+  }
 
-  const isLoading = customersLoading || productsLoading || unitsLoading || salesLoading || salesItemsLoading || settingsLoading || shiftsLoading || isUserLoading || isRoleLoading;
+  const handleShiftClosed = () => {
+    setActiveShift(null);
+    router.push('/login');
+  }
+
+  const isLoading = customersLoading || productsLoading || unitsLoading || settingsLoading || shiftsLoading || isStoreLoading || isRoleLoading;
   
-  if (isLoading || (!user && !isUserLoading)) {
+  if (isLoading || (!user && !isStoreLoading)) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p>Đang tải dữ liệu cho quầy POS...</p>
@@ -548,7 +597,7 @@ export default function POSPage() {
   }
 
   if (!activeShift) {
-    return <StartShiftDialog user={user!} onShiftStarted={() => router.refresh()} />;
+    return <StartShiftDialog userId={user!.id} userName={user!.displayName || user!.email} onShiftStarted={handleShiftStarted} />;
   }
 
   const isLocked = !activeShift;
@@ -632,7 +681,7 @@ export default function POSPage() {
                 )}
               >
                 {selectedCustomerId
-                  ? customers.find((c) => c.id === selectedCustomerId)?.name
+                  ? allCustomers.find((c) => c.id === selectedCustomerId)?.name
                   : 'Chọn khách hàng...'}
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
@@ -643,8 +692,8 @@ export default function POSPage() {
                 <CommandList>
                   <CommandEmpty>Không tìm thấy khách hàng.</CommandEmpty>
                   <CommandGroup>
-                    {customers.map((customer) => {
-                      const debt = customerDebts.get(customer.id) || 0;
+                    {allCustomers.map((customer) => {
+                      const debt = customer.currentDebt || 0;
                       return (
                       <CommandItem
                         value={`${customer.name} ${customer.phone}`}
@@ -693,7 +742,7 @@ export default function POSPage() {
               </Command>
             </PopoverContent>
           </Popover>
-           {activeShift && <ShiftControls activeShift={activeShift} />}
+           {activeShift && <ShiftControls activeShift={activeShift} onShiftClosed={handleShiftClosed} />}
       </header>
 
       <main className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 p-6 overflow-hidden">
@@ -880,7 +929,6 @@ export default function POSPage() {
                 <p className="">{formatCurrency(totalPayable)}</p>
               </div>
 
-
               <div className="space-y-2">
                 <Label htmlFor="customerPayment">
                   Tiền khách đưa
@@ -898,8 +946,8 @@ export default function POSPage() {
                        const numString = s.toLocaleString('en-US');
                        const len = numString.length;
                        let textSize = 'text-sm';
-                       if (len > 11) textSize = 'text-[10px]'; // For trillions
-                       else if (len > 7) textSize = 'text-xs'; // For millions/billions
+                       if (len > 11) textSize = 'text-[10px]';
+                       else if (len > 7) textSize = 'text-xs';
                       
                       return (
                         <Button

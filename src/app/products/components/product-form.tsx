@@ -34,7 +34,27 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
-import { Product, Category, PurchaseLot, Unit } from '@/lib/types'
+import { Category, Unit } from '@/lib/types'
+
+// Product type for the form (without purchaseLots since they're managed separately in SQL Server)
+interface Product {
+  id: string;
+  name: string;
+  barcode?: string;
+  description?: string;
+  categoryId: string;
+  unitId: string;
+  sellingPrice?: number;
+  status: 'active' | 'draft' | 'archived';
+  lowStockThreshold?: number;
+}
+
+interface PurchaseLot {
+  importDate: string;
+  quantity: number;
+  cost: number;
+  unitId: string;
+}
 import { upsertProduct } from '../actions'
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'

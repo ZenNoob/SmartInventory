@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { Bot, AlertTriangle, FilePlus2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,8 +15,7 @@ import {
 import { getSalesForecast } from '@/app/actions'
 import { type ForecastSalesOutput, type ForecastedProduct } from '@/ai/flows/forecast-sales'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase'
-import { collection, query, getDocs } from 'firebase/firestore'
+import { useStore } from '@/contexts/store-context'
 import { Product, Sale, SalesItem, Unit } from '@/lib/types'
 import {
   Table,
@@ -30,6 +29,7 @@ import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { useRouter } from 'next/navigation'
+import { toast } from '@/hooks/use-toast'
 
 export function PredictShortageForm() {
   const [open, setOpen] = useState(false)
@@ -37,17 +37,54 @@ export function PredictShortageForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [marketContext, setMarketContext] = useState('');
-  const firestore = useFirestore();
+  const { currentStore } = useStore();
   const router = useRouter();
 
+  const [products, setProducts] = useState<Product[]>([]);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [salesLoading, setSalesLoading] = useState(true);
+  const [unitsLoading, setUnitsLoading] = useState(true);
 
-  const productsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "products")) : null, [firestore]);
-  const salesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "sales_transactions")) : null, [firestore]);
-  const unitsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "units")) : null, [firestore]);
+  useEffect(() => {
+    if (!currentStore) return;
 
-  const { data: products, isLoading: productsLoading } = useCollection<Product>(productsQuery);
-  const { data: sales, isLoading: salesLoading } = useCollection<Sale>(salesQuery);
-  const { data: units, isLoading: unitsLoading } = useCollection<Unit>(unitsQuery);
+    const fetchData = async () => {
+      try {
+        setProductsLoading(true);
+        const productsRes = await fetch('/api/products');
+        if (productsRes.ok) {
+          const data = await productsRes.json();
+          setProducts(data.data || []);
+        }
+        setProductsLoading(false);
+
+        setSalesLoading(true);
+        const salesRes = await fetch('/api/sales');
+        if (salesRes.ok) {
+          const data = await salesRes.json();
+          setSales(data.data || []);
+        }
+        setSalesLoading(false);
+
+        setUnitsLoading(true);
+        const unitsRes = await fetch('/api/units');
+        if (unitsRes.ok) {
+          const data = await unitsRes.json();
+          setUnits(data.data || []);
+        }
+        setUnitsLoading(false);
+      } catch (error) {
+        console.error('Error fetching predict shortage data:', error);
+        setProductsLoading(false);
+        setSalesLoading(false);
+        setUnitsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [currentStore]);
 
   const productsMap = useMemo(() => new Map(products?.map(p => [p.id, p])), [products]);
   const unitsMap = useMemo(() => new Map(units?.map(u => [u.id, u])), [units]);
@@ -82,30 +119,35 @@ export function PredictShortageForm() {
   }, [allSalesItems, getUnitInfo]);
 
 
-  useMemo(async () => {
-    if (!firestore || !sales) {
-        if (!salesLoading) setSalesItemsLoading(false);
-        return;
-    };
-    
-    setSalesItemsLoading(true);
-    const items: SalesItem[] = [];
-    try {
+  useEffect(() => {
+    if (!sales || sales.length === 0) {
+      if (!salesLoading) setSalesItemsLoading(false);
+      return;
+    }
+
+    const fetchSalesItems = async () => {
+      setSalesItemsLoading(true);
+      const items: SalesItem[] = [];
+      try {
+        // Sales items are typically included in the sales data from SQL Server
+        // or we can fetch them separately if needed
         for (const sale of sales) {
-        const itemsCollectionRef = collection(firestore, `sales_transactions/${sale.id}/sales_items`);
-        const itemsSnapshot = await getDocs(itemsCollectionRef);
-        itemsSnapshot.forEach(doc => {
-            const itemData = doc.data() as SalesItem;
-            items.push({ ...itemData, salesTransactionId: sale.id });
-        });
+          if (sale.items && Array.isArray(sale.items)) {
+            sale.items.forEach((item: SalesItem) => {
+              items.push({ ...item, salesTransactionId: sale.id });
+            });
+          }
         }
         setAllSalesItems(items);
-    } catch (error) {
-        console.error("Error fetching sales items: ", error);
-    } finally {
+      } catch (error) {
+        console.error('Error processing sales items: ', error);
+      } finally {
         setSalesItemsLoading(false);
-    }
-  }, [sales, firestore, salesLoading]);
+      }
+    };
+
+    fetchSalesItems();
+  }, [sales, salesLoading]);
 
 
   const handlePredict = async () => {

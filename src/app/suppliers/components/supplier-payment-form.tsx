@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { useToast } from '@/hooks/use-toast'
-import { useRouter } from 'next/navigation'
 import { Textarea } from '@/components/ui/textarea'
 import { addSupplierPayment } from '../actions'
 import { formatCurrency } from '@/lib/utils'
@@ -73,7 +72,6 @@ const FormattedNumberInput = ({ value, onChange, ...props }: { value: number; on
 
 export function SupplierPaymentForm({ isOpen, onOpenChange, supplier }: SupplierPaymentFormProps) {
   const { toast } = useToast();
-  const router = useRouter();
 
   const form = useForm<PaymentFormValues>({
     resolver: zodResolver(paymentFormSchema),
@@ -110,7 +108,6 @@ export function SupplierPaymentForm({ isOpen, onOpenChange, supplier }: Supplier
         description: "Đã ghi nhận thanh toán thành công.",
       });
       onOpenChange(false);
-      router.refresh();
     } else {
       toast({
         variant: "destructive",

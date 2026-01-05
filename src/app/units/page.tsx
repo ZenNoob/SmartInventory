@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useState, useMemo } from "react"
@@ -44,16 +43,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
-import { collection, query } from "firebase/firestore"
-import { Unit } from "@/lib/types"
 import { UnitForm } from "./components/unit-form"
 import { deleteUnit } from "./actions"
 import { useToast } from "@/hooks/use-toast"
-import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { useUserRole } from "@/hooks/use-user-role"
+import { useUnits, type Unit } from "@/hooks/use-units"
 import Link from "next/link"
 
 type SortKey = 'name' | 'description' | 'quyDoi';
@@ -67,25 +63,9 @@ export default function UnitsPage() {
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   
-  const firestore = useFirestore();
   const { toast } = useToast();
-  const router = useRouter();
   const { permissions, isLoading: isRoleLoading } = useUserRole();
-
-  const unitsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, "units"));
-  }, [firestore]);
-
-  const { data: units, isLoading: unitsLoading } = useCollection<Unit>(unitsQuery);
-
-  const unitsMap = useMemo(() => {
-    if (!units) return new Map<string, string>();
-    return units.reduce((map, unit) => {
-      map.set(unit.id, unit.name);
-      return map;
-    }, new Map<string, string>());
-  }, [units]);
+  const { units, isLoading: unitsLoading, refetch, unitsMap } = useUnits({ includeBaseUnit: true });
 
   const filteredUnits = units?.filter(unit => {
     const term = searchTerm.toLowerCase();
@@ -107,6 +87,10 @@ export default function UnitsPage() {
     setIsFormOpen(true);
   }
 
+  const handleFormSuccess = () => {
+    refetch();
+  }
+
   const handleDelete = async () => {
     if (!unitToDelete) return;
     setIsDeleting(true);
@@ -116,7 +100,7 @@ export default function UnitsPage() {
         title: "Thành công!",
         description: `Đã xóa đơn vị tính "${unitToDelete.name}".`,
       });
-      router.refresh();
+      refetch();
     } else {
       toast({
         variant: "destructive",
@@ -210,6 +194,7 @@ export default function UnitsPage() {
         onOpenChange={setIsFormOpen}
         unit={selectedUnit}
         allUnits={units || []}
+        onSuccess={handleFormSuccess}
       />
       <AlertDialog open={!!unitToDelete} onOpenChange={(open) => !open && setUnitToDelete(null)}>
         <AlertDialogContent>

@@ -1,12 +1,9 @@
-
-
 'use client'
 
-import { useState, useMemo, useEffect, useTransition } from "react"
+import { useState, useMemo, useEffect, useTransition, useCallback } from "react"
 import Link from "next/link"
 import {
   File,
-  ListFilter,
   MoreHorizontal,
   PlusCircle,
   Search,
@@ -85,20 +82,26 @@ import { Badge } from "@/components/ui/badge"
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns"
 import { DateRange } from "react-day-picker"
 import { cn, formatCurrency } from "@/lib/utils"
-import { useCollection, useDoc, useFirestore, useMemoFirebase, useUser } from "@/firebase"
 import { useUserRole } from "@/hooks/use-user-role"
-import { Customer, Sale, Product, Unit, SalesItem, Payment, ThemeSettings } from "@/lib/types"
-import { collection, query, getDocs, doc, where, orderBy } from "firebase/firestore"
-import { SaleForm } from "./components/sale-form"
 import { Input } from "@/components/ui/input"
 import { Calendar } from "@/components/ui/calendar"
-import { deleteSaleTransaction, updateSaleStatus } from "./actions"
+import { deleteSaleTransaction, updateSaleStatus, getSales } from "./actions"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 
 type SaleStatus = 'all' | 'pending' | 'unprinted' | 'printed';
 type SortKey = 'invoiceNumber' | 'customer' | 'transactionDate' | 'status' | 'finalAmount';
 
+interface Sale {
+  id: string;
+  invoiceNumber: string;
+  customerId?: string;
+  customerName?: string;
+  transactionDate: string;
+  status: 'pending' | 'unprinted' | 'printed';
+  finalAmount: number;
+  itemCount: number;
+}
 
 const getStatusVariant = (status: Sale['status']): "default" | "secondary" | "outline" => {
   switch (status) {
@@ -120,9 +123,8 @@ const getStatusText = (status: Sale['status']) => {
 
 
 export default function SalesPage() {
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [allSalesItems, setAllSalesItems] = useState<SalesItem[]>([]);
-  const [salesItemsLoading, setSalesItemsLoading] = useState(true);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: startOfWeek(new Date(), { weekStartsOn: 1 }),
@@ -130,120 +132,65 @@ export default function SalesPage() {
   });
   const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [selectedSale, setSelectedSale] = useState<Sale | undefined>(undefined);
   const [statusFilter, setStatusFilter] = useState<SaleStatus>('all');
   const [customerFilter, setCustomerFilter] = useState<string>('all');
   const [isUpdatingStatus, startStatusTransition] = useTransition();
   const [sortKey, setSortKey] = useState<SortKey>('invoiceNumber');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [customerPopoverOpen, setCustomerPopoverOpen] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const { permissions, isLoading: isRoleLoading } = useUserRole();
 
-  const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
 
-  const fullSalesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "sales_transactions")) : null, [firestore]);
-  const fullPaymentsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "payments")) : null, [firestore]);
+  // Get unique customers from sales for filter
+  const uniqueCustomers = useMemo(() => {
+    const customerMap = new Map<string, string>();
+    sales.forEach(sale => {
+      if (sale.customerId && sale.customerName) {
+        customerMap.set(sale.customerId, sale.customerName);
+      }
+    });
+    return Array.from(customerMap.entries()).map(([id, name]) => ({ id, name }));
+  }, [sales]);
 
-  const { data: allSales, isLoading: allSalesLoading } = useCollection<Sale>(fullSalesQuery);
-  const { data: allPayments, isLoading: allPaymentsLoading } = useCollection<Payment>(fullPaymentsQuery);
+  const fetchSales = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const result = await getSales({
+        page,
+        pageSize: 20,
+        search: searchTerm || undefined,
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        customerId: customerFilter !== 'all' ? customerFilter : undefined,
+        dateFrom: dateRange?.from?.toISOString(),
+        dateTo: dateRange?.to?.toISOString(),
+      });
 
-  const salesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-
-    // If dateRange is undefined, fetch all sales ordered by date.
-    if (!dateRange) {
-      return query(
-        collection(firestore, "sales_transactions"),
-        orderBy('transactionDate', 'desc')
-      );
+      if (result.success) {
+        setSales(result.data || []);
+        setTotal(result.total || 0);
+        setTotalPages(result.totalPages || 1);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Lỗi",
+          description: result.error || "Không thể tải danh sách đơn hàng",
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching sales:', error);
+    } finally {
+      setIsLoading(false);
     }
-    
-    // If only `from` date is set, use it for both start and end of range.
-    if (dateRange.from && !dateRange.to) {
-       return query(
-        collection(firestore, "sales_transactions"),
-        where('transactionDate', '>=', dateRange.from.toISOString()),
-        where('transactionDate', '<=', dateRange.from.toISOString())
-      );
-    }
-
-    // If both `from` and `to` are set.
-    if (dateRange.from && dateRange.to) {
-        return query(
-        collection(firestore, "sales_transactions"),
-        where('transactionDate', '>=', dateRange.from.toISOString()),
-        where('transactionDate', '<=', dateRange.to.toISOString())
-      );
-    }
-
-    return null;
-
-  }, [firestore, dateRange]);
-
-
-  const customersQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, "customers"));
-  }, [firestore]);
-
-  const productsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, "products"));
-  }, [firestore]);
-
-  const unitsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, "units"));
-  }, [firestore]);
-  
-
-  const settingsRef = useMemoFirebase(() => {
-    if(!firestore) return null;
-    return doc(firestore, 'settings', 'theme');
-  }, [firestore])
-
-
-  const { data: sales, isLoading: salesLoading } = useCollection<Sale>(salesQuery);
-  const { data: customers, isLoading: customersLoading } = useCollection<Customer>(customersQuery);
-  const { data: products, isLoading: productsLoading } = useCollection<Product>(productsQuery);
-  const { data: units, isLoading: unitsLoading } = useCollection<Unit>(unitsQuery);
-  const { data: settings, isLoading: settingsLoading } = useDoc<ThemeSettings>(settingsRef);
-  
-  const customersMap = useMemo(() => {
-    if (!customers) return new Map();
-    return new Map(customers.map(c => [c.id, c.name]));
-  }, [customers]);
+  }, [page, searchTerm, statusFilter, customerFilter, dateRange, toast]);
 
   useEffect(() => {
-    async function fetchAllSalesItems() {
-      if (!firestore || !sales) {
-        if (!salesLoading) setSalesItemsLoading(false);
-        return;
-      };
-      
-      setSalesItemsLoading(true);
-      const items: SalesItem[] = [];
-      try {
-        // We fetch items for all sales, not just the date-filtered ones, for accurate stock calcs.
-        const allSalesSnapshot = await getDocs(query(collection(firestore, 'sales_transactions')));
-        for (const saleDoc of allSalesSnapshot.docs) {
-          const itemsCollectionRef = collection(firestore, `sales_transactions/${saleDoc.id}/sales_items`);
-          const itemsSnapshot = await getDocs(itemsCollectionRef);
-          itemsSnapshot.forEach(doc => {
-            items.push({ id: doc.id, salesTransactionId: saleDoc.id, ...doc.data() } as SalesItem);
-          });
-        }
-        setAllSalesItems(items);
-      } catch (error) {
-        console.error("Error fetching sales items: ", error);
-      } finally {
-        setSalesItemsLoading(false);
-      }
-    }
-    fetchAllSalesItems();
-  }, [firestore, salesLoading]); // Depend on salesLoading to refetch when allSales is available
+    fetchSales();
+  }, [fetchSales]);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -277,17 +224,7 @@ export default function SalesPage() {
   }
 
   const sortedSales = useMemo(() => {
-    let sortableItems = sales?.filter(sale => {
-      const customerName = customersMap.get(sale.customerId)?.toLowerCase() || '';
-      const invoiceNumber = sale.invoiceNumber?.toLowerCase() || '';
-      const term = searchTerm.toLowerCase();
-      
-      const termMatch = term ? (invoiceNumber.includes(term) || customerName.includes(term)) : true;
-      const statusMatch = statusFilter !== 'all' ? sale.status === statusFilter : true;
-      const customerMatch = customerFilter !== 'all' ? sale.customerId === customerFilter : true;
-
-      return termMatch && statusMatch && customerMatch;
-    }) || [];
+    const sortableItems = [...sales];
 
     sortableItems.sort((a, b) => {
       let valA: string | number, valB: string | number;
@@ -298,8 +235,8 @@ export default function SalesPage() {
           valB = b.invoiceNumber || '';
           break;
         case 'customer':
-          valA = customersMap.get(a.customerId)?.toLowerCase() || '';
-          valB = customersMap.get(b.customerId)?.toLowerCase() || '';
+          valA = (a.customerName || '').toLowerCase();
+          valB = (b.customerName || '').toLowerCase();
           break;
         case 'transactionDate':
           valA = new Date(a.transactionDate).getTime();
@@ -323,25 +260,15 @@ export default function SalesPage() {
     });
 
     return sortableItems;
-  }, [sales, searchTerm, customersMap, statusFilter, customerFilter, sortKey, sortDirection]);
-
+  }, [sales, sortKey, sortDirection]);
 
   const totalRevenue = useMemo(() => {
-    return sortedSales?.reduce((total, sale) => total + sale.finalAmount, 0) || 0;
+    return sortedSales.reduce((total, sale) => total + sale.finalAmount, 0);
   }, [sortedSales]);
 
-
-  const isLoading = salesLoading || customersLoading || productsLoading || unitsLoading || salesItemsLoading || allSalesLoading || allPaymentsLoading || settingsLoading;
-
   const handleAddSale = () => {
-    setSelectedSale(undefined);
-    setIsFormOpen(true);
+    router.push('/pos');
   };
-  
-  const handleEditSale = (sale: Sale) => {
-    setSelectedSale(sale);
-    setIsFormOpen(true);
-  }
 
   const handleDelete = async () => {
     if (!saleToDelete) return;
@@ -352,7 +279,7 @@ export default function SalesPage() {
         title: "Thành công!",
         description: `Đã xóa đơn hàng ${saleToDelete.invoiceNumber}.`,
       });
-      router.refresh();
+      fetchSales();
     } else {
       toast({
         variant: "destructive",
@@ -372,7 +299,7 @@ export default function SalesPage() {
           title: "Thành công!",
           description: "Trạng thái đơn hàng đã được cập nhật.",
         });
-        router.refresh();
+        fetchSales();
       } else {
         toast({
           variant: "destructive",
@@ -387,7 +314,7 @@ export default function SalesPage() {
     const dataToExport = sortedSales.map((sale, index) => ({
       'STT': index + 1,
       'Mã đơn hàng': sale.invoiceNumber,
-      'Khách hàng': customersMap.get(sale.customerId) || 'Khách lẻ',
+      'Khách hàng': sale.customerName || 'Khách lẻ',
       'Ngày': format(new Date(sale.transactionDate), 'dd/MM/yyyy'),
       'Trạng thái': getStatusText(sale.status),
       'Tổng cộng': sale.finalAmount,
@@ -407,25 +334,14 @@ export default function SalesPage() {
     xlsx.utils.book_append_sheet(workbook, worksheet, "DanhSachDonHang");
 
     worksheet['!cols'] = [
-      { wch: 5 },  // STT
-      { wch: 20 }, // Mã đơn hàng
-      { wch: 30 }, // Khách hàng
-      { wch: 15 }, // Ngày
-      { wch: 15 }, // Trạng thái
-      { wch: 20 }, // Tổng cộng
+      { wch: 5 },
+      { wch: 20 },
+      { wch: 30 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 20 },
     ];
     
-    const numberFormat = '#,##0';
-    dataToExport.forEach((_, index) => {
-        const rowIndex = index + 2;
-        worksheet[`F${rowIndex}`].z = numberFormat;
-    });
-    
-    const totalRowIndex = dataToExport.length + 2;
-    worksheet[`F${totalRowIndex}`].z = numberFormat;
-    worksheet[`F${totalRowIndex}`].s = { font: { bold: true } };
-    worksheet[`B${totalRowIndex}`].s = { font: { bold: true } };
-
     xlsx.writeFile(workbook, "danh_sach_don_hang.xlsx");
   };
 
@@ -440,20 +356,9 @@ export default function SalesPage() {
     </TableHead>
   );
 
+
   return (
     <>
-      <SaleForm
-        isOpen={isFormOpen}
-        onOpenChange={setIsFormOpen}
-        customers={customers || []}
-        products={products || []}
-        units={units || []}
-        allSalesItems={allSalesItems || []}
-        sales={allSales || []}
-        payments={allPayments || []}
-        settings={settings || null}
-        sale={selectedSale}
-      />
       <AlertDialog open={!!saleToDelete} onOpenChange={(open) => !open && setSaleToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -552,7 +457,7 @@ export default function SalesPage() {
                       className="w-[200px] justify-between"
                     >
                       {customerFilter !== 'all'
-                        ? customers?.find((customer) => customer.id === customerFilter)?.name
+                        ? uniqueCustomers.find((c) => c.id === customerFilter)?.name
                         : "Lọc theo khách hàng"}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
@@ -579,7 +484,7 @@ export default function SalesPage() {
                               />
                               Tất cả khách hàng
                             </CommandItem>
-                          {customers?.map((customer) => (
+                          {uniqueCustomers.map((customer) => (
                             <CommandItem
                               key={customer.id}
                               value={customer.name}
@@ -628,8 +533,7 @@ export default function SalesPage() {
                 <TableBody>
                   <TooltipProvider>
                     {isLoading && <TableRow><TableCell colSpan={7} className="text-center h-24">Đang tải...</TableCell></TableRow>}
-                    {!isLoading && sortedSales?.map((sale, index) => {
-                      const customer = customers?.find(c => c.id === sale.customerId);
+                    {!isLoading && sortedSales.map((sale, index) => {
                       const isReturnOrder = sale.finalAmount < 0;
                       return (
                         <TableRow key={sale.id}>
@@ -649,7 +553,7 @@ export default function SalesPage() {
                               {sale.invoiceNumber}
                             </div>
                           </TableCell>
-                          <TableCell>{customer?.name || 'Khách lẻ'}</TableCell>
+                          <TableCell>{sale.customerName || 'Khách lẻ'}</TableCell>
                           <TableCell className="hidden md:table-cell">
                             {new Date(sale.transactionDate).toLocaleDateString()}
                           </TableCell>
@@ -705,11 +609,6 @@ export default function SalesPage() {
                                 <DropdownMenuItem asChild>
                                   <Link href={`/sales/${sale.id}`}>Xem chi tiết</Link>
                                 </DropdownMenuItem>
-                                {permissions?.sales?.includes('edit') && (
-                                  <DropdownMenuItem onClick={() => handleEditSale(sale)}>
-                                    Sửa
-                                  </DropdownMenuItem>
-                                )}
                                 <DropdownMenuItem onClick={() => window.open(`/sales/${sale.id}?print=true`, '_blank')}>In hóa đơn</DropdownMenuItem>
                                 {permissions?.sales?.includes('delete') && (
                                   <>
@@ -725,7 +624,7 @@ export default function SalesPage() {
                         </TableRow>
                       );
                     })}
-                    {!isLoading && !sortedSales?.length && (
+                    {!isLoading && !sortedSales.length && (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center h-24">
                           Không có đơn hàng nào phù hợp.
@@ -736,10 +635,28 @@ export default function SalesPage() {
                 </TableBody>
               </Table>
             </CardContent>
-            <CardFooter>
+            <CardFooter className="flex items-center justify-between">
               <div className="text-xs text-muted-foreground">
-                Hiển thị <strong>{sortedSales?.length || 0}</strong> trên <strong>{sales?.length || 0}</strong>{" "}
-                đơn hàng
+                Hiển thị <strong>{sortedSales.length}</strong> trên <strong>{total}</strong>{" "}
+                đơn hàng (Trang {page}/{totalPages})
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page <= 1 || isLoading}
+                >
+                  Trang trước
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages || isLoading}
+                >
+                  Trang sau
+                </Button>
               </div>
             </CardFooter>
           </Card>

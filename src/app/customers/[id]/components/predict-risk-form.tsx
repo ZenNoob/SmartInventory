@@ -13,14 +13,30 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { getDebtRiskPrediction } from '@/app/actions'
-import type { Customer, Sale, Payment } from '@/lib/types'
 import { type PredictDebtRiskOutput } from '@/ai/flows/predict-debt-risk'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
+interface DebtHistoryItem {
+  id: string;
+  type: 'sale' | 'payment';
+  date: string;
+  amount: number;
+  description: string;
+  runningBalance: number;
+}
+
+interface CustomerData {
+  id: string;
+  name: string;
+  creditLimit: number;
+  currentDebt?: number;
+  loyaltyTier?: string;
+}
+
 interface PredictRiskFormProps {
-  customer: Customer;
-  sales: Sale[];
-  payments: Payment[];
+  customer: CustomerData;
+  sales: DebtHistoryItem[];
+  payments: DebtHistoryItem[];
 }
 
 export function PredictRiskForm({ customer, sales, payments }: PredictRiskFormProps) {
@@ -34,16 +50,31 @@ export function PredictRiskForm({ customer, sales, payments }: PredictRiskFormPr
     setError(null)
     setPrediction(null)
 
-    const totalSales = sales.reduce((acc, sale) => acc + sale.totalAmount, 0);
-    const totalPayments = payments.reduce((acc, payment) => acc + payment.amount, 0);
-    const outstandingBalance = totalSales - totalPayments;
+    const totalSales = sales.reduce((acc, sale) => acc + Math.abs(sale.amount), 0);
+    const totalPayments = payments.reduce((acc, payment) => acc + Math.abs(payment.amount), 0);
+    const outstandingBalance = customer.currentDebt || (totalSales - totalPayments);
+    
+    // Convert to format expected by AI
+    const paymentHistoryForAI = payments.map(p => ({
+      id: p.id,
+      paymentDate: p.date,
+      amount: Math.abs(p.amount),
+      notes: p.description,
+    }));
+    
+    const salesForAI = sales.slice(-5).map(s => ({
+      id: s.id,
+      transactionDate: s.date,
+      totalAmount: Math.abs(s.amount),
+      invoiceNumber: s.description,
+    }));
     
     const result = await getDebtRiskPrediction({
       customerName: customer.name,
-      paymentHistory: JSON.stringify(payments),
+      paymentHistory: JSON.stringify(paymentHistoryForAI),
       creditLimit: customer.creditLimit,
       outstandingBalance: outstandingBalance,
-      recentPurchases: JSON.stringify(sales.slice(-5)),
+      recentPurchases: JSON.stringify(salesForAI),
     })
 
     if (result.success && result.data) {

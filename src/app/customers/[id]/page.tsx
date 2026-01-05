@@ -1,6 +1,5 @@
-
 import { notFound } from "next/navigation"
-import { ChevronLeft, PlusCircle, CreditCard, Bot, Phone, Mail, MapPin, Cake, User, Building, Landmark, Trophy, Gem, Star, Shield } from "lucide-react"
+import { ChevronLeft, Phone, Mail, MapPin, Cake, User, Landmark, Trophy, Gem, Star, Shield, AlertTriangle } from "lucide-react"
 
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
@@ -11,7 +10,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  CardFooter,
 } from "@/components/ui/card"
 import {
   Table,
@@ -21,55 +19,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert"
 
-import { formatCurrency, toPlainObject } from "@/lib/utils"
+import { formatCurrency } from "@/lib/utils"
 import { PredictRiskForm } from "./components/predict-risk-form"
-import { Customer, Payment, Sale } from "@/lib/types"
-import { getAdminServices } from "@/lib/admin-actions"
-import { cookies } from "next/headers"
-import { getAuth } from "firebase-admin/auth"
-
-async function getCustomerData(customerId: string) {
-    const { firestore } = await getAdminServices();
-    
-    const customerDoc = await firestore.collection('customers').doc(customerId).get();
-    if (!customerDoc.exists) {
-        return { customer: null, sales: [], payments: [] };
-    }
-    const customer = toPlainObject({ id: customerDoc.id, ...customerDoc.data() }) as Customer;
-
-
-    const salesSnapshot = await firestore.collection('sales_transactions').where('customerId', '==', customerId).get();
-    const sales = salesSnapshot.docs.map(doc => {
-      return toPlainObject({ id: doc.id, ...doc.data() }) as Sale;
-    });
-
-    const paymentsSnapshot = await firestore.collection('payments').where('customerId', '==', customerId).get();
-    const payments = paymentsSnapshot.docs.map(doc => {
-      return toPlainObject({ id: doc.id, ...doc.data() }) as Payment;
-    });
-    
-    return { customer, sales, payments };
-}
-
-const defaultPermissions = {
-    admin: ['view', 'add', 'edit', 'delete'],
-    accountant: ['view', 'add', 'edit'],
-    salesperson: ['view', 'add'],
-};
-
-
-async function getUserPermissions(uid: string) {
-    const { firestore } = await getAdminServices();
-    const userDoc = await firestore.collection('users').doc(uid).get();
-    if (!userDoc.exists) return null;
-    const userData = userDoc.data() as any;
-    if (userData.role !== 'custom') {
-        // @ts-ignore
-        return defaultPermissions[userData.role] || [];
-    }
-    return userData.permissions?.customers || [];
-}
+import { getCustomer, getCustomerDebt } from "../actions"
 
 const getTierIcon = (tier: string | undefined) => {
   switch (tier) {
@@ -80,6 +38,7 @@ const getTierIcon = (tier: string | undefined) => {
     default: return null;
   }
 }
+
 const getTierName = (tier: string | undefined) => {
   switch (tier) {
     case 'diamond': return 'Kim Cương';
@@ -90,30 +49,30 @@ const getTierName = (tier: string | undefined) => {
   }
 }
 
-export default async function CustomerDetailPage({ params }: { params: { id: string } }) {
-  const session = cookies().get('__session')?.value;
-  if (!session) notFound();
+export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  
+  // Fetch customer data from SQL Server API
+  const [customerResult, debtResult] = await Promise.all([
+    getCustomer(id, { includeDebt: true, includeLoyalty: true }),
+    getCustomerDebt(id, true),
+  ]);
 
-  const { uid } = await getAuth().verifySessionCookie(session, true);
-  const permissions = await getUserPermissions(uid);
-
-  if (!permissions?.includes('view')) {
+  if (!customerResult.success || !customerResult.customer) {
     notFound();
   }
 
-  const { customer, sales, payments } = await getCustomerData(params.id);
+  const customer = customerResult.customer;
+  const debtInfo = debtResult.debtInfo;
+  const history = debtResult.history || [];
 
-  if (!customer) {
-    notFound()
-  }
 
-  const totalSales = sales.reduce((acc, sale) => acc + sale.totalAmount, 0);
-  const totalPayments = payments.reduce((acc, payment) => acc + payment.amount, 0);
-  const totalDebt = totalSales - totalPayments;
-  
-  const customerSales = sales.sort((a, b) => new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime());
-  const customerPayments = payments.sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime());
+  // Separate sales and payments from history
+  const salesHistory = history.filter(h => h.type === 'sale').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const paymentsHistory = history.filter(h => h.type === 'payment').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
+  const totalDebt = debtInfo?.currentDebt || customer.currentDebt || 0;
+  const isOverLimit = debtInfo?.isOverLimit || (customer.creditLimit > 0 && totalDebt > customer.creditLimit);
 
   return (
     <div className="grid gap-4 md:gap-8">
@@ -131,9 +90,21 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
           {customer.customerType === 'business' ? 'Doanh nghiệp' : 'Cá nhân'}
         </Badge>
         <div className="hidden items-center gap-2 md:ml-auto md:flex">
-          <PredictRiskForm customer={customer} sales={sales} payments={payments} />
+          <PredictRiskForm customer={customer} sales={salesHistory} payments={paymentsHistory} />
         </div>
       </div>
+
+      {/* Credit Limit Warning */}
+      {isOverLimit && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Cảnh báo vượt hạn mức tín dụng</AlertTitle>
+          <AlertDescription>
+            Khách hàng đã vượt hạn mức tín dụng. Nợ hiện tại: {formatCurrency(totalDebt)}, Hạn mức: {formatCurrency(customer.creditLimit)}
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
@@ -146,6 +117,11 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
             <div className="text-xs text-muted-foreground">
               Hạn mức tín dụng: {formatCurrency(customer.creditLimit)}
             </div>
+            {debtInfo && (
+              <div className="text-xs text-muted-foreground mt-1">
+                Còn lại: {formatCurrency(debtInfo.availableCredit)}
+              </div>
+            )}
           </CardContent>
         </Card>
          <Card>
@@ -159,6 +135,9 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
           <CardContent>
             <div className="text-xs text-muted-foreground">
               Điểm tích lũy: {customer.loyaltyPoints?.toLocaleString() || 0} điểm
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Tổng điểm: {customer.lifetimePoints?.toLocaleString() || 0} điểm
             </div>
           </CardContent>
         </Card>
@@ -184,7 +163,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
             </div>
             <div className="flex items-center gap-2">
               <Cake className="h-4 w-4 text-muted-foreground" />
-              <span>{customer.birthday ? new Date(customer.birthday).toLocaleDateString() : 'Chưa có'}</span>
+              <span>{customer.birthday ? new Date(customer.birthday).toLocaleDateString('vi-VN') : 'Chưa có'}</span>
             </div>
              <div className="flex items-center gap-2">
                <User className="h-4 w-4 text-muted-foreground" />
@@ -202,8 +181,58 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
             )}
           </CardContent>
         </Card>
-        
       </div>
+
+
+      {/* Debt History */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Lịch sử công nợ</CardTitle>
+          <CardDescription>Tất cả giao dịch mua hàng và thanh toán của khách hàng.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[100px]">ID</TableHead>
+                <TableHead>Ngày</TableHead>
+                <TableHead>Loại</TableHead>
+                <TableHead>Mô tả</TableHead>
+                <TableHead className="text-right">Số tiền</TableHead>
+                <TableHead className="text-right">Số dư</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {history.length > 0 ? (
+                [...history].reverse().map(item => (
+                  <TableRow key={`${item.type}-${item.id}`}>
+                    <TableCell className="font-medium">{item.id.slice(-6).toUpperCase()}</TableCell>
+                    <TableCell>{new Date(item.date).toLocaleDateString('vi-VN')}</TableCell>
+                    <TableCell>
+                      <Badge variant={item.type === 'sale' ? 'destructive' : 'default'}>
+                        {item.type === 'sale' ? 'Mua hàng' : 'Thanh toán'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{item.description}</TableCell>
+                    <TableCell className={`text-right ${item.type === 'sale' ? 'text-destructive' : 'text-green-600'}`}>
+                      {item.type === 'sale' ? '+' : '-'}{formatCurrency(Math.abs(item.amount))}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatCurrency(item.runningBalance)}
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center h-24">Không có lịch sử công nợ.</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Payment History */}
       <Card>
         <CardHeader>
           <CardTitle>Lịch sử thanh toán</CardTitle>
@@ -220,13 +249,13 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
               </TableRow>
             </TableHeader>
             <TableBody>
-              {customerPayments.length > 0 ? (
-                customerPayments.map(payment => (
+              {paymentsHistory.length > 0 ? (
+                paymentsHistory.map(payment => (
                   <TableRow key={payment.id}>
                     <TableCell className="font-medium">{payment.id.slice(-6).toUpperCase()}</TableCell>
-                    <TableCell>{new Date(payment.paymentDate).toLocaleDateString()}</TableCell>
-                    <TableCell>{payment.notes}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(payment.amount)}</TableCell>
+                    <TableCell>{new Date(payment.date).toLocaleDateString('vi-VN')}</TableCell>
+                    <TableCell>{payment.description}</TableCell>
+                    <TableCell className="text-right text-green-600">{formatCurrency(Math.abs(payment.amount))}</TableCell>
                   </TableRow>
                 ))
               ) : (

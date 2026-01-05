@@ -1,271 +1,212 @@
-
-
-
-
-
-
 'use server'
 
-import { Sale, SalesItem, LoyaltySettings, Customer } from "@/lib/types";
-import { getAdminServices } from "@/lib/admin-actions";
-import { FieldValue } from "firebase-admin/firestore";
-import { toPlainObject } from "@/lib/utils";
+import { cookies } from 'next/headers';
 
-async function getNextInvoiceNumber(firestore: FirebaseFirestore.Firestore, transaction?: FirebaseFirestore.Transaction): Promise<string> {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = (today.getMonth() + 1).toString().padStart(2, '0');
-    const day = today.getDate().toString().padStart(2, '0');
-    const datePrefix = `HD${year}${month}${day}`;
-
-    const salesCollection = firestore.collection('sales_transactions');
-    const query = salesCollection
-        .where('invoiceNumber', '>=', datePrefix)
-        .where('invoiceNumber', '<', datePrefix + 'z')
-        .orderBy('invoiceNumber', 'desc')
-        .limit(1);
-
-    const snapshot = transaction ? await transaction.get(query) : await query.get();
-    
-    let nextSequence = 1;
-    if (!snapshot.empty) {
-        const lastId = snapshot.docs[0].data().invoiceNumber;
-        const lastSequence = parseInt(lastId.substring(datePrefix.length), 10);
-        nextSequence = lastSequence + 1;
-    }
-
-    const sequenceString = nextSequence.toString().padStart(5, '0');
-    return `${datePrefix}${sequenceString}`;
+function getBaseUrl(): string {
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 }
 
-async function updateLoyalty(
-  transaction: FirebaseFirestore.Transaction,
-  settingsDoc: FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>,
-  customerDoc: FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>,
-  saleAmount: number,
-  pointsUsed: number = 0
-) {
-  const loyaltySettings = settingsDoc.data()?.loyalty as LoyaltySettings | undefined;
+interface SaleItem {
+  productId: string;
+  quantity: number;
+  price: number;
+  cost?: number;
+}
 
-  if (!loyaltySettings || !loyaltySettings.enabled) return;
-  if (!customerDoc.exists) return;
+interface SaleData {
+  id?: string;
+  customerId?: string;
+  shiftId?: string;
+  transactionDate: string;
+  status?: 'pending' | 'unprinted' | 'printed';
+  totalAmount: number;
+  vatRate?: number;
+  discount?: number;
+  discountType?: 'percentage' | 'amount';
+  discountValue?: number;
+  tierDiscountPercentage?: number;
+  tierDiscountAmount?: number;
+  pointsUsed?: number;
+  pointsDiscount?: number;
+  customerPayment?: number;
+  previousDebt?: number;
+  isChangeReturned?: boolean;
+}
 
-  const customerData = customerDoc.data() as Customer;
+async function getAuthHeaders() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get('auth-token')?.value;
+  const storeId = cookieStore.get('store-id')?.value;
   
-  // Sale amount used for earning points should be after all discounts
-  const earnedPoints = (loyaltySettings.pointsPerAmount > 0) ? Math.floor(saleAmount / loyaltySettings.pointsPerAmount) : 0;
-  
-  const currentSpendablePoints = customerData.loyaltyPoints || 0;
-  const currentLifetimePoints = customerData.lifetimePoints || 0;
-
-  // Calculate new point totals
-  const newSpendablePoints = currentSpendablePoints + earnedPoints - pointsUsed;
-  const newLifetimePoints = currentLifetimePoints + earnedPoints;
-  
-  const sortedTiers = loyaltySettings.tiers.sort((a, b) => b.threshold - a.threshold);
-  // Tier is based on lifetime points
-  const newTier = sortedTiers.find(tier => newLifetimePoints >= tier.threshold);
-  const newTierName = newTier?.name || undefined;
-
-  const loyaltyUpdate: { 
-    loyaltyPoints: number; 
-    lifetimePoints: number;
-    loyaltyTier?: Customer['loyaltyTier'] | FieldValue;
-  } = {
-    loyaltyPoints: newSpendablePoints,
-    lifetimePoints: newLifetimePoints
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` }),
+    ...(storeId && { 'X-Store-Id': storeId }),
   };
+}
 
-  if (newTierName !== customerData.loyaltyTier) {
-    loyaltyUpdate.loyaltyTier = newTierName || FieldValue.delete();
+export async function getSales(options?: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  customerId?: string;
+  status?: 'pending' | 'unprinted' | 'printed';
+  dateFrom?: string;
+  dateTo?: string;
+  shiftId?: string;
+}) {
+  try {
+    const headers = await getAuthHeaders();
+    const params = new URLSearchParams();
+    
+    if (options?.page) params.set('page', options.page.toString());
+    if (options?.pageSize) params.set('pageSize', options.pageSize.toString());
+    if (options?.search) params.set('search', options.search);
+    if (options?.customerId) params.set('customerId', options.customerId);
+    if (options?.status) params.set('status', options.status);
+    if (options?.dateFrom) params.set('dateFrom', options.dateFrom);
+    if (options?.dateTo) params.set('dateTo', options.dateTo);
+    if (options?.shiftId) params.set('shiftId', options.shiftId);
+
+    const response = await fetch(`${getBaseUrl()}/api/sales?${params.toString()}`, {
+      method: 'GET',
+      headers,
+      cache: 'no-store',
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Không thể lấy danh sách đơn hàng' };
+    }
+
+    return { success: true, ...data };
+  } catch (error) {
+    console.error('Get sales error:', error);
+    return { success: false, error: 'Đã xảy ra lỗi khi lấy danh sách đơn hàng' };
   }
+}
 
-  transaction.update(customerDoc.ref, loyaltyUpdate);
+export async function getSaleById(saleId: string) {
+  try {
+    const headers = await getAuthHeaders();
+
+    const response = await fetch(`${getBaseUrl()}/api/sales/${saleId}`, {
+      method: 'GET',
+      headers,
+      cache: 'no-store',
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Không thể lấy thông tin đơn hàng' };
+    }
+
+    return { success: true, sale: data.sale };
+  } catch (error) {
+    console.error('Get sale error:', error);
+    return { success: false, error: 'Đã xảy ra lỗi khi lấy thông tin đơn hàng' };
+  }
 }
 
 
 export async function upsertSaleTransaction(
-  sale: Partial<Omit<Sale, 'id' | 'invoiceNumber'>> & { id?: string; isChangeReturned?: boolean }, 
-  items: Omit<SalesItem, 'id' | 'salesTransactionId'>[]
-): Promise<{ success: boolean; error?: string; saleData?: Sale }> {
-  const { firestore } = await getAdminServices();
-  const isUpdate = !!sale.id;
-  
+  sale: SaleData,
+  items: SaleItem[]
+): Promise<{ success: boolean; error?: string; saleData?: any }> {
   try {
-    const finalSaleData = await firestore.runTransaction(async (transaction) => {
-        // --- READS ---
-        const settingsDoc = await transaction.get(firestore.collection('settings').doc('theme'));
-        const customerRef = (sale.customerId && sale.customerId !== 'walk-in-customer') ? firestore.collection('customers').doc(sale.customerId) : null;
-        const customerDoc = customerRef ? await transaction.get(customerRef) : null;
+    const headers = await getAuthHeaders();
+    const isUpdate = !!sale.id;
 
-        // Recalculate tier discount on server to ensure accuracy
-        const loyaltySettings = settingsDoc.data()?.loyalty as LoyaltySettings | undefined;
-        let tierDiscountPercentage = 0;
-        let tierDiscountAmount = 0;
+    const body = {
+      customerId: sale.customerId,
+      shiftId: sale.shiftId,
+      transactionDate: sale.transactionDate,
+      status: sale.status || 'pending',
+      totalAmount: sale.totalAmount,
+      vatRate: sale.vatRate,
+      discount: sale.discount,
+      discountType: sale.discountType,
+      discountValue: sale.discountValue,
+      tierDiscountPercentage: sale.tierDiscountPercentage,
+      tierDiscountAmount: sale.tierDiscountAmount,
+      pointsUsed: sale.pointsUsed,
+      pointsDiscount: sale.pointsDiscount,
+      customerPayment: sale.customerPayment,
+      previousDebt: sale.previousDebt,
+      items: items.map(item => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        price: item.price,
+        cost: item.cost,
+      })),
+    };
 
-        if (customerDoc?.exists && loyaltySettings?.enabled) {
-            const customerData = customerDoc.data() as Customer;
-            const customerTier = loyaltySettings.tiers.find(t => t.name === customerData.loyaltyTier);
-            if (customerTier && customerTier.discountPercentage > 0) {
-                tierDiscountPercentage = customerTier.discountPercentage;
-                tierDiscountAmount = (sale.totalAmount || 0) * (tierDiscountPercentage / 100);
-            }
-        }
-        
-        const calculatedDiscount = sale.discountType === 'percentage' 
-          ? ((sale.totalAmount || 0) * (sale.discountValue || 0)) / 100 
-          : (sale.discountValue || 0);
+    const url = isUpdate 
+      ? `${getBaseUrl()}/api/sales/${sale.id}`
+      : `${getBaseUrl()}/api/sales`;
 
-        const amountAfterDiscount = (sale.totalAmount || 0) - tierDiscountAmount - calculatedDiscount - (sale.pointsDiscount || 0);
-        const vatAmount = (amountAfterDiscount * (settingsDoc.data()?.vatRate || 0)) / 100;
-        const finalAmount = amountAfterDiscount + vatAmount;
-
-
-        let finalRemainingDebt = sale.previousDebt !== undefined ? (sale.previousDebt + finalAmount) - (sale.customerPayment || 0) : undefined;
-        let finalCustomerPayment = sale.customerPayment;
-
-        if (sale.isChangeReturned && finalRemainingDebt !== undefined && finalRemainingDebt < 0) {
-            finalCustomerPayment = (sale.previousDebt || 0) + finalAmount;
-            finalRemainingDebt = 0;
-        }
-
-        const saleDataForDb: Partial<Sale> = { 
-            ...sale, 
-            tierDiscountPercentage,
-            tierDiscountAmount,
-            discount: calculatedDiscount, // Save the calculated amount
-            finalAmount,
-            vatAmount,
-            remainingDebt: finalRemainingDebt,
-            customerPayment: finalCustomerPayment,
-        };
-        delete (saleDataForDb as any).isChangeReturned;
-
-        let saleId: string;
-        let finalData: Sale;
-
-        // --- WRITES ---
-        if (isUpdate) {
-            saleId = sale.id!;
-            const saleRef = firestore.collection('sales_transactions').doc(saleId);
-            const oldSaleDoc = await transaction.get(saleRef);
-            if (!oldSaleDoc.exists) throw new Error("Đơn hàng không tồn tại.");
-            
-            const oldItemsQuery = saleRef.collection('sales_items');
-            const oldItemsSnapshot = await transaction.get(oldItemsQuery);
-            oldItemsSnapshot.docs.forEach(doc => transaction.delete(doc.ref));
-
-            if (customerDoc && customerDoc.exists) {
-                await updateLoyalty(transaction, settingsDoc, customerDoc, -(oldSaleDoc.data() as Sale).finalAmount, -((oldSaleDoc.data() as Sale).pointsUsed || 0));
-            }
-
-            transaction.set(saleRef, saleDataForDb, { merge: true });
-
-            items.forEach(item => {
-                const saleItemRef = saleRef.collection('sales_items').doc();
-                transaction.set(saleItemRef, { ...item, id: saleItemRef.id, salesTransactionId: saleRef.id });
-            });
-
-            if (customerDoc && customerDoc.exists && saleDataForDb.finalAmount) {
-                const freshCustomerDoc = await transaction.get(customerDoc.ref);
-                await updateLoyalty(transaction, settingsDoc, freshCustomerDoc, saleDataForDb.finalAmount, saleDataForDb.pointsUsed);
-            }
-             finalData = { ...oldSaleDoc.data(), ...saleDataForDb } as Sale;
-        } else {
-            const saleRef = firestore.collection('sales_transactions').doc();
-            saleId = saleRef.id;
-            const invoiceNumber = await getNextInvoiceNumber(firestore, transaction);
-            
-            finalData = { 
-                ...saleDataForDb, 
-                id: saleId, 
-                invoiceNumber,
-                status: sale.status || (settingsDoc.data()?.invoiceFormat === 'none' ? 'printed' : 'unprinted'),
-            } as Sale;
-            transaction.set(saleRef, finalData);
-
-            for (const item of items) {
-                const saleItemRef = saleRef.collection('sales_items').doc();
-                transaction.set(saleItemRef, { ...item, id: saleItemRef.id, salesTransactionId: saleRef.id });
-            }
-            
-            if (saleDataForDb.customerPayment && saleDataForDb.customerPayment > 0 && saleDataForDb.customerId) {
-                const paymentRef = firestore.collection('payments').doc();
-                transaction.set(paymentRef, {
-                    id: paymentRef.id,
-                    customerId: saleDataForDb.customerId,
-                    paymentDate: saleDataForDb.transactionDate,
-                    amount: saleDataForDb.customerPayment,
-                    notes: `Thanh toán cho đơn hàng ${invoiceNumber}`
-                });
-            }
-            if (customerDoc && customerDoc.exists && saleDataForDb.finalAmount) {
-                await updateLoyalty(transaction, settingsDoc, customerDoc, saleDataForDb.finalAmount, saleDataForDb.pointsUsed);
-            }
-        }
-        return finalData;
+    const response = await fetch(url, {
+      method: isUpdate ? 'PUT' : 'POST',
+      headers,
+      body: JSON.stringify(body),
     });
 
-    return { success: true, saleData: toPlainObject(finalSaleData) };
+    const data = await response.json();
     
+    if (!response.ok) {
+      return { success: false, error: data.error || `Không thể ${isUpdate ? 'cập nhật' : 'tạo'} đơn hàng` };
+    }
+
+    return { success: true, saleData: data.sale };
   } catch (error: any) {
-    console.error(`Error ${isUpdate ? 'updating' : 'creating'} sale transaction:`, error);
-    return { success: false, error: error.message || `Không thể ${isUpdate ? 'cập nhật' : 'tạo'} đơn hàng.` };
+    console.error(`Error ${sale.id ? 'updating' : 'creating'} sale transaction:`, error);
+    return { success: false, error: error.message || `Không thể ${sale.id ? 'cập nhật' : 'tạo'} đơn hàng.` };
   }
 }
 
-
 export async function deleteSaleTransaction(saleId: string): Promise<{ success: boolean; error?: string }> {
-  const { firestore } = await getAdminServices();
-  const saleRef = firestore.collection('sales_transactions').doc(saleId);
-
   try {
-    return await firestore.runTransaction(async (transaction) => {
-        // --- READS FIRST ---
-      const saleDoc = await transaction.get(saleRef);
-      if (!saleDoc.exists) throw new Error("Đơn hàng không tồn tại.");
-      
-      const saleData = saleDoc.data() as Sale;
-      const itemsQuery = saleRef.collection('sales_items');
-      const itemsSnapshot = await transaction.get(itemsQuery);
-      
-      let paymentsSnapshot: FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData> | null = null;
-      if (saleData.customerId && saleData.customerPayment && saleData.customerPayment > 0) {
-        const paymentNote = `Thanh toán cho đơn hàng ${saleData.invoiceNumber}`;
-        const paymentsQuery = firestore.collection('payments')
-            .where('customerId', '==', saleData.customerId)
-            .where('notes', '==', paymentNote);
-        paymentsSnapshot = await transaction.get(paymentsQuery);
-      }
-      
-      const settingsDoc = await transaction.get(firestore.collection('settings').doc('theme'));
-      const customerRef = (saleData.customerId && saleData.customerId !== 'walk-in-customer') ? firestore.collection('customers').doc(saleData.customerId) : null;
-      const customerDoc = customerRef ? await transaction.get(customerRef) : null;
+    const headers = await getAuthHeaders();
 
-        // --- THEN WRITES ---
-      itemsSnapshot.docs.forEach(doc => transaction.delete(doc.ref));
-
-      if (paymentsSnapshot && !paymentsSnapshot.empty) {
-        transaction.delete(paymentsSnapshot.docs[0].ref);
-      }
-       if (customerDoc && customerDoc.exists && saleData.finalAmount && saleData.finalAmount > 0) {
-        await updateLoyalty(transaction, settingsDoc, customerDoc, -saleData.finalAmount, -(saleData.pointsUsed || 0));
-      }
-
-      transaction.delete(saleRef);
-
-      return { success: true };
+    const response = await fetch(`${getBaseUrl()}/api/sales/${saleId}`, {
+      method: 'DELETE',
+      headers,
     });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Không thể xóa đơn hàng' };
+    }
+
+    return { success: true };
   } catch (error: any) {
     console.error("Error deleting sale transaction:", error);
     return { success: false, error: error.message || 'Không thể xóa đơn hàng.' };
   }
 }
 
-export async function updateSaleStatus(saleId: string, status: Sale['status']): Promise<{ success: boolean; error?: string }> {
+export async function updateSaleStatus(
+  saleId: string, 
+  status: 'pending' | 'unprinted' | 'printed'
+): Promise<{ success: boolean; error?: string }> {
   try {
-    const { firestore } = await getAdminServices();
-    await firestore.collection('sales_transactions').doc(saleId).update({ status });
+    const headers = await getAuthHeaders();
+
+    const response = await fetch(`${getBaseUrl()}/api/sales/${saleId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ status }),
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Không thể cập nhật trạng thái đơn hàng' };
+    }
+
     return { success: true };
   } catch (error: any) {
     console.error("Error updating sale status:", error);

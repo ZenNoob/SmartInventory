@@ -1,7 +1,6 @@
-
 'use client'
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import Link from 'next/link'
 import {
   MoreHorizontal,
@@ -50,17 +49,21 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy } from "firebase/firestore"
-import { CashTransaction } from "@/lib/types"
 import { CashTransactionForm } from "./components/cash-transaction-form"
-import { deleteCashTransaction, generateCashTransactionsExcel } from "./actions"
+import { 
+  getCashTransactions, 
+  deleteCashTransaction, 
+  generateCashTransactionsExcel,
+  CashTransaction,
+  CashFlowSummary
+} from "./actions"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { formatCurrency } from "@/lib/utils"
 import { useUserRole } from "@/hooks/use-user-role"
+
 
 type SortKey = 'transactionDate' | 'type' | 'category' | 'amount' | 'reason';
 type TypeFilter = 'all' | 'thu' | 'chi';
@@ -75,17 +78,48 @@ export default function CashFlowPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   
-  const firestore = useFirestore();
+  const [transactions, setTransactions] = useState<CashTransaction[]>([]);
+  const [summary, setSummary] = useState<CashFlowSummary | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
   const { toast } = useToast();
   const router = useRouter();
   const { permissions, isLoading: isRoleLoading } = useUserRole();
 
-  const transactionsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, "cash_transactions"), orderBy("transactionDate", "desc"));
-  }, [firestore]);
+  // Fetch transactions from SQL Server API
+  const fetchTransactions = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const result = await getCashTransactions({
+        pageSize: 1000, // Get all transactions for client-side filtering
+        includeSummary: true,
+      });
+      
+      if (result.success) {
+        setTransactions(result.transactions || []);
+        setSummary(result.summary || null);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Lỗi",
+          description: result.error || "Không thể tải danh sách phiếu thu chi",
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: "Đã xảy ra lỗi khi tải dữ liệu",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
 
-  const { data: transactions, isLoading: transactionsLoading } = useCollection<CashTransaction>(transactionsQuery);
+  useEffect(() => {
+    fetchTransactions();
+  }, [fetchTransactions]);
 
   const categories = useMemo(() => {
     if (!transactions) return [];
@@ -97,7 +131,6 @@ export default function CashFlowPage() {
     });
     return Array.from(uniqueCategories);
   }, [transactions]);
-
 
   const filteredTransactions = useMemo(() => {
     return transactions?.filter(transaction => {
@@ -158,6 +191,14 @@ export default function CashFlowPage() {
     setIsFormOpen(true);
   }
 
+  const handleFormClose = (open: boolean) => {
+    setIsFormOpen(open);
+    if (!open) {
+      // Refresh data when form closes
+      fetchTransactions();
+    }
+  }
+
   const handleDelete = async () => {
     if (!transactionToDelete) return;
     setIsDeleting(true);
@@ -167,7 +208,7 @@ export default function CashFlowPage() {
         title: "Thành công!",
         description: `Đã xóa phiếu ${transactionToDelete.type === 'thu' ? 'thu' : 'chi'}.`,
       });
-      router.refresh();
+      fetchTransactions(); // Refresh data
     } else {
       toast({
         variant: "destructive",
@@ -213,13 +254,13 @@ export default function CashFlowPage() {
   const totalChi = useMemo(() => sortedTransactions.filter(t => t.type === 'chi').reduce((acc, t) => acc + t.amount, 0), [sortedTransactions]);
   const balance = totalThu - totalChi;
 
-  const isLoading = transactionsLoading || isRoleLoading;
+  const pageLoading = isLoading || isRoleLoading;
   const canView = permissions?.['cash-flow']?.includes('view');
   const canAdd = permissions?.['cash-flow']?.includes('add');
   const canEdit = permissions?.['cash-flow']?.includes('edit');
   const canDelete = permissions?.['cash-flow']?.includes('delete');
 
-  if(isLoading) {
+  if(pageLoading) {
     return <p>Đang tải...</p>
   }
 
@@ -237,11 +278,12 @@ export default function CashFlowPage() {
     );
   }
 
+
   return (
     <>
       <CashTransactionForm 
         isOpen={isFormOpen}
-        onOpenChange={setIsFormOpen}
+        onOpenChange={handleFormClose}
         transaction={selectedTransaction}
         categories={categories}
       />

@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useState } from 'react'
@@ -17,17 +16,33 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { Shift } from '@/lib/types'
 import { formatCurrency } from '@/lib/utils'
 import { closeShift } from '../actions'
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useAuth } from '@/firebase'
+
+interface Shift {
+  id: string;
+  userId: string;
+  userName: string;
+  status: 'active' | 'closed';
+  startTime: string;
+  endTime?: string;
+  startingCash: number;
+  endingCash?: number;
+  cashSales?: number;
+  cashPayments?: number;
+  totalCashInDrawer?: number;
+  cashDifference?: number;
+  totalRevenue: number;
+  salesCount: number;
+}
 
 interface ShiftControlsProps {
   activeShift: Shift
+  onShiftClosed?: () => void
 }
 
 const FormattedNumberInput = ({
@@ -37,7 +52,7 @@ const FormattedNumberInput = ({
 }: {
   value: number
   onChange: (value: number) => void
-  [key: string]: any
+  [key: string]: unknown
 }) => {
   const [displayValue, setDisplayValue] = useState(
     value?.toLocaleString('en-US') || ''
@@ -59,13 +74,12 @@ const FormattedNumberInput = ({
   return <Input type="text" value={displayValue} onChange={handleChange} {...props} />
 }
 
-export function ShiftControls({ activeShift }: ShiftControlsProps) {
+export function ShiftControls({ activeShift, onShiftClosed }: ShiftControlsProps) {
   const [isCloseShiftDialogOpen, setIsCloseShiftDialogOpen] = useState(false)
   const [isClosing, setIsClosing] = useState(false)
   const [endingCash, setEndingCash] = useState(0)
   const { toast } = useToast()
   const router = useRouter()
-  const auth = useAuth()
 
   const handleCloseShift = async () => {
     setIsClosing(true)
@@ -76,10 +90,14 @@ export function ShiftControls({ activeShift }: ShiftControlsProps) {
         description: 'Ca làm việc của bạn đã được đóng thành công.',
       })
       setIsCloseShiftDialogOpen(false)
-      // Log out the user and redirect to the login page for the next user.
-      auth.signOut().then(() => {
-        router.push('/login');
-      });
+      
+      // Call the callback if provided
+      if (onShiftClosed) {
+        onShiftClosed()
+      } else {
+        // Default behavior: redirect to login
+        router.push('/login')
+      }
     } else {
       toast({
         variant: 'destructive',

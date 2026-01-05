@@ -11,7 +11,7 @@
 'use client'
 
 import * as React from 'react'
-import { useEffect, useTransition } from 'react'
+import { useEffect, useTransition, useState, useCallback } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -57,8 +57,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
-import { useDoc, useFirestore, useMemoFirebase, useUser } from '@/firebase'
-import { doc } from 'firebase/firestore'
+import { useStore } from '@/contexts/store-context'
 import { upsertThemeSettings, recalculateAllLoyaltyPoints, deleteAllTransactionalData, backupAllTransactionalData } from './actions'
 import type { ThemeSettings, LoyaltySettings, SoftwarePackage } from '@/lib/types'
 import { hexToHsl, hslToHex } from '@/lib/utils'
@@ -68,7 +67,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { getAuth, signInWithEmailAndPassword } from 'firebase/auth'
 import { Label } from '@/components/ui/label'
 
 const loyaltyTierSchema = z.object({
@@ -134,8 +132,7 @@ const FormattedNumberInput = ({ value, onChange, ...props }: { value: number; on
 export default function SettingsPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const firestore = useFirestore();
-  const { user } = useUser();
+  const { user, currentStore } = useStore();
   const [isRecalculating, startRecalculatingTransition] = useTransition();
   const [isDeletingData, startDataDeletionTransition] = useTransition();
   const [isBackingUp, startBackupTransition] = useTransition();
@@ -145,14 +142,33 @@ export default function SettingsPage() {
   const [password, setPassword] = React.useState('');
   const [authError, setAuthError] = React.useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = React.useState(false);
+  const [themeSettings, setThemeSettings] = useState<ThemeSettings | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
+  // Fetch settings from SQL Server API
+  const fetchSettings = useCallback(async () => {
+    if (!currentStore) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/settings', {
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setThemeSettings(data.settings);
+      }
+    } catch (error) {
+      console.error('Error fetching settings:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentStore]);
 
-  const settingsRef = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return doc(firestore, 'settings', 'theme');
-  }, [firestore]);
-
-  const { data: themeSettings, isLoading } = useDoc<ThemeSettings>(settingsRef);
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
   
   const defaultLoyaltySettings: LoyaltySettings = {
     enabled: false,
@@ -362,11 +378,21 @@ export default function SettingsPage() {
     setIsAuthenticating(true);
     setAuthError(null);
     try {
-      const auth = getAuth();
-      await signInWithEmailAndPassword(auth, user.email, password);
-      setIsDangerZoneUnlocked(true);
-      setIsAuthDialogOpen(false);
-      setPassword('');
+      // Verify password using SQL Server API
+      const response = await fetch('/api/auth/verify-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ password }),
+      });
+      
+      if (response.ok) {
+        setIsDangerZoneUnlocked(true);
+        setIsAuthDialogOpen(false);
+        setPassword('');
+      } else {
+        setAuthError("Mật khẩu không chính xác. Vui lòng thử lại.");
+      }
     } catch (error: any) {
       setAuthError("Mật khẩu không chính xác. Vui lòng thử lại.");
     } finally {

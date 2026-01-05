@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Category } from '@/lib/types'
+import { Category } from '@/hooks/use-categories'
 import { upsertCategory } from '../actions'
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
@@ -39,9 +39,10 @@ interface CategoryFormProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   category?: Category;
+  onSuccess?: () => void;
 }
 
-export function CategoryForm({ isOpen, onOpenChange, category }: CategoryFormProps) {
+export function CategoryForm({ isOpen, onOpenChange, category, onSuccess }: CategoryFormProps) {
   const { toast } = useToast();
   const router = useRouter();
 
@@ -68,6 +69,7 @@ export function CategoryForm({ isOpen, onOpenChange, category }: CategoryFormPro
         description: `Đã ${category ? 'cập nhật' : 'tạo'} danh mục thành công.`,
       });
       onOpenChange(false);
+      onSuccess?.();
       router.refresh();
     } else {
       toast({

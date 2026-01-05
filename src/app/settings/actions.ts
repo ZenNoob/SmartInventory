@@ -1,245 +1,365 @@
+'use server';
 
-
-
-'use server'
-
-import { ThemeSettings, Customer, Payment, LoyaltySettings, Sale, SalesItem, PurchaseOrder, Product } from "@/lib/types";
-import { getAdminServices } from "@/lib/admin-actions";
-import { toPlainObject } from "@/lib/utils";
-import { FieldValue } from "firebase-admin/firestore";
+import {
+  ThemeSettings,
+  Customer,
+  Payment,
+  LoyaltySettings,
+  Sale,
+  SalesItem,
+  PurchaseOrder,
+  Product,
+} from '@/lib/types';
+import { cookies } from 'next/headers';
 import * as xlsx from 'xlsx';
 
+function getBaseUrl(): string {
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+}
 
-export async function upsertThemeSettings(settings: Partial<ThemeSettings>): Promise<{ success: boolean; error?: string }> {
+async function getAuthHeaders(): Promise<HeadersInit> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get('auth-token')?.value;
+  const storeId = cookieStore.get('current-store-id')?.value;
+
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { Authorization: `Bearer ${token}` }),
+    ...(storeId && { 'X-Store-Id': storeId }),
+    Cookie: `auth-token=${token || ''}`,
+  };
+}
+
+export async function upsertThemeSettings(
+  settings: Partial<ThemeSettings>
+): Promise<{ success: boolean; error?: string }> {
   try {
-    const { firestore } = await getAdminServices();
+    const authHeaders = await getAuthHeaders();
+    const baseUrl = getBaseUrl();
 
-    const settingsRef = firestore.collection('settings').doc('theme');
-    await settingsRef.set(settings, { merge: true });
+    const response = await fetch(`${baseUrl}/api/settings`, {
+      method: 'PUT',
+      headers: authHeaders,
+      body: JSON.stringify(settings),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data.error || 'Không thể cập nhật cài đặt giao diện.',
+      };
+    }
 
     return { success: true };
-  } catch (error: any) {
-    console.error("Error upserting theme settings:", error);
-    return { success: false, error: error.message || 'Không thể cập nhật cài đặt giao diện.' };
+  } catch (error: unknown) {
+    console.error('Error upserting theme settings:', error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Không thể cập nhật cài đặt giao diện.',
+    };
   }
 }
 
 export async function getThemeSettings(): Promise<ThemeSettings | null> {
-    try {
-        const { firestore } = await getAdminServices();
-        const doc = await firestore.collection('settings').doc('theme').get();
-        if (doc.exists) {
-            const data = doc.data();
-            return toPlainObject(data) as ThemeSettings;
-        }
-        return null;
-    } catch (error) {
-        console.error("Error getting theme settings:", error);
-        return null;
+  try {
+    const authHeaders = await getAuthHeaders();
+    const baseUrl = getBaseUrl();
+
+    const response = await fetch(`${baseUrl}/api/settings`, {
+      method: 'GET',
+      headers: authHeaders,
+    });
+
+    if (!response.ok) {
+      return null;
     }
+
+    const data = await response.json();
+    return data.settings as ThemeSettings | null;
+  } catch (error) {
+    console.error('Error getting theme settings:', error);
+    return null;
+  }
 }
 
-export async function recalculateAllLoyaltyPoints(): Promise<{ success: boolean; error?: string; processedCount?: number }> {
+export async function recalculateAllLoyaltyPoints(): Promise<{
+  success: boolean;
+  error?: string;
+  processedCount?: number;
+}> {
   try {
-    const { firestore } = await getAdminServices();
+    const authHeaders = await getAuthHeaders();
+    const baseUrl = getBaseUrl();
 
-    // 1. Fetch current loyalty settings
-    const settingsDoc = await firestore.collection('settings').doc('theme').get();
-    const loyaltySettings = settingsDoc.data()?.loyalty as LoyaltySettings | undefined;
+    const settingsResponse = await fetch(`${baseUrl}/api/settings`, {
+      method: 'GET',
+      headers: authHeaders,
+    });
 
-    if (!loyaltySettings || !loyaltySettings.pointsPerAmount || loyaltySettings.pointsPerAmount <= 0) {
-      return { success: false, error: "Chưa cấu hình chương trình khách hàng thân thiết hoặc tỷ lệ tích điểm không hợp lệ." };
+    if (!settingsResponse.ok) {
+      return { success: false, error: 'Không thể lấy cài đặt hệ thống.' };
     }
 
-    // 2. Fetch all customers and payments
-    const customersSnapshot = await firestore.collection('customers').get();
-    const paymentsSnapshot = await firestore.collection('payments').get();
+    const settingsData = await settingsResponse.json();
+    const loyaltySettings = settingsData.settings?.loyalty as
+      | LoyaltySettings
+      | undefined;
 
-    // 3. Process data in memory
+    if (
+      !loyaltySettings ||
+      !loyaltySettings.pointsPerAmount ||
+      loyaltySettings.pointsPerAmount <= 0
+    ) {
+      return {
+        success: false,
+        error:
+          'Chưa cấu hình chương trình khách hàng thân thiết hoặc tỷ lệ tích điểm không hợp lệ.',
+      };
+    }
+
+    const customersResponse = await fetch(
+      `${baseUrl}/api/customers?limit=10000`,
+      {
+        method: 'GET',
+        headers: authHeaders,
+      }
+    );
+
+    if (!customersResponse.ok) {
+      return { success: false, error: 'Không thể lấy danh sách khách hàng.' };
+    }
+
+    const customersData = await customersResponse.json();
+    const customers = customersData.customers || [];
+
+    const paymentsResponse = await fetch(
+      `${baseUrl}/api/payments?limit=10000`,
+      {
+        method: 'GET',
+        headers: authHeaders,
+      }
+    );
+
+    if (!paymentsResponse.ok) {
+      return { success: false, error: 'Không thể lấy danh sách thanh toán.' };
+    }
+
+    const paymentsData = await paymentsResponse.json();
+    const payments = paymentsData.payments || [];
+
     const paymentsByCustomer = new Map<string, number>();
-    paymentsSnapshot.forEach(doc => {
-      const payment = doc.data() as Payment;
+    payments.forEach((payment: Payment) => {
       const currentTotal = paymentsByCustomer.get(payment.customerId) || 0;
       paymentsByCustomer.set(payment.customerId, currentTotal + payment.amount);
     });
-    
-    const sortedTiers = loyaltySettings.tiers.sort((a, b) => b.threshold - a.threshold);
-    const batch = firestore.batch();
+
+    const sortedTiers = loyaltySettings.tiers.sort(
+      (a, b) => b.threshold - a.threshold
+    );
     let processedCount = 0;
 
-    // 4. Iterate through customers and prepare batch updates
-    customersSnapshot.forEach(doc => {
-      const customer = doc.data() as Customer;
-      const customerRef = doc.ref;
-
+    for (const customer of customers) {
       const totalPaid = paymentsByCustomer.get(customer.id) || 0;
       const newPoints = Math.floor(totalPaid / loyaltySettings.pointsPerAmount);
-
-      const newTier = sortedTiers.find(tier => newPoints >= tier.threshold);
+      const newTier = sortedTiers.find((tier) => newPoints >= tier.threshold);
       const newTierName = newTier?.name || undefined;
 
-      // Only update if there's a change to avoid unnecessary writes
-      if (customer.lifetimePoints !== newPoints || customer.loyaltyTier !== newTierName) {
-         batch.update(customerRef, {
+      if (
+        customer.lifetimePoints !== newPoints ||
+        customer.loyaltyTier !== newTierName
+      ) {
+        await fetch(`${baseUrl}/api/customers/${customer.id}`, {
+          method: 'PUT',
+          headers: authHeaders,
+          body: JSON.stringify({
             lifetimePoints: newPoints,
-            loyaltyTier: newTierName || FieldValue.delete(), // Remove tier if no longer qualified
-         });
+            loyaltyTier: newTierName,
+          }),
+        });
       }
       processedCount++;
-    });
-
-    // 5. Commit all updates in a single batch
-    await batch.commit();
+    }
 
     return { success: true, processedCount };
-
-  } catch (error: any) {
-    console.error("Error recalculating loyalty points:", error);
-    return { success: false, error: error.message || 'Không thể tính toán lại điểm khách hàng.' };
+  } catch (error: unknown) {
+    console.error('Error recalculating loyalty points:', error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Không thể tính toán lại điểm khách hàng.',
+    };
   }
 }
 
-async function deleteCollection(firestore: FirebaseFirestore.Firestore, collectionPath: string, batchSize: number) {
-    const collectionRef = firestore.collection(collectionPath);
-    const query = collectionRef.orderBy('__name__').limit(batchSize);
-
-    return new Promise<void>((resolve, reject) => {
-        deleteQueryBatch(firestore, query, resolve, reject);
-    });
-}
-
-async function deleteQueryBatch(firestore: FirebaseFirestore.Firestore, query: FirebaseFirestore.Query, resolve: () => void, reject: (error: any) => void) {
-    try {
-        const snapshot = await query.get();
-
-        if (snapshot.size === 0) {
-            // When there are no documents left, we are done
-            resolve();
-            return;
-        }
-
-        // Delete documents in a batch
-        const batch = firestore.batch();
-        for (const doc of snapshot.docs) {
-            // If the document has subcollections, they must be deleted first.
-            if (doc.ref.parent.id === 'sales_transactions') {
-                const itemsSnapshot = await doc.ref.collection('sales_items').get();
-                itemsSnapshot.forEach(itemDoc => batch.delete(itemDoc.ref));
-            }
-            batch.delete(doc.ref);
-        }
-        await batch.commit();
-
-        // Recurse on the next process tick, to avoid hitting stack limit.
-        process.nextTick(() => {
-            deleteQueryBatch(firestore, query, resolve, reject);
-        });
-    } catch(error) {
-        reject(error);
-    }
-}
-
-
-export async function deleteAllTransactionalData(): Promise<{ success: boolean, error?: string }> {
+export async function deleteAllTransactionalData(): Promise<{
+  success: boolean;
+  error?: string;
+}> {
   try {
-    const { firestore } = await getAdminServices();
+    const authHeaders = await getAuthHeaders();
+    const baseUrl = getBaseUrl();
 
-    // Collections to delete
-    const collectionsToDelete = [
-        'sales_transactions', 
-        'purchase_orders', 
-        'payments',
-        'supplier_payments',
-        'cash_transactions',
-        'shifts'
-    ];
-
-    for (const collectionPath of collectionsToDelete) {
-      await deleteCollection(firestore, collectionPath, 100);
+    // Delete sales
+    const salesResponse = await fetch(`${baseUrl}/api/sales?limit=10000`, {
+      method: 'GET',
+      headers: authHeaders,
+    });
+    if (salesResponse.ok) {
+      const salesData = await salesResponse.json();
+      for (const sale of salesData.sales || []) {
+        await fetch(`${baseUrl}/api/sales/${sale.id}`, {
+          method: 'DELETE',
+          headers: authHeaders,
+        });
+      }
     }
 
-    // Reset fields in 'products' collection
-    const productsSnapshot = await firestore.collection('products').get();
-    const productBatch = firestore.batch();
-    productsSnapshot.forEach(doc => {
-      productBatch.update(doc.ref, { purchaseLots: [] });
-    });
-    await productBatch.commit();
-    
-    // Reset fields in 'customers' collection
-    const customersSnapshot = await firestore.collection('customers').get();
-    const customerBatch = firestore.batch();
-    customersSnapshot.forEach(doc => {
-        customerBatch.update(doc.ref, { 
-            loyaltyPoints: 0, 
-            lifetimePoints: 0,
-            loyaltyTier: FieldValue.delete()
+    // Delete purchases
+    const purchasesResponse = await fetch(
+      `${baseUrl}/api/purchases?limit=10000`,
+      {
+        method: 'GET',
+        headers: authHeaders,
+      }
+    );
+    if (purchasesResponse.ok) {
+      const purchasesData = await purchasesResponse.json();
+      for (const purchase of purchasesData.purchases || []) {
+        await fetch(`${baseUrl}/api/purchases/${purchase.id}`, {
+          method: 'DELETE',
+          headers: authHeaders,
         });
-    });
-    await customerBatch.commit();
+      }
+    }
+
+    // Delete payments
+    const paymentsResponse = await fetch(
+      `${baseUrl}/api/payments?limit=10000`,
+      {
+        method: 'GET',
+        headers: authHeaders,
+      }
+    );
+    if (paymentsResponse.ok) {
+      const paymentsData = await paymentsResponse.json();
+      for (const payment of paymentsData.payments || []) {
+        await fetch(`${baseUrl}/api/payments/${payment.id}`, {
+          method: 'DELETE',
+          headers: authHeaders,
+        });
+      }
+    }
 
     return { success: true };
-  } catch (error: any) {
-    console.error("Error deleting transactional data:", error);
-    return { success: false, error: error.message || "Không thể xóa dữ liệu giao dịch." };
+  } catch (error: unknown) {
+    console.error('Error deleting transactional data:', error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Không thể xóa dữ liệu giao dịch.',
+    };
   }
 }
 
+export async function backupAllTransactionalData(): Promise<{
+  success: boolean;
+  data?: string;
+  error?: string;
+}> {
+  try {
+    const authHeaders = await getAuthHeaders();
+    const baseUrl = getBaseUrl();
 
-export async function backupAllTransactionalData(): Promise<{ success: boolean; data?: string; error?: string }> {
-    try {
-        const { firestore } = await getAdminServices();
+    const [salesRes, purchasesRes, paymentsRes, customersRes, productsRes] =
+      await Promise.all([
+        fetch(`${baseUrl}/api/sales?limit=10000`, {
+          method: 'GET',
+          headers: authHeaders,
+        }),
+        fetch(`${baseUrl}/api/purchases?limit=10000`, {
+          method: 'GET',
+          headers: authHeaders,
+        }),
+        fetch(`${baseUrl}/api/payments?limit=10000`, {
+          method: 'GET',
+          headers: authHeaders,
+        }),
+        fetch(`${baseUrl}/api/customers?limit=10000`, {
+          method: 'GET',
+          headers: authHeaders,
+        }),
+        fetch(`${baseUrl}/api/products?limit=10000`, {
+          method: 'GET',
+          headers: authHeaders,
+        }),
+      ]);
 
-        // 1. Fetch all data
-        const salesSnapshot = await firestore.collection('sales_transactions').get();
-        const purchasesSnapshot = await firestore.collection('purchase_orders').get();
-        const paymentsSnapshot = await firestore.collection('payments').get();
-        const customersSnapshot = await firestore.collection('customers').get();
-        const productsSnapshot = await firestore.collection('products').get();
+    const salesData = salesRes.ok ? (await salesRes.json()).sales || [] : [];
+    const purchasesData = purchasesRes.ok
+      ? (await purchasesRes.json()).purchases || []
+      : [];
+    const paymentsData = paymentsRes.ok
+      ? (await paymentsRes.json()).payments || []
+      : [];
+    const customersData = customersRes.ok
+      ? (await customersRes.json()).customers || []
+      : [];
+    const productsData = productsRes.ok
+      ? (await productsRes.json()).products || []
+      : [];
 
-        const allSalesItems: (SalesItem & { transactionId: string })[] = [];
-        for (const saleDoc of salesSnapshot.docs) {
-            const itemsSnapshot = await saleDoc.ref.collection('sales_items').get();
-            itemsSnapshot.forEach(itemDoc => {
-                allSalesItems.push({ ...(itemDoc.data() as SalesItem), transactionId: saleDoc.id });
-            });
-        }
-        
-        // 2. Prepare data for Excel sheets
-        const salesData = salesSnapshot.docs.map(doc => toPlainObject(doc.data()));
-        const salesItemsData = allSalesItems.map(item => toPlainObject(item));
-        const purchasesData = purchasesSnapshot.docs.map(doc => toPlainObject(doc.data()));
-        const paymentsData = paymentsSnapshot.docs.map(doc => toPlainObject(doc.data()));
-        const customersData = customersSnapshot.docs.map(doc => toPlainObject(doc.data()));
-        const productsData = productsSnapshot.docs.map(doc => toPlainObject(doc.data()));
-        
-        // 3. Create workbook and worksheets
-        const wb = xlsx.utils.book_new();
-        if (salesData.length > 0) xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(salesData), 'SalesTransactions');
-        if (salesItemsData.length > 0) xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(salesItemsData), 'SalesItems');
-        if (purchasesData.length > 0) {
-            const flatPurchases = purchasesData.flatMap((p: any) => p.items.map((item: any) => ({ ...p, ...item, items: undefined })));
-            xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(flatPurchases), 'PurchaseOrders');
-        }
-        if (paymentsData.length > 0) xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(paymentsData), 'Payments');
-        if (customersData.length > 0) xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(customersData), 'Customers');
-        if (productsData.length > 0) {
-            const flatProducts = productsData.flatMap((p: any) => {
-                if (p.purchaseLots && p.purchaseLots.length > 0) {
-                    return p.purchaseLots.map((lot: any) => ({ ...p, ...lot, purchaseLots: undefined }));
-                }
-                return { ...p, purchaseLots: undefined };
-            });
-            xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(flatProducts), 'Products');
-        }
+    const wb = xlsx.utils.book_new();
 
-        // 4. Generate buffer and return as base64
-        const buffer = xlsx.write(wb, { bookType: 'xlsx', type: 'buffer' });
-        
-        return { success: true, data: buffer.toString('base64') };
-        
-    } catch (error: any) {
-        console.error("Error backing up data:", error);
-        return { success: false, error: "Không thể tạo bản sao lưu." };
+    if (salesData.length > 0) {
+      xlsx.utils.book_append_sheet(
+        wb,
+        xlsx.utils.json_to_sheet(salesData),
+        'Sales'
+      );
     }
+    if (purchasesData.length > 0) {
+      xlsx.utils.book_append_sheet(
+        wb,
+        xlsx.utils.json_to_sheet(purchasesData),
+        'Purchases'
+      );
+    }
+    if (paymentsData.length > 0) {
+      xlsx.utils.book_append_sheet(
+        wb,
+        xlsx.utils.json_to_sheet(paymentsData),
+        'Payments'
+      );
+    }
+    if (customersData.length > 0) {
+      xlsx.utils.book_append_sheet(
+        wb,
+        xlsx.utils.json_to_sheet(customersData),
+        'Customers'
+      );
+    }
+    if (productsData.length > 0) {
+      xlsx.utils.book_append_sheet(
+        wb,
+        xlsx.utils.json_to_sheet(productsData),
+        'Products'
+      );
+    }
+
+    const buffer = xlsx.write(wb, { bookType: 'xlsx', type: 'buffer' });
+
+    return { success: true, data: buffer.toString('base64') };
+  } catch (error: unknown) {
+    console.error('Error backing up data:', error);
+    return { success: false, error: 'Không thể tạo bản sao lưu.' };
+  }
 }

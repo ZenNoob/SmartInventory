@@ -27,6 +27,7 @@ import {
   ChevronDown,
   Building,
   Briefcase,
+  Globe,
 } from 'lucide-react'
 
 import {
@@ -49,12 +50,12 @@ import {
   CollapsibleContent,
 } from '@/components/ui/collapsible'
 import { Logo } from '@/components/icons'
-import { useUser } from '@/firebase'
+import { useStore } from '@/contexts/store-context'
 import { useUserRole } from '@/hooks/use-user-role'
 
 export function MainNav() {
   const pathname = usePathname()
-  const { user, isUserLoading } = useUser();
+  const { user, isLoading: isUserLoading } = useStore();
   const { permissions, isLoading: isRoleLoading } = useUserRole();
   const { state } = useSidebar();
 
@@ -213,6 +214,30 @@ export function MainNav() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
+
+          {/* Online Stores Menu */}
+          <Collapsible asChild>
+            <SidebarMenuItem>
+              <CollapsibleTrigger asChild>
+                <SidebarMenuButton className="w-full justify-start" isActive={isActive('/online-stores')} tooltip="Bán hàng Online">
+                  <div className="flex items-center gap-2 flex-1">
+                    <Globe />
+                    {state === 'expanded' && <span>Bán hàng Online</span>}
+                  </div>
+                  {state === 'expanded' && <ChevronDown className="h-4 w-4 ml-auto shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />}
+                </SidebarMenuButton>
+              </CollapsibleTrigger>
+              <CollapsibleContent asChild>
+                <SidebarMenuSub>
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton asChild isActive={pathname === '/online-stores'}>
+                      <Link href="/online-stores" className='flex items-center gap-2'><Store className="h-4 w-4" />Cửa hàng</Link>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                </SidebarMenuSub>
+              </CollapsibleContent>
+            </SidebarMenuItem>
+          </Collapsible>
           
           {showReportsMenu && (
             <Collapsible asChild>

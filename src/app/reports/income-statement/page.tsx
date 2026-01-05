@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import {
   Card,
   CardContent,
@@ -20,9 +20,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
-import { collection, query } from "firebase/firestore"
-import { Sale, Product, PurchaseOrder, CashTransaction } from "@/lib/types"
+import { useStore } from "@/contexts/store-context"
+import { Sale, PurchaseOrder, CashTransaction } from "@/lib/types"
 import { formatCurrency, cn } from "@/lib/utils"
 import { DateRange } from "react-day-picker"
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, startOfQuarter, endOfQuarter } from "date-fns"
@@ -34,16 +33,53 @@ export default function IncomeStatementPage() {
     from: startOfMonth(new Date()),
     to: endOfMonth(new Date()),
   });
+  const { currentStore } = useStore();
 
-  const firestore = useFirestore();
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [purchases, setPurchases] = useState<PurchaseOrder[]>([]);
+  const [cashTransactions, setCashTransactions] = useState<CashTransaction[]>([]);
+  const [salesLoading, setSalesLoading] = useState(true);
+  const [purchasesLoading, setPurchasesLoading] = useState(true);
+  const [cashTransactionsLoading, setCashTransactionsLoading] = useState(true);
 
-  const salesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "sales_transactions")) : null, [firestore]);
-  const purchasesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "purchase_orders")) : null, [firestore]);
-  const cashTransactionsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "cash_transactions")) : null, [firestore]);
+  useEffect(() => {
+    if (!currentStore) return;
 
-  const { data: sales, isLoading: salesLoading } = useCollection<Sale>(salesQuery);
-  const { data: purchases, isLoading: purchasesLoading } = useCollection<PurchaseOrder>(purchasesQuery);
-  const { data: cashTransactions, isLoading: cashTransactionsLoading } = useCollection<CashTransaction>(cashTransactionsQuery);
+    const fetchData = async () => {
+      try {
+        setSalesLoading(true);
+        const salesRes = await fetch('/api/sales');
+        if (salesRes.ok) {
+          const data = await salesRes.json();
+          setSales(data.data || []);
+        }
+        setSalesLoading(false);
+
+        setPurchasesLoading(true);
+        const purchasesRes = await fetch('/api/purchases');
+        if (purchasesRes.ok) {
+          const data = await purchasesRes.json();
+          setPurchases(data.data || []);
+        }
+        setPurchasesLoading(false);
+
+        setCashTransactionsLoading(true);
+        const cashRes = await fetch('/api/cash-flow');
+        if (cashRes.ok) {
+          const data = await cashRes.json();
+          setCashTransactions(data.data || []);
+        }
+        setCashTransactionsLoading(false);
+      } catch (error) {
+        console.error('Error fetching income statement data:', error);
+        setSalesLoading(false);
+        setPurchasesLoading(false);
+        setCashTransactionsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [currentStore]);
 
   const filteredData = useMemo(() => {
     const fromDate = dateRange?.from;

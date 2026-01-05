@@ -1,0 +1,350 @@
+import {
+  BaseRepository,
+  QueryOptions,
+  PaginationOptions,
+  PaginatedResult,
+} from './base-repository';
+import { query, queryOne } from '../db';
+
+/**
+ * Sale entity interface (matches database schema)
+ */
+export interface Sale {
+  id: string;
+  storeId: string;
+  invoiceNumber: string;
+  customerId?: string;
+  shiftId?: string;
+  transactionDate: string;
+  status: 'pending' | 'unprinted' | 'printed';
+  totalAmount: number;
+  vatAmount: number;
+  finalAmount: number;
+  discount: number;
+  discountType?: 'percentage' | 'amount';
+  discountValue?: number;
+  tierDiscountPercentage?: number;
+  tierDiscountAmount?: number;
+  pointsUsed: number;
+  pointsDiscount: number;
+  customerPayment?: number;
+  previousDebt?: number;
+  remainingDebt?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/**
+ * SalesItem entity interface
+ */
+export interface SalesItem {
+  id: string;
+  salesTransactionId: string;
+  productId: string;
+  quantity: number;
+  price: number;
+}
+
+/**
+ * Database record interfaces (snake_case)
+ */
+interface SaleRecord {
+  id: string;
+  store_id: string;
+  invoice_number: string;
+  customer_id: string | null;
+  shift_id: string | null;
+  transaction_date: Date;
+  status: string;
+  total_amount: number;
+  vat_amount: number;
+  final_amount: number;
+  discount: number;
+  discount_type: string | null;
+  discount_value: number | null;
+  tier_discount_percentage: number | null;
+  tier_discount_amount: number | null;
+  points_used: number;
+  points_discount: number;
+  customer_payment: number | null;
+  previous_debt: number | null;
+  remaining_debt: number | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface SalesItemRecord {
+  id: string;
+  sales_transaction_id: string;
+  product_id: string;
+  quantity: number;
+  price: number;
+}
+
+/**
+ * Sales repository for managing sales transactions
+ */
+export class SalesRepository extends BaseRepository<Sale> {
+  constructor() {
+    super('Sales', 'id');
+  }
+
+  /**
+   * Map database record to Sale entity
+   */
+  protected mapToEntity(record: Record<string, unknown>): Sale {
+    const r = record as SaleRecord;
+    return {
+      id: r.id,
+      storeId: r.store_id,
+      invoiceNumber: r.invoice_number,
+      customerId: r.customer_id || undefined,
+      shiftId: r.shift_id || undefined,
+      transactionDate: r.transaction_date
+        ? r.transaction_date instanceof Date
+          ? r.transaction_date.toISOString()
+          : String(r.transaction_date)
+        : new Date().toISOString(),
+      status: (r.status as 'pending' | 'unprinted' | 'printed') || 'pending',
+      totalAmount: r.total_amount || 0,
+      vatAmount: r.vat_amount || 0,
+      finalAmount: r.final_amount || 0,
+      discount: r.discount || 0,
+      discountType: (r.discount_type as 'percentage' | 'amount') || undefined,
+      discountValue: r.discount_value ?? undefined,
+      tierDiscountPercentage: r.tier_discount_percentage ?? undefined,
+      tierDiscountAmount: r.tier_discount_amount ?? undefined,
+      pointsUsed: r.points_used || 0,
+      pointsDiscount: r.points_discount || 0,
+      customerPayment: r.customer_payment ?? undefined,
+      previousDebt: r.previous_debt ?? undefined,
+      remainingDebt: r.remaining_debt ?? undefined,
+      createdAt: r.created_at
+        ? r.created_at instanceof Date
+          ? r.created_at.toISOString()
+          : String(r.created_at)
+        : undefined,
+      updatedAt: r.updated_at
+        ? r.updated_at instanceof Date
+          ? r.updated_at.toISOString()
+          : String(r.updated_at)
+        : undefined,
+    };
+  }
+
+  /**
+   * Find all sales for a store
+   */
+  async findAll(storeId: string, options?: QueryOptions): Promise<Sale[]> {
+    let queryString = `SELECT * FROM Sales WHERE store_id = @storeId`;
+
+    if (options?.orderBy) {
+      const direction = options.orderDirection || 'DESC';
+      queryString += ` ORDER BY ${options.orderBy} ${direction}`;
+    } else {
+      queryString += ` ORDER BY transaction_date DESC`;
+    }
+
+    const results = await query<SaleRecord>(queryString, { storeId });
+    return results.map((r) => this.mapToEntity(r as Record<string, unknown>));
+  }
+
+  /**
+   * Find sale by ID
+   */
+  async findById(id: string, storeId: string): Promise<Sale | null> {
+    const result = await queryOne<SaleRecord>(
+      `SELECT * FROM Sales WHERE id = @id AND store_id = @storeId`,
+      { id, storeId }
+    );
+    return result ? this.mapToEntity(result as Record<string, unknown>) : null;
+  }
+
+  /**
+   * Find sales by date range
+   */
+  async findByDateRange(
+    storeId: string,
+    dateFrom: Date,
+    dateTo: Date
+  ): Promise<Sale[]> {
+    const results = await query<SaleRecord>(
+      `SELECT * FROM Sales 
+       WHERE store_id = @storeId 
+         AND transaction_date >= @dateFrom 
+         AND transaction_date <= @dateTo
+       ORDER BY transaction_date DESC`,
+      { storeId, dateFrom, dateTo }
+    );
+    return results.map((r) => this.mapToEntity(r as Record<string, unknown>));
+  }
+
+  /**
+   * Find sales by customer
+   */
+  async findByCustomer(customerId: string, storeId: string): Promise<Sale[]> {
+    const results = await query<SaleRecord>(
+      `SELECT * FROM Sales 
+       WHERE store_id = @storeId AND customer_id = @customerId
+       ORDER BY transaction_date DESC`,
+      { storeId, customerId }
+    );
+    return results.map((r) => this.mapToEntity(r as Record<string, unknown>));
+  }
+
+  /**
+   * Get sales items for a sale
+   */
+  async getSalesItems(salesId: string): Promise<SalesItem[]> {
+    const results = await query<SalesItemRecord>(
+      `SELECT * FROM SalesItems WHERE sales_transaction_id = @salesId`,
+      { salesId }
+    );
+    return results.map((r) => ({
+      id: r.id,
+      salesTransactionId: r.sales_transaction_id,
+      productId: r.product_id,
+      quantity: r.quantity,
+      price: r.price,
+    }));
+  }
+
+  /**
+   * Create a new sale
+   */
+  async create(
+    entity: Omit<Sale, 'id' | 'createdAt' | 'updatedAt'>,
+    storeId: string
+  ): Promise<Sale> {
+    const id = crypto.randomUUID();
+    const invoiceNumber =
+      entity.invoiceNumber || `INV-${Date.now().toString(36).toUpperCase()}`;
+
+    await query(
+      `INSERT INTO Sales (
+        id, store_id, invoice_number, customer_id, shift_id, transaction_date,
+        status, total_amount, vat_amount, final_amount, discount, discount_type,
+        discount_value, tier_discount_percentage, tier_discount_amount,
+        points_used, points_discount, customer_payment, previous_debt, remaining_debt,
+        created_at, updated_at
+      ) VALUES (
+        @id, @storeId, @invoiceNumber, @customerId, @shiftId, @transactionDate,
+        @status, @totalAmount, @vatAmount, @finalAmount, @discount, @discountType,
+        @discountValue, @tierDiscountPercentage, @tierDiscountAmount,
+        @pointsUsed, @pointsDiscount, @customerPayment, @previousDebt, @remainingDebt,
+        GETDATE(), GETDATE()
+      )`,
+      {
+        id,
+        storeId,
+        invoiceNumber,
+        customerId: entity.customerId || null,
+        shiftId: entity.shiftId || null,
+        transactionDate: new Date(entity.transactionDate),
+        status: entity.status || 'pending',
+        totalAmount: entity.totalAmount || 0,
+        vatAmount: entity.vatAmount || 0,
+        finalAmount: entity.finalAmount || 0,
+        discount: entity.discount || 0,
+        discountType: entity.discountType || null,
+        discountValue: entity.discountValue ?? null,
+        tierDiscountPercentage: entity.tierDiscountPercentage ?? null,
+        tierDiscountAmount: entity.tierDiscountAmount ?? null,
+        pointsUsed: entity.pointsUsed || 0,
+        pointsDiscount: entity.pointsDiscount || 0,
+        customerPayment: entity.customerPayment ?? null,
+        previousDebt: entity.previousDebt ?? null,
+        remainingDebt: entity.remainingDebt ?? null,
+      }
+    );
+
+    return this.findById(id, storeId) as Promise<Sale>;
+  }
+
+  /**
+   * Add sales item
+   */
+  async addSalesItem(
+    salesId: string,
+    item: Omit<SalesItem, 'id' | 'salesTransactionId'>
+  ): Promise<SalesItem> {
+    const id = crypto.randomUUID();
+    await query(
+      `INSERT INTO SalesItems (id, sales_transaction_id, product_id, quantity, price, created_at)
+       VALUES (@id, @salesId, @productId, @quantity, @price, GETDATE())`,
+      {
+        id,
+        salesId,
+        productId: item.productId,
+        quantity: item.quantity,
+        price: item.price,
+      }
+    );
+    return {
+      id,
+      salesTransactionId: salesId,
+      productId: item.productId,
+      quantity: item.quantity,
+      price: item.price,
+    };
+  }
+
+  /**
+   * Delete a sale
+   */
+  async delete(id: string, storeId: string): Promise<boolean> {
+    // Delete sales items first
+    await query(`DELETE FROM SalesItems WHERE sales_transaction_id = @id`, {
+      id,
+    });
+    // Delete sale
+    await query(`DELETE FROM Sales WHERE id = @id AND store_id = @storeId`, {
+      id,
+      storeId,
+    });
+    return true;
+  }
+
+  /**
+   * Get total revenue for a store
+   */
+  async getTotalRevenue(storeId: string, dateFrom?: Date, dateTo?: Date): Promise<number> {
+    let queryString = `SELECT COALESCE(SUM(final_amount), 0) as total FROM Sales WHERE store_id = @storeId`;
+    const params: Record<string, unknown> = { storeId };
+
+    if (dateFrom) {
+      queryString += ` AND transaction_date >= @dateFrom`;
+      params.dateFrom = dateFrom;
+    }
+    if (dateTo) {
+      queryString += ` AND transaction_date <= @dateTo`;
+      params.dateTo = dateTo;
+    }
+
+    const result = await queryOne<{ total: number }>(queryString, params);
+    return result?.total ?? 0;
+  }
+
+  /**
+   * Get sales count for a store
+   */
+  async getSalesCount(storeId: string, dateFrom?: Date, dateTo?: Date): Promise<number> {
+    let queryString = `SELECT COUNT(*) as count FROM Sales WHERE store_id = @storeId`;
+    const params: Record<string, unknown> = { storeId };
+
+    if (dateFrom) {
+      queryString += ` AND transaction_date >= @dateFrom`;
+      params.dateFrom = dateFrom;
+    }
+    if (dateTo) {
+      queryString += ` AND transaction_date <= @dateTo`;
+      params.dateTo = dateTo;
+    }
+
+    const result = await queryOne<{ count: number }>(queryString, params);
+    return result?.count ?? 0;
+  }
+}
+
+// Export singleton instance
+export const salesRepository = new SalesRepository();

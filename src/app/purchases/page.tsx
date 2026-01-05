@@ -1,7 +1,6 @@
-
 'use client'
 
-import { useState, useMemo, useTransition } from "react"
+import { useState, useMemo, useTransition, useEffect, useCallback } from "react"
 import Link from "next/link"
 import {
   MoreHorizontal,
@@ -55,23 +54,27 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
-import { collection, query, where, orderBy } from "firebase/firestore"
-import { PurchaseOrder, Supplier } from "@/lib/types"
 import { Input } from "@/components/ui/input"
 import { formatCurrency, cn } from "@/lib/utils"
 import { deletePurchaseOrder, generatePurchaseOrdersExcel } from "./actions"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { Calendar } from "@/components/ui/calendar"
+import { useStore } from "@/contexts/store-context"
+import { PurchaseOrder, Supplier } from "@/lib/types"
 
 type SortKey = 'orderNumber' | 'importDate' | 'totalAmount' | 'itemCount' | 'notes' | 'supplier';
+
+interface PurchaseOrderWithSupplier extends PurchaseOrder {
+  supplierName?: string;
+  itemCount?: number;
+}
 
 export default function PurchasesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>('importDate');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [orderToDelete, setOrderToDelete] = useState<PurchaseOrder | null>(null);
+  const [orderToDelete, setOrderToDelete] = useState<PurchaseOrderWithSupplier | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isExporting, startExportingTransition] = useTransition();
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -79,36 +82,81 @@ export default function PurchasesPage() {
     to: endOfMonth(new Date()),
   });
   
-  const firestore = useFirestore();
+  const [purchases, setPurchases] = useState<PurchaseOrderWithSupplier[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const { currentStore } = useStore();
   const { toast } = useToast();
   const router = useRouter();
 
-
-  const purchasesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+  // Fetch purchase orders
+  const fetchPurchases = useCallback(async () => {
+    if (!currentStore?.id) return;
     
-    let q = query(collection(firestore, "purchase_orders"));
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('pageSize', '1000'); // Get all for client-side filtering
+      if (dateRange?.from) {
+        params.set('dateFrom', dateRange.from.toISOString());
+      }
+      if (dateRange?.to) {
+        params.set('dateTo', dateRange.to.toISOString());
+      }
 
-    if (dateRange?.from) {
-       q = query(q, where('importDate', '>=', dateRange.from.toISOString()));
+      const response = await fetch(`/api/purchases?${params.toString()}`, {
+        headers: {
+          'X-Store-Id': currentStore.id,
+        },
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setPurchases(result.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching purchases:', error);
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: "Không thể tải danh sách đơn nhập hàng",
+      });
+    } finally {
+      setIsLoading(false);
     }
-    if (dateRange?.to) {
-       q = query(q, where('importDate', '<=', dateRange.to.toISOString()));
-    }
+  }, [currentStore?.id, dateRange, toast]);
+
+  // Fetch suppliers
+  const fetchSuppliers = useCallback(async () => {
+    if (!currentStore?.id) return;
     
-    q = query(q, orderBy("importDate", "desc"));
-    return q;
-  }, [firestore, dateRange]);
+    try {
+      const response = await fetch('/api/suppliers', {
+        headers: {
+          'X-Store-Id': currentStore.id,
+        },
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setSuppliers(result.suppliers || []);
+      }
+    } catch (error) {
+      console.error('Error fetching suppliers:', error);
+    }
+  }, [currentStore?.id]);
 
+  useEffect(() => {
+    fetchPurchases();
+    fetchSuppliers();
+  }, [fetchPurchases, fetchSuppliers]);
 
-  const { data: purchases, isLoading } = useCollection<PurchaseOrder>(purchasesQuery);
-  const { data: suppliers, isLoading: suppliersLoading } = useCollection<Supplier>(useMemoFirebase(() => firestore ? query(collection(firestore, 'suppliers')) : null, [firestore]));
-  
   const suppliersMap = useMemo(() => new Map(suppliers?.map(s => [s.id, s.name])), [suppliers]);
 
   const filteredPurchases = purchases?.filter(order => {
     const term = searchTerm.toLowerCase();
-    const supplierName = suppliersMap.get(order.supplierId)?.toLowerCase() || '';
+    const supplierName = order.supplierName?.toLowerCase() || suppliersMap.get(order.supplierId || '')?.toLowerCase() || '';
     if (!term) return true;
     return (
       order.orderNumber.toLowerCase().includes(term) ||
@@ -155,8 +203,8 @@ export default function PurchasesPage() {
         let valA, valB;
         switch (sortKey) {
             case 'itemCount':
-                valA = a.items.length;
-                valB = b.items.length;
+                valA = a.itemCount ?? a.items?.length ?? 0;
+                valB = b.itemCount ?? b.items?.length ?? 0;
                 break;
             case 'importDate':
                 valA = new Date(a.importDate).getTime();
@@ -167,12 +215,12 @@ export default function PurchasesPage() {
                 valB = b.notes || '';
                 break;
             case 'supplier':
-                valA = suppliersMap.get(a.supplierId) || '';
-                valB = suppliersMap.get(b.supplierId) || '';
+                valA = a.supplierName || suppliersMap.get(a.supplierId || '') || '';
+                valB = b.supplierName || suppliersMap.get(b.supplierId || '') || '';
                 break;
             default:
-                valA = a[sortKey];
-                valB = b[sortKey];
+                valA = a[sortKey as keyof PurchaseOrderWithSupplier];
+                valB = b[sortKey as keyof PurchaseOrderWithSupplier];
         }
 
         if (typeof valA === 'string' && typeof valB === 'string') {
@@ -197,7 +245,7 @@ export default function PurchasesPage() {
         title: "Thành công!",
         description: `Đã xóa đơn nhập hàng "${orderToDelete.orderNumber}".`,
       });
-      router.refresh();
+      fetchPurchases();
     } else {
       toast({
         variant: "destructive",
@@ -350,8 +398,8 @@ export default function PurchasesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading || suppliersLoading && <TableRow><TableCell colSpan={8} className="text-center">Đang tải...</TableCell></TableRow>}
-              {!isLoading && !suppliersLoading && sortedPurchases?.map((order, index) => (
+              {isLoading && <TableRow><TableCell colSpan={8} className="text-center">Đang tải...</TableCell></TableRow>}
+              {!isLoading && sortedPurchases?.map((order, index) => (
                   <TableRow key={order.id}>
                     <TableCell className="font-medium hidden md:table-cell">{index + 1}</TableCell>
                     <TableCell className="font-medium">
@@ -363,10 +411,10 @@ export default function PurchasesPage() {
                       {new Date(order.importDate).toLocaleDateString()}
                     </TableCell>
                      <TableCell>
-                      {suppliersMap.get(order.supplierId) || 'N/A'}
+                      {order.supplierName || suppliersMap.get(order.supplierId || '') || 'N/A'}
                     </TableCell>
                     <TableCell className="text-right">
-                      {order.items.length}
+                      {order.itemCount ?? order.items?.length ?? 0}
                     </TableCell>
                     <TableCell className="text-right">
                       {formatCurrency(order.totalAmount)}
@@ -401,7 +449,7 @@ export default function PurchasesPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {!isLoading && !suppliersLoading && sortedPurchases?.length === 0 && (
+                {!isLoading && sortedPurchases?.length === 0 && (
                     <TableRow>
                         <TableCell colSpan={8} className="text-center h-24">
                            Chưa có đơn nhập hàng nào.

@@ -1,198 +1,273 @@
-
 'use server'
 
-import { PurchaseOrder, PurchaseOrderItem, PurchaseLot, Supplier } from "@/lib/types";
-import { getAdminServices } from "@/lib/admin-actions";
-import { FieldValue } from "firebase-admin/firestore";
+import { cookies } from 'next/headers';
+import { PurchaseOrder, PurchaseOrderItem, Supplier } from "@/lib/types";
 import * as xlsx from 'xlsx';
 
-async function getNextOrderNumber(firestore: FirebaseFirestore.Firestore, transaction: FirebaseFirestore.Transaction): Promise<string> {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = (today.getMonth() + 1).toString().padStart(2, '0');
-    const datePrefix = `PN${year}${month}`;
+function getBaseUrl(): string {
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+}
 
-    const collectionRef = firestore.collection('purchase_orders');
-    const q = collectionRef
-        .where('orderNumber', '>=', datePrefix)
-        .where('orderNumber', '<', datePrefix + 'z')
-        .orderBy('orderNumber', 'desc')
-        .limit(1);
+/**
+ * Get auth headers for API requests
+ */
+async function getAuthHeaders(storeId: string): Promise<HeadersInit> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get('auth-token')?.value;
+  
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': token ? `Bearer ${token}` : '',
+    'X-Store-Id': storeId,
+  };
+}
 
-    const snapshot = await transaction.get(q);
-    
-    let nextSequence = 1;
-    if (!snapshot.empty) {
-        const lastId = snapshot.docs[0].data().orderNumber;
-        const lastSequence = parseInt(lastId.substring(datePrefix.length), 10);
-        nextSequence = lastSequence + 1;
+/**
+ * Get current store ID from cookies
+ */
+async function getCurrentStoreId(): Promise<string | null> {
+  const cookieStore = await cookies();
+  return cookieStore.get('current-store-id')?.value || null;
+}
+
+/**
+ * Create a new purchase order
+ */
+export async function createPurchaseOrder(
+  order: Omit<PurchaseOrder, 'id' | 'orderNumber' | 'createdAt' | 'items'>,
+  items: Omit<PurchaseOrderItem, 'id' | 'purchaseOrderId'>[]
+): Promise<{ success: boolean; error?: string; purchaseOrderId?: string }> {
+  try {
+    const storeId = await getCurrentStoreId();
+    if (!storeId) {
+      return { success: false, error: 'Không tìm thấy cửa hàng hiện tại' };
     }
 
-    const sequenceString = nextSequence.toString().padStart(4, '0');
-    return `${datePrefix}${sequenceString}`;
-}
-
-
-export async function createPurchaseOrder(
-  order: Omit<PurchaseOrder, 'id' | 'orderNumber' | 'createdAt'>,
-  items: PurchaseOrderItem[]
-): Promise<{ success: boolean; error?: string; purchaseOrderId?: string }> {
-  const { firestore } = await getAdminServices();
-
-  try {
-    const purchaseOrderId = await firestore.runTransaction(async (transaction) => {
-      // 1. Generate a new order number
-      const orderNumber = await getNextOrderNumber(firestore, transaction);
-      
-      // 2. Create the main purchase_orders document
-      const purchaseOrderRef = firestore.collection('purchase_orders').doc();
-      const newPurchaseOrder: PurchaseOrder = {
-        ...order,
-        items: items, // Embed items directly
-        id: purchaseOrderRef.id,
-        orderNumber,
-        createdAt: FieldValue.serverTimestamp(),
-      };
-      transaction.set(purchaseOrderRef, newPurchaseOrder);
-
-      // 3. Update product lots
-      for (const item of items) {
-        const productRef = firestore.collection('products').doc(item.productId);
-        const newPurchaseLot: PurchaseLot = {
-            importDate: order.importDate,
-            quantity: item.quantity,
-            cost: item.cost,
-            unitId: item.unitId
-        };
-        // Use arrayUnion to atomically add the new lot to the product
-        transaction.update(productRef, {
-            purchaseLots: FieldValue.arrayUnion(newPurchaseLot)
-        });
-      }
-
-      return purchaseOrderRef.id;
-    });
-
-    return { success: true, purchaseOrderId };
-
-  } catch (error: any) {
-    console.error("Error creating purchase order:", error);
-    return { success: false, error: error.message || 'Không thể tạo đơn nhập hàng.' };
-  }
-}
-
-export async function updatePurchaseOrder(
-  orderId: string,
-  orderUpdate: Omit<PurchaseOrder, 'id' | 'orderNumber' | 'createdAt'>,
-  itemsUpdate: PurchaseOrderItem[]
-): Promise<{ success: boolean; error?: string }> {
-  const { firestore } = await getAdminServices();
-  const purchaseOrderRef = firestore.collection('purchase_orders').doc(orderId);
-
-  try {
-    await firestore.runTransaction(async (transaction) => {
-      // 1. Get the original purchase order
-      const originalOrderDoc = await transaction.get(purchaseOrderRef);
-      if (!originalOrderDoc.exists) {
-        throw new Error("Không tìm thấy đơn nhập hàng để cập nhật.");
-      }
-      const originalOrder = originalOrderDoc.data() as PurchaseOrder;
-
-      // 2. Remove the old purchase lots from each affected product
-      for (const originalItem of originalOrder.items) {
-        const productRef = firestore.collection('products').doc(originalItem.productId);
-        const oldPurchaseLot: PurchaseLot = {
-          importDate: originalOrder.importDate,
-          quantity: originalItem.quantity,
-          cost: originalItem.cost,
-          unitId: originalItem.unitId,
-        };
-        transaction.update(productRef, {
-          purchaseLots: FieldValue.arrayRemove(oldPurchaseLot),
-        });
-      }
-
-      // 3. Add the new purchase lots to each affected product
-      for (const updatedItem of itemsUpdate) {
-        const productRef = firestore.collection('products').doc(updatedItem.productId);
-        const newPurchaseLot: PurchaseLot = {
-          importDate: orderUpdate.importDate,
-          quantity: updatedItem.quantity,
-          cost: updatedItem.cost,
-          unitId: updatedItem.unitId,
-        };
-        transaction.update(productRef, {
-          purchaseLots: FieldValue.arrayUnion(newPurchaseLot),
-        });
-      }
-
-      // 4. Update the main purchase order document
-      transaction.update(purchaseOrderRef, {
-        ...orderUpdate,
-        items: itemsUpdate, // Update the embedded items
-      });
-    });
-
-    return { success: true };
-  } catch (error: any) {
-    console.error("Error updating purchase order:", error);
-    return { success: false, error: error.message || 'Không thể cập nhật đơn nhập hàng.' };
-  }
-}
-
-
-export async function deletePurchaseOrder(orderId: string): Promise<{ success: boolean; error?: string }> {
-  const { firestore } = await getAdminServices();
-  const purchaseOrderRef = firestore.collection('purchase_orders').doc(orderId);
-
-  try {
-    await firestore.runTransaction(async (transaction) => {
-      // 1. Get the original purchase order
-      const orderDoc = await transaction.get(purchaseOrderRef);
-      if (!orderDoc.exists) {
-        throw new Error("Không tìm thấy đơn nhập hàng để xóa.");
-      }
-      const order = orderDoc.data() as PurchaseOrder;
-
-      // 2. Remove the purchase lots from each affected product
-      for (const item of order.items) {
-        const productRef = firestore.collection('products').doc(item.productId);
-        const purchaseLotToRemove: PurchaseLot = {
-          importDate: order.importDate,
+    const headers = await getAuthHeaders(storeId);
+    
+    const response = await fetch(`${getBaseUrl()}/api/purchases`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        supplierId: order.supplierId,
+        importDate: order.importDate,
+        notes: order.notes,
+        totalAmount: order.totalAmount,
+        items: items.map(item => ({
+          productId: item.productId,
           quantity: item.quantity,
           cost: item.cost,
           unitId: item.unitId,
-        };
-        transaction.update(productRef, {
-          purchaseLots: FieldValue.arrayRemove(purchaseLotToRemove),
-        });
-      }
-      
-      // Also delete any associated supplier payments
-      const paymentsQuery = firestore.collection('supplier_payments').where('notes', '==', `Thanh toán cho đơn nhập ${order.orderNumber}`);
-      const paymentsSnapshot = await transaction.get(paymentsQuery);
-      paymentsSnapshot.docs.forEach(doc => transaction.delete(doc.ref));
-
-      // 3. Delete the main purchase order document
-      transaction.delete(purchaseOrderRef);
+        })),
+      }),
     });
 
-    return { success: true };
-  } catch (error: any) {
-    console.error("Error deleting purchase order:", error);
-    return { success: false, error: error.message || 'Không thể xóa đơn nhập hàng.' };
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Không thể tạo đơn nhập hàng' };
+    }
+
+    return { success: true, purchaseOrderId: data.purchaseOrder?.id };
+  } catch (error: unknown) {
+    console.error("Error creating purchase order:", error);
+    const errorMessage = error instanceof Error ? error.message : 'Không thể tạo đơn nhập hàng';
+    return { success: false, error: errorMessage };
   }
 }
 
-export async function generatePurchaseOrdersExcel(orders: PurchaseOrder[], suppliers: Supplier[]): Promise<{ success: boolean; data?: string; error?: string }> {
+
+/**
+ * Update an existing purchase order
+ */
+export async function updatePurchaseOrder(
+  orderId: string,
+  orderUpdate: Omit<PurchaseOrder, 'id' | 'orderNumber' | 'createdAt' | 'items'>,
+  itemsUpdate: Omit<PurchaseOrderItem, 'id' | 'purchaseOrderId'>[]
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const storeId = await getCurrentStoreId();
+    if (!storeId) {
+      return { success: false, error: 'Không tìm thấy cửa hàng hiện tại' };
+    }
+
+    const headers = await getAuthHeaders(storeId);
+    
+    const response = await fetch(`${getBaseUrl()}/api/purchases/${orderId}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({
+        supplierId: orderUpdate.supplierId,
+        importDate: orderUpdate.importDate,
+        notes: orderUpdate.notes,
+        totalAmount: orderUpdate.totalAmount,
+        items: itemsUpdate.map(item => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          cost: item.cost,
+          unitId: item.unitId,
+        })),
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Không thể cập nhật đơn nhập hàng' };
+    }
+
+    return { success: true };
+  } catch (error: unknown) {
+    console.error("Error updating purchase order:", error);
+    const errorMessage = error instanceof Error ? error.message : 'Không thể cập nhật đơn nhập hàng';
+    return { success: false, error: errorMessage };
+  }
+}
+
+/**
+ * Delete a purchase order
+ */
+export async function deletePurchaseOrder(orderId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const storeId = await getCurrentStoreId();
+    if (!storeId) {
+      return { success: false, error: 'Không tìm thấy cửa hàng hiện tại' };
+    }
+
+    const headers = await getAuthHeaders(storeId);
+    
+    const response = await fetch(`${getBaseUrl()}/api/purchases/${orderId}`, {
+      method: 'DELETE',
+      headers,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Không thể xóa đơn nhập hàng' };
+    }
+
+    return { success: true };
+  } catch (error: unknown) {
+    console.error("Error deleting purchase order:", error);
+    const errorMessage = error instanceof Error ? error.message : 'Không thể xóa đơn nhập hàng';
+    return { success: false, error: errorMessage };
+  }
+}
+
+
+/**
+ * Get all purchase orders
+ */
+export async function getPurchaseOrders(options?: {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  supplierId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}): Promise<{ 
+  success: boolean; 
+  error?: string; 
+  data?: PurchaseOrder[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
+  totalPages?: number;
+}> {
+  try {
+    const storeId = await getCurrentStoreId();
+    if (!storeId) {
+      return { success: false, error: 'Không tìm thấy cửa hàng hiện tại' };
+    }
+
+    const headers = await getAuthHeaders(storeId);
+    
+    const params = new URLSearchParams();
+    if (options?.page) params.set('page', options.page.toString());
+    if (options?.pageSize) params.set('pageSize', options.pageSize.toString());
+    if (options?.search) params.set('search', options.search);
+    if (options?.supplierId) params.set('supplierId', options.supplierId);
+    if (options?.dateFrom) params.set('dateFrom', options.dateFrom);
+    if (options?.dateTo) params.set('dateTo', options.dateTo);
+
+    const response = await fetch(`${getBaseUrl()}/api/purchases?${params.toString()}`, {
+      method: 'GET',
+      headers,
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return { success: false, error: result.error || 'Không thể lấy danh sách đơn nhập hàng' };
+    }
+
+    return { 
+      success: true, 
+      data: result.data,
+      total: result.total,
+      page: result.page,
+      pageSize: result.pageSize,
+      totalPages: result.totalPages,
+    };
+  } catch (error: unknown) {
+    console.error("Error getting purchase orders:", error);
+    const errorMessage = error instanceof Error ? error.message : 'Không thể lấy danh sách đơn nhập hàng';
+    return { success: false, error: errorMessage };
+  }
+}
+
+/**
+ * Get a single purchase order with details
+ */
+export async function getPurchaseOrder(orderId: string): Promise<{ 
+  success: boolean; 
+  error?: string; 
+  purchaseOrder?: PurchaseOrder & { supplierName?: string };
+}> {
+  try {
+    const storeId = await getCurrentStoreId();
+    if (!storeId) {
+      return { success: false, error: 'Không tìm thấy cửa hàng hiện tại' };
+    }
+
+    const headers = await getAuthHeaders(storeId);
+    
+    const response = await fetch(`${getBaseUrl()}/api/purchases/${orderId}`, {
+      method: 'GET',
+      headers,
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return { success: false, error: result.error || 'Không thể lấy thông tin đơn nhập hàng' };
+    }
+
+    return { success: true, purchaseOrder: result.purchaseOrder };
+  } catch (error: unknown) {
+    console.error("Error getting purchase order:", error);
+    const errorMessage = error instanceof Error ? error.message : 'Không thể lấy thông tin đơn nhập hàng';
+    return { success: false, error: errorMessage };
+  }
+}
+
+
+/**
+ * Generate Excel export for purchase orders
+ */
+export async function generatePurchaseOrdersExcel(
+  orders: (PurchaseOrder & { supplierName?: string; itemCount?: number })[], 
+  suppliers: Supplier[]
+): Promise<{ success: boolean; data?: string; error?: string }> {
   try {
     const suppliersMap = new Map(suppliers.map(s => [s.id, s.name]));
     const dataToExport = orders.map((order, index) => ({
       'STT': index + 1,
       'Mã đơn': order.orderNumber,
       'Ngày nhập': new Date(order.importDate).toLocaleDateString('vi-VN'),
-      'Nhà cung cấp': suppliersMap.get(order.supplierId) || 'N/A',
-      'Số SP': order.items.length,
+      'Nhà cung cấp': order.supplierName || (order.supplierId ? suppliersMap.get(order.supplierId) : 'N/A') || 'N/A',
+      'Số SP': order.itemCount ?? order.items?.length ?? 0,
       'Tổng tiền': order.totalAmount,
       'Ghi chú': order.notes || '',
     }));
@@ -224,21 +299,22 @@ export async function generatePurchaseOrdersExcel(orders: PurchaseOrder[], suppl
     const numberFormat = '#,##0';
     dataToExport.forEach((_, index) => {
         const rowIndex = index + 2; // 1-based index, +1 for header
-        worksheet[`F${rowIndex}`].z = numberFormat;
+        if (worksheet[`F${rowIndex}`]) {
+          worksheet[`F${rowIndex}`].z = numberFormat;
+        }
     });
 
     const totalRowIndex = dataToExport.length + 2;
-    worksheet[`F${totalRowIndex}`].z = numberFormat;
-    worksheet[`B${totalRowIndex}`].s = { font: { bold: true } };
-    worksheet[`F${totalRowIndex}`].s = { font: { bold: true } };
-
+    if (worksheet[`F${totalRowIndex}`]) {
+      worksheet[`F${totalRowIndex}`].z = numberFormat;
+    }
 
     const workbook = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(workbook, worksheet, 'DonNhapHang');
 
     const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
     return { success: true, data: buffer.toString('base64') };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error generating purchase orders excel:", error);
     return { success: false, error: 'Không thể tạo file excel.' };
   }

@@ -1,103 +1,230 @@
-
-
 'use server'
 
-import { Payment, Customer, LoyaltySettings } from "@/lib/types";
-import { getAdminServices } from "@/lib/admin-actions";
-import { FieldValue } from "firebase-admin/firestore";
+import { cookies } from 'next/headers';
 
-
-async function updateLoyaltyOnPayment(
-  transaction: FirebaseFirestore.Transaction,
-  firestore: FirebaseFirestore.Firestore,
-  customerId: string,
-  paymentAmount: number,
-) {
-  if (customerId === 'walk-in-customer') return;
-
-  // --- READS FIRST ---
-  const settingsDoc = await transaction.get(firestore.collection('settings').doc('theme'));
-  const loyaltySettings = settingsDoc.data()?.loyalty as LoyaltySettings | undefined;
-
-  if (!loyaltySettings || !loyaltySettings.enabled || !loyaltySettings.pointsPerAmount || loyaltySettings.pointsPerAmount <= 0) {
-    return;
-  }
-
-  const customerRef = firestore.collection('customers').doc(customerId);
-  const customerDoc = await transaction.get(customerRef);
-
-  if (!customerDoc.exists) {
-    console.warn(`Customer ${customerId} not found for loyalty update.`);
-    return;
-  }
-
-  // --- THEN WRITES ---
-  const customerData = customerDoc.data() as Customer;
-  
-  const earnedPoints = Math.floor(paymentAmount / loyaltySettings.pointsPerAmount);
-  
-  if (earnedPoints <= 0) {
-    return;
-  }
-
-  const currentSpendablePoints = customerData.loyaltyPoints || 0;
-  const currentLifetimePoints = customerData.lifetimePoints || 0;
-
-  const newSpendablePoints = currentSpendablePoints + earnedPoints;
-  const newLifetimePoints = currentLifetimePoints + earnedPoints;
-  
-  const sortedTiers = loyaltySettings.tiers.sort((a, b) => b.threshold - a.threshold);
-  const newTier = sortedTiers.find(tier => newLifetimePoints >= tier.threshold);
-  
-  const loyaltyUpdate: { 
-    loyaltyPoints: number; 
-    lifetimePoints: number;
-    loyaltyTier?: Customer['loyaltyTier'] | FieldValue;
-  } = {
-    loyaltyPoints: newSpendablePoints,
-    lifetimePoints: newLifetimePoints,
-  };
-
-  if (newTier) {
-    if (newTier.name !== customerData.loyaltyTier) {
-        loyaltyUpdate.loyaltyTier = newTier.name;
-    }
-  } else {
-    if (customerData.loyaltyTier) {
-        loyaltyUpdate.loyaltyTier = FieldValue.delete();
-    }
-  }
-
-  transaction.update(customerRef, loyaltyUpdate);
+function getBaseUrl(): string {
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 }
 
+/**
+ * Payment entity interface
+ */
+interface Payment {
+  id: string;
+  storeId: string;
+  customerId: string;
+  paymentDate: string;
+  amount: number;
+  notes?: string;
+  createdBy?: string;
+  createdAt: string;
+}
 
-export async function addPayment(
-    paymentData: Omit<Payment, 'id'>
-): Promise<{ success: boolean; error?: string; paymentId?: string }> {
-    const { firestore } = await getAdminServices();
+/**
+ * Payment with customer information
+ */
+interface PaymentWithCustomer extends Payment {
+  customerName: string;
+  customerPhone?: string;
+}
 
-    try {
-       const paymentId = await firestore.runTransaction(async (transaction) => {
-            const paymentRef = firestore.collection('payments').doc();
-            
-            // We pass the transaction object to the loyalty update function.
-            // It will perform its own reads and writes within this transaction.
-            await updateLoyaltyOnPayment(transaction, firestore, paymentData.customerId, paymentData.amount);
+/**
+ * Paginated result interface
+ */
+interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
 
-            // Now, perform the write for the payment itself.
-            const newPayment = {
-                ...paymentData,
-                id: paymentRef.id,
-            };
-            transaction.set(paymentRef, newPayment);
-            
-            return paymentRef.id;
-        });
+/**
+ * Get auth token from cookies
+ */
+async function getAuthToken(): Promise<string | null> {
+  const cookieStore = await cookies();
+  return cookieStore.get('auth-token')?.value || null;
+}
 
-        return { success: true, paymentId };
-    } catch (error: any) {
-        console.error("Error adding payment and updating loyalty:", error);
-        return { success: false, error: error.message || 'Không thể ghi nhận thanh toán.' };
+/**
+ * Get current store ID from cookies
+ */
+async function getCurrentStoreId(): Promise<string | null> {
+  const cookieStore = await cookies();
+  return cookieStore.get('current-store-id')?.value || null;
+}
+
+/**
+ * Fetch all customer payments for the current store
+ */
+export async function getPayments(options?: {
+  page?: number;
+  pageSize?: number;
+  customerId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}): Promise<{
+  success: boolean;
+  payments?: PaymentWithCustomer[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
+  totalPages?: number;
+  error?: string;
+}> {
+  try {
+    const token = await getAuthToken();
+    const storeId = await getCurrentStoreId();
+
+    if (!token) {
+      return { success: false, error: 'Chưa đăng nhập' };
     }
+
+    if (!storeId) {
+      return { success: false, error: 'Chưa chọn cửa hàng' };
+    }
+
+    const url = new URL(`${getBaseUrl()}/api/payments`);
+    url.searchParams.set('storeId', storeId);
+    
+    if (options?.page) {
+      url.searchParams.set('page', options.page.toString());
+    }
+    if (options?.pageSize) {
+      url.searchParams.set('pageSize', options.pageSize.toString());
+    }
+    if (options?.customerId) {
+      url.searchParams.set('customerId', options.customerId);
+    }
+    if (options?.dateFrom) {
+      url.searchParams.set('dateFrom', options.dateFrom);
+    }
+    if (options?.dateTo) {
+      url.searchParams.set('dateTo', options.dateTo);
+    }
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'X-Store-Id': storeId,
+      },
+      cache: 'no-store',
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Không thể lấy danh sách thanh toán' };
+    }
+
+    return {
+      success: true,
+      payments: data.data,
+      total: data.total,
+      page: data.page,
+      pageSize: data.pageSize,
+      totalPages: data.totalPages,
+    };
+  } catch (error: unknown) {
+    console.error('Error fetching payments:', error);
+    return { success: false, error: 'Đã xảy ra lỗi khi lấy danh sách thanh toán' };
+  }
+}
+
+/**
+ * Get payments for a specific customer
+ */
+export async function getCustomerPayments(customerId: string): Promise<{
+  success: boolean;
+  payments?: Payment[];
+  error?: string;
+}> {
+  try {
+    const token = await getAuthToken();
+    const storeId = await getCurrentStoreId();
+
+    if (!token) {
+      return { success: false, error: 'Chưa đăng nhập' };
+    }
+
+    if (!storeId) {
+      return { success: false, error: 'Chưa chọn cửa hàng' };
+    }
+
+    const url = new URL(`${getBaseUrl()}/api/payments`);
+    url.searchParams.set('storeId', storeId);
+    url.searchParams.set('customerId', customerId);
+    url.searchParams.set('pageSize', '1000'); // Get all payments for customer
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'X-Store-Id': storeId,
+      },
+      cache: 'no-store',
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Không thể lấy danh sách thanh toán' };
+    }
+
+    return { success: true, payments: data.data };
+  } catch (error: unknown) {
+    console.error('Error fetching customer payments:', error);
+    return { success: false, error: 'Đã xảy ra lỗi khi lấy danh sách thanh toán' };
+  }
+}
+
+/**
+ * Add a new customer payment
+ */
+export async function addPayment(paymentData: {
+  customerId: string;
+  paymentDate: string;
+  amount: number;
+  notes?: string;
+}): Promise<{ success: boolean; error?: string; paymentId?: string }> {
+  try {
+    const token = await getAuthToken();
+    const storeId = await getCurrentStoreId();
+
+    if (!token) {
+      return { success: false, error: 'Chưa đăng nhập' };
+    }
+
+    if (!storeId) {
+      return { success: false, error: 'Chưa chọn cửa hàng' };
+    }
+
+    const response = await fetch(`${getBaseUrl()}/api/payments?storeId=${storeId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'X-Store-Id': storeId,
+      },
+      body: JSON.stringify({
+        customerId: paymentData.customerId,
+        paymentDate: paymentData.paymentDate,
+        amount: paymentData.amount,
+        notes: paymentData.notes,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Không thể ghi nhận thanh toán' };
+    }
+
+    return { success: true, paymentId: data.payment?.id };
+  } catch (error: unknown) {
+    console.error('Error adding payment:', error);
+    return { success: false, error: 'Không thể ghi nhận thanh toán' };
+  }
 }

@@ -28,7 +28,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { Supplier } from '@/lib/types'
 import { upsertSupplier } from '../actions'
 import { useToast } from '@/hooks/use-toast'
-import { useRouter } from 'next/navigation'
 
 const supplierFormSchema = z.object({
   name: z.string().min(1, "Tên nhà cung cấp không được để trống."),
@@ -50,7 +49,6 @@ interface SupplierFormProps {
 
 export function SupplierForm({ isOpen, onOpenChange, supplier }: SupplierFormProps) {
   const { toast } = useToast();
-  const router = useRouter();
 
   const form = useForm<SupplierFormValues>({
     resolver: zodResolver(supplierFormSchema),
@@ -91,7 +89,6 @@ export function SupplierForm({ isOpen, onOpenChange, supplier }: SupplierFormPro
         description: `Đã ${supplier ? 'cập nhật' : 'tạo'} nhà cung cấp thành công.`,
       });
       onOpenChange(false);
-      router.refresh();
     } else {
       toast({
         variant: "destructive",

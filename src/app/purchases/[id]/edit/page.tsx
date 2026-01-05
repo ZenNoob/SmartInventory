@@ -1,100 +1,116 @@
-
 'use client'
 
-import { useCollection, useDoc, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, getDocs, doc } from "firebase/firestore";
-import { Customer, Product, Unit, SalesItem, PurchaseOrder, Supplier } from "@/lib/types";
+import { useEffect, useState, use } from "react";
+import { Product, Unit, SalesItem, PurchaseOrder, Supplier } from "@/lib/types";
 import { PurchaseOrderForm } from "../../components/purchase-order-form";
-import { useEffect, useState } from "react";
 import { notFound } from "next/navigation";
+import { useStore } from "@/contexts/store-context";
 
-
-export default function EditPurchasePage({ params }: { params: { id: string } }) {
-    const firestore = useFirestore();
+export default function EditPurchasePage({ params }: { params: Promise<{ id: string }> }) {
+    const resolvedParams = use(params);
+    const { currentStore } = useStore();
+    
+    const [purchaseOrder, setPurchaseOrder] = useState<PurchaseOrder | null>(null);
+    const [products, setProducts] = useState<Product[]>([]);
+    const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+    const [units, setUnits] = useState<Unit[]>([]);
     const [allSalesItems, setAllSalesItems] = useState<SalesItem[]>([]);
-    const [salesItemsLoading, setSalesItemsLoading] = useState(true);
-
-    const purchaseOrderRef = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return doc(firestore, 'purchase_orders', params.id);
-    }, [firestore, params.id]);
-
-    const { data: purchaseOrder, isLoading: purchaseOrderLoading } = useDoc<PurchaseOrder>(purchaseOrderRef);
-
-    const productsQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, "products"));
-    }, [firestore]);
-    
-    const suppliersQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, "suppliers"));
-    }, [firestore]);
-
-    const unitsQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, "units"));
-    }, [firestore]);
-    
-    const salesQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, "sales_transactions"));
-    }, [firestore]);
-
-    const { data: products, isLoading: productsLoading } = useCollection<Product>(productsQuery);
-    const { data: suppliers, isLoading: suppliersLoading } = useCollection<Supplier>(suppliersQuery);
-    const { data: units, isLoading: unitsLoading } = useCollection<Unit>(unitsQuery);
-    const { data: sales, isLoading: salesLoading } = useCollection<any>(salesQuery);
+    const [isLoading, setIsLoading] = useState(true);
+    const [notFoundState, setNotFoundState] = useState(false);
 
     useEffect(() => {
-        async function fetchAllSalesItems() {
-            if (!firestore || !sales) {
-                if (!salesLoading) setSalesItemsLoading(false);
-                return;
-            };
-        
-            setSalesItemsLoading(true);
-            const items: SalesItem[] = [];
+        async function fetchData() {
+            if (!currentStore?.id) return;
+            
+            setIsLoading(true);
             try {
-                for (const sale of sales) {
-                const itemsCollectionRef = collection(firestore, `sales_transactions/${sale.id}/sales_items`);
-                const itemsSnapshot = await getDocs(itemsCollectionRef);
-                itemsSnapshot.forEach(doc => {
-                    items.push({ id: doc.id, ...doc.data() } as SalesItem);
+                // Fetch purchase order
+                const orderResponse = await fetch(`/api/purchases/${resolvedParams.id}`, {
+                    headers: {
+                        'X-Store-Id': currentStore.id,
+                    },
                 });
+                
+                if (!orderResponse.ok) {
+                    if (orderResponse.status === 404) {
+                        setNotFoundState(true);
+                        return;
+                    }
+                    throw new Error('Failed to fetch purchase order');
                 }
-                setAllSalesItems(items);
+                
+                const orderResult = await orderResponse.json();
+                setPurchaseOrder(orderResult.purchaseOrder);
+                
+                // Fetch products
+                const productsResponse = await fetch('/api/products?pageSize=1000', {
+                    headers: {
+                        'X-Store-Id': currentStore.id,
+                    },
+                });
+                if (productsResponse.ok) {
+                    const productsResult = await productsResponse.json();
+                    setProducts(productsResult.data || []);
+                }
+                
+                // Fetch suppliers
+                const suppliersResponse = await fetch('/api/suppliers', {
+                    headers: {
+                        'X-Store-Id': currentStore.id,
+                    },
+                });
+                if (suppliersResponse.ok) {
+                    const suppliersResult = await suppliersResponse.json();
+                    setSuppliers(suppliersResult.suppliers || []);
+                }
+                
+                // Fetch units
+                const unitsResponse = await fetch('/api/units', {
+                    headers: {
+                        'X-Store-Id': currentStore.id,
+                    },
+                });
+                if (unitsResponse.ok) {
+                    const unitsResult = await unitsResponse.json();
+                    setUnits(unitsResult.units || []);
+                }
+                
+                // Sales items are not needed for edit, set empty array
+                setAllSalesItems([]);
+                
             } catch (error) {
-                console.error("Error fetching sales items: ", error);
+                console.error('Error fetching data:', error);
             } finally {
-                setSalesItemsLoading(false);
+                setIsLoading(false);
             }
         }
-        fetchAllSalesItems();
-    }, [sales, firestore, salesLoading]);
+        
+        fetchData();
+    }, [currentStore?.id, resolvedParams.id]);
 
-
-    const isLoading = productsLoading || unitsLoading || salesItemsLoading || purchaseOrderLoading || suppliersLoading;
+    if (notFoundState) {
+        notFound();
+    }
 
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-full">
                 <p>Đang tải dữ liệu...</p>
             </div>
-        )
+        );
     }
 
-    if (!purchaseOrder && !isLoading) {
+    if (!purchaseOrder) {
         notFound();
     }
 
     return (
         <PurchaseOrderForm 
-            products={products || []}
-            units={units || []}
-            allSalesItems={allSalesItems || []}
-            suppliers={suppliers || []}
-            purchaseOrder={purchaseOrder || undefined}
+            products={products}
+            units={units}
+            allSalesItems={allSalesItems}
+            suppliers={suppliers}
+            purchaseOrder={purchaseOrder}
         />
-    )
+    );
 }

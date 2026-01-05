@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import {
   Card,
   CardContent,
@@ -18,23 +18,21 @@ import {
   TableFooter,
 } from "@/components/ui/table"
 import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
-import { collection, query } from "firebase/firestore"
-import { Sale, Customer } from "@/lib/types"
+import { useStore } from "@/contexts/store-context"
 import { formatCurrency, cn } from "@/lib/utils"
 import { DateRange } from "react-day-picker"
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, startOfQuarter, endOfQuarter } from "date-fns"
-import { vi } from "date-fns/locale"
-import { Calendar as CalendarIcon, File, Undo2 } from "lucide-react"
+import { Calendar as CalendarIcon, File, FileText, Undo2 } from "lucide-react"
 import * as xlsx from 'xlsx';
+import { exportToPDF, formatCurrencyForExport, formatDateForExport } from "@/lib/export-utils"
 import { RevenueChart } from "./components/revenue-chart"
 import Link from "next/link"
 
@@ -44,73 +42,109 @@ export type MonthlyRevenue = {
   salesCount: number;
 }
 
+interface SalesSummary {
+  date: string;
+  totalSales: number;
+  totalRevenue: number;
+  totalVat: number;
+  totalDiscount: number;
+  netRevenue: number;
+}
+
+interface SaleDetail {
+  id: string;
+  invoiceNumber: string;
+  customerName: string;
+  transactionDate: string;
+  totalAmount: number;
+  vatAmount: number;
+  discount: number;
+  finalAmount: number;
+  status: string;
+}
+
+interface SalesReportResponse {
+  success: boolean;
+  summary: SalesSummary[];
+  totals: {
+    totalSales: number;
+    totalRevenue: number;
+    totalVat: number;
+    totalDiscount: number;
+    netRevenue: number;
+  };
+  details?: SaleDetail[];
+}
+
 export default function RevenueReportPage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: startOfMonth(new Date()),
     to: endOfMonth(new Date()),
   });
+  const [isLoading, setIsLoading] = useState(true);
+  const [reportData, setReportData] = useState<SalesReportResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const firestore = useFirestore();
+  const { currentStore } = useStore();
 
-  const salesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, "sales_transactions"));
-  }, [firestore]);
-  
-  const customersQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, "customers"));
-  }, [firestore]);
+  const fetchReport = useCallback(async () => {
+    if (!currentStore?.id) return;
 
-  const { data: sales, isLoading: salesLoading } = useCollection<Sale>(salesQuery);
-  const { data: customers, isLoading: customersLoading } = useCollection<Customer>(customersQuery);
+    setIsLoading(true);
+    setError(null);
 
-  const customersMap = useMemo(() => {
-    if (!customers) return new Map();
-    return new Map(customers.map(c => [c.id, c.name]));
-  }, [customers]);
+    try {
+      const params = new URLSearchParams();
+      if (dateRange?.from) {
+        params.set('dateFrom', dateRange.from.toISOString());
+      }
+      if (dateRange?.to) {
+        params.set('dateTo', dateRange.to.toISOString());
+      }
+      params.set('groupBy', 'month');
+      params.set('includeDetails', 'true');
 
-  const filteredSales = useMemo(() => {
-    if (!sales) return [];
-    if (!dateRange?.from) return sales;
+      const response = await fetch(`/api/reports/sales?${params.toString()}`, {
+        headers: {
+          'x-store-id': currentStore.id,
+        },
+        credentials: 'include',
+      });
 
-    const fromDate = dateRange.from;
-    const toDate = dateRange.to || fromDate;
+      if (!response.ok) {
+        throw new Error('Failed to fetch report');
+      }
 
-    return sales.filter(sale => {
-      const saleDate = new Date(sale.transactionDate);
-      return saleDate >= fromDate && saleDate <= toDate;
-    });
-  }, [sales, dateRange]);
+      const data = await response.json();
+      setReportData(data);
+    } catch (err) {
+      console.error('Error fetching sales report:', err);
+      setError('Đã xảy ra lỗi khi tải báo cáo');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentStore?.id, dateRange]);
+
+  useEffect(() => {
+    fetchReport();
+  }, [fetchReport]);
 
   const monthlyData = useMemo((): MonthlyRevenue[] => {
-    if (!filteredSales) return [];
+    if (!reportData?.summary) return [];
 
-    const monthlyTotals: { [key: string]: { revenue: number; salesCount: number } } = {};
+    return reportData.summary.map(s => ({
+      month: format(new Date(s.date), "yyyy-MM"),
+      revenue: s.netRevenue,
+      salesCount: s.totalSales,
+    }));
+  }, [reportData]);
 
-    filteredSales.forEach(sale => {
-      const month = format(new Date(sale.transactionDate), "yyyy-MM");
-      if (!monthlyTotals[month]) {
-        monthlyTotals[month] = { revenue: 0, salesCount: 0 };
-      }
-      monthlyTotals[month].revenue += sale.finalAmount;
-      monthlyTotals[month].salesCount += 1;
-    });
+  const filteredSales = useMemo(() => {
+    return reportData?.details || [];
+  }, [reportData]);
 
-    return Object.entries(monthlyTotals)
-      .map(([month, data]) => ({
-        month,
-        revenue: data.revenue,
-        salesCount: data.salesCount,
-      }))
-      .sort((a, b) => a.month.localeCompare(b.month)); // Sort by month
-  }, [filteredSales]);
-
-  const totalRevenue = useMemo(() => {
-    return filteredSales.reduce((acc, curr) => acc + curr.finalAmount, 0);
-  }, [filteredSales]);
-    
-  const totalSalesCount = filteredSales.length;
+  const totalRevenue = reportData?.totals?.netRevenue || 0;
+  const totalSalesCount = reportData?.totals?.totalSales || 0;
 
   const setDatePreset = (preset: 'this_week' | 'this_month' | 'this_quarter' | 'this_year') => {
     const now = new Date();
@@ -135,7 +169,7 @@ export default function RevenueReportPage() {
     const body = filteredSales.map((sale, index) => [
       index + 1,
       sale.invoiceNumber,
-      customersMap.get(sale.customerId) || 'Khách lẻ',
+      sale.customerName,
       format(new Date(sale.transactionDate), "dd/MM/yyyy"),
       sale.finalAmount,
     ]);
@@ -156,10 +190,7 @@ export default function RevenueReportPage() {
     });
     
     const totalRowIndex = body.length + 2;
-    worksheet[`E${totalRowIndex}`].z = numberFormat;
-    worksheet[`B${totalRowIndex}`].s = { font: { bold: true } };
-    worksheet[`E${totalRowIndex}`].s = { font: { bold: true } };
-    
+    if (worksheet[`E${totalRowIndex}`]) worksheet[`E${totalRowIndex}`].z = numberFormat;
 
     const workbook = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(workbook, worksheet, "BaoCaoDoanhThuChiTiet");
@@ -167,7 +198,33 @@ export default function RevenueReportPage() {
     xlsx.writeFile(workbook, "bao_cao_doanh_thu_chi_tiet.xlsx");
   };
 
-  const isLoading = salesLoading || customersLoading;
+  const handleExportPDF = () => {
+    const headers = ["STT", "Mã đơn hàng", "Khách hàng", "Ngày", "Doanh thu"];
+    const data = filteredSales.map((sale, index) => [
+      index + 1,
+      sale.invoiceNumber,
+      sale.customerName,
+      formatDateForExport(sale.transactionDate),
+      formatCurrencyForExport(sale.finalAmount),
+    ]);
+
+    const dateRangeStr = dateRange?.from 
+      ? `${format(dateRange.from, "dd/MM/yyyy")} - ${dateRange.to ? format(dateRange.to, "dd/MM/yyyy") : format(dateRange.from, "dd/MM/yyyy")}`
+      : 'Tất cả thời gian';
+
+    exportToPDF(
+      'BÁO CÁO DOANH THU CHI TIẾT',
+      headers,
+      data,
+      'bao_cao_doanh_thu_chi_tiet',
+      {
+        orientation: 'portrait',
+        dateRange: dateRangeStr,
+        totals: ['', 'Tổng cộng', '', '', formatCurrencyForExport(totalRevenue)],
+        columnAligns: ['center', 'left', 'left', 'center', 'right'],
+      }
+    );
+  };
 
   return (
     <div className="grid gap-6">
@@ -179,7 +236,7 @@ export default function RevenueReportPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-           <div className="flex flex-wrap items-center gap-4 mb-6">
+          <div className="flex flex-wrap items-center gap-4 mb-6">
             <Popover>
               <PopoverTrigger asChild>
                 <Button
@@ -214,26 +271,30 @@ export default function RevenueReportPage() {
                   onSelect={setDateRange}
                   numberOfMonths={2}
                 />
-                 <div className="p-2 border-t flex justify-around">
-                    <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_week')}>Tuần này</Button>
-                    <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_month')}>Tháng này</Button>
-                    <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_quarter')}>Quý này</Button>
-                    <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_year')}>Năm nay</Button>
-                 </div>
+                <div className="p-2 border-t flex justify-around">
+                  <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_week')}>Tuần này</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_month')}>Tháng này</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_quarter')}>Quý này</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_year')}>Năm nay</Button>
+                </div>
               </PopoverContent>
             </Popover>
-            <Button onClick={handleExportExcel} variant="outline" className="ml-auto">
-                <File className="mr-2 h-4 w-4" />
-                Xuất Excel
+            <Button onClick={handleExportPDF} variant="outline" className="ml-auto">
+              <FileText className="mr-2 h-4 w-4" />
+              Xuất PDF
             </Button>
-           </div>
+            <Button onClick={handleExportExcel} variant="outline">
+              <File className="mr-2 h-4 w-4" />
+              Xuất Excel
+            </Button>
+          </div>
            
-           <div className="mb-8">
-             <h3 className="text-lg font-semibold mb-2">Biểu đồ doanh thu theo tháng</h3>
-             <RevenueChart data={monthlyData} />
-           </div>
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold mb-2">Biểu đồ doanh thu theo tháng</h3>
+            <RevenueChart data={monthlyData} />
+          </div>
 
-           <h3 className="text-lg font-semibold mb-2">Chi tiết các đơn hàng</h3>
+          <h3 className="text-lg font-semibold mb-2">Chi tiết các đơn hàng</h3>
           <Table>
             <TableHeader>
               <TableRow>
@@ -253,21 +314,28 @@ export default function RevenueReportPage() {
                     </TableCell>
                   </TableRow>
                 )}
-                {!isLoading && filteredSales.length === 0 && (
+                {error && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center text-destructive">
+                      {error}
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!isLoading && !error && filteredSales.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center">
                       Không có dữ liệu trong khoảng thời gian này.
                     </TableCell>
                   </TableRow>
                 )}
-                {!isLoading && filteredSales.map((sale, index) => {
+                {!isLoading && !error && filteredSales.map((sale, index) => {
                   const isReturnOrder = sale.finalAmount < 0;
                   return (
                     <TableRow key={sale.id}>
                       <TableCell>{index + 1}</TableCell>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
-                           {isReturnOrder && (
+                          {isReturnOrder && (
                             <Tooltip>
                               <TooltipTrigger>
                                 <Undo2 className="h-4 w-4 text-muted-foreground" />
@@ -278,13 +346,11 @@ export default function RevenueReportPage() {
                             </Tooltip>
                           )}
                           <Link href={`/sales/${sale.id}`} className="hover:underline">
-                              {sale.invoiceNumber}
+                            {sale.invoiceNumber}
                           </Link>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        {customersMap.get(sale.customerId) || 'Khách lẻ'}
-                      </TableCell>
+                      <TableCell>{sale.customerName}</TableCell>
                       <TableCell>
                         {format(new Date(sale.transactionDate), "dd/MM/yyyy")}
                       </TableCell>
@@ -297,10 +363,10 @@ export default function RevenueReportPage() {
               </TooltipProvider>
             </TableBody>
             <TableFooter>
-                <TableRow className="text-base font-bold">
-                    <TableCell colSpan={4}>Tổng cộng</TableCell>
-                    <TableCell className="text-right">{formatCurrency(totalRevenue)}</TableCell>
-                </TableRow>
+              <TableRow className="text-base font-bold">
+                <TableCell colSpan={4}>Tổng cộng ({totalSalesCount} đơn)</TableCell>
+                <TableCell className="text-right">{formatCurrency(totalRevenue)}</TableCell>
+              </TableRow>
             </TableFooter>
           </Table>
         </CardContent>

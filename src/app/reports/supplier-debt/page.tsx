@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Search, ArrowUp, ArrowDown, File } from "lucide-react"
 import * as xlsx from 'xlsx';
 
@@ -25,8 +25,7 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
-import { collection, query } from "firebase/firestore"
+import { useStore } from "@/contexts/store-context"
 import { Supplier, PurchaseOrder, SupplierPayment } from "@/lib/types"
 import { formatCurrency } from "@/lib/utils"
 import { SupplierPaymentForm } from "./components/supplier-payment-form"
@@ -49,15 +48,53 @@ export default function SupplierDebtReportPage() {
   const [isPaymentFormOpen, setIsPaymentFormOpen] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<SupplierDebtInfo | undefined>(undefined);
 
-  const firestore = useFirestore();
+  const { currentStore } = useStore();
 
-  const suppliersQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "suppliers")) : null, [firestore]);
-  const purchasesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "purchase_orders")) : null, [firestore]);
-  const paymentsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "supplier_payments")) : null, [firestore]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [purchases, setPurchases] = useState<PurchaseOrder[]>([]);
+  const [payments, setPayments] = useState<SupplierPayment[]>([]);
+  const [suppliersLoading, setSuppliersLoading] = useState(true);
+  const [purchasesLoading, setPurchasesLoading] = useState(true);
+  const [paymentsLoading, setPaymentsLoading] = useState(true);
 
-  const { data: suppliers, isLoading: suppliersLoading } = useCollection<Supplier>(suppliersQuery);
-  const { data: purchases, isLoading: purchasesLoading } = useCollection<PurchaseOrder>(purchasesQuery);
-  const { data: payments, isLoading: paymentsLoading } = useCollection<SupplierPayment>(paymentsQuery);
+  useEffect(() => {
+    if (!currentStore) return;
+
+    const fetchData = async () => {
+      try {
+        setSuppliersLoading(true);
+        const suppliersRes = await fetch('/api/suppliers');
+        if (suppliersRes.ok) {
+          const data = await suppliersRes.json();
+          setSuppliers(data.data || []);
+        }
+        setSuppliersLoading(false);
+
+        setPurchasesLoading(true);
+        const purchasesRes = await fetch('/api/purchases');
+        if (purchasesRes.ok) {
+          const data = await purchasesRes.json();
+          setPurchases(data.data || []);
+        }
+        setPurchasesLoading(false);
+
+        setPaymentsLoading(true);
+        const paymentsRes = await fetch('/api/supplier-payments');
+        if (paymentsRes.ok) {
+          const data = await paymentsRes.json();
+          setPayments(data.data || []);
+        }
+        setPaymentsLoading(false);
+      } catch (error) {
+        console.error('Error fetching supplier debt data:', error);
+        setSuppliersLoading(false);
+        setPurchasesLoading(false);
+        setPaymentsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [currentStore]);
 
   const supplierDebtData = useMemo((): SupplierDebtInfo[] => {
     if (!suppliers || !purchases || !payments) return [];

@@ -1,8 +1,6 @@
-
-
 'use client'
 
-import { useState, useMemo, useTransition } from "react"
+import { useState, useMemo, useTransition, useEffect } from "react"
 import Link from "next/link"
 import {
   File,
@@ -17,6 +15,7 @@ import {
   Trophy,
   Star,
   Shield,
+  AlertTriangle,
 } from "lucide-react"
 
 import {
@@ -64,11 +63,8 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
-import { collection, query } from "firebase/firestore"
-import { Customer, Payment, Sale } from "@/lib/types"
 import { CustomerForm } from "./components/customer-form"
-import { deleteCustomer, updateCustomerStatus, generateCustomerTemplate } from "./actions"
+import { getCustomers, deleteCustomer, updateCustomerStatus, generateCustomerTemplate, getCustomerDebt } from "./actions"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
@@ -77,12 +73,51 @@ import { ImportCustomers } from "./components/import-customers"
 import { DebtPaymentDialog } from "./components/debt-payment-dialog"
 import { useUserRole } from "@/hooks/use-user-role"
 
+
+interface Customer {
+  id: string;
+  storeId: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  customerType: 'personal' | 'business';
+  customerGroup?: string;
+  gender?: 'male' | 'female' | 'other';
+  birthday?: string;
+  zalo?: string;
+  bankName?: string;
+  bankAccountNumber?: string;
+  bankBranch?: string;
+  creditLimit: number;
+  currentDebt: number;
+  loyaltyPoints: number;
+  lifetimePoints: number;
+  loyaltyTier: 'bronze' | 'silver' | 'gold' | 'diamond';
+  status: 'active' | 'inactive';
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface CustomerWithDebt extends Customer {
+  totalSales: number;
+  totalPayments: number;
+  calculatedDebt: number;
+}
+
+interface DebtHistoryItem {
+  id: string;
+  type: 'sale' | 'payment';
+  date: string;
+  amount: number;
+  description: string;
+  runningBalance: number;
+}
+
 type CustomerTypeFilter = 'all' | 'personal' | 'business';
 type GenderFilter = 'all' | 'male' | 'female' | 'other';
 type LoyaltyTierFilter = 'all' | 'diamond' | 'gold' | 'silver' | 'bronze' | 'none';
-
 type SortKey = 'name' | 'status' | 'debt' | 'customerType' | 'customerGroup' | 'gender' | 'loyaltyTier';
-
 
 const tierOrder: Record<string, number> = {
   diamond: 4,
@@ -121,7 +156,10 @@ const getTierIcon = (tier: string | undefined) => {
   }
 }
 
+
 export default function CustomersPage() {
+  const [customers, setCustomers] = useState<CustomerWithDebt[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | undefined>(undefined);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
@@ -130,8 +168,9 @@ export default function CustomersPage() {
   const [customerTypeFilter, setCustomerTypeFilter] = useState<CustomerTypeFilter>("all");
   const [genderFilter, setGenderFilter] = useState<GenderFilter>("all");
   const [groupFilter, setGroupFilter] = useState("");
-  const [viewingPaymentsFor, setViewingPaymentsFor] = useState<Customer | null>(null);
-  const [customerForPayment, setCustomerForPayment] = useState<Customer | null>(null);
+  const [viewingPaymentsFor, setViewingPaymentsFor] = useState<CustomerWithDebt | null>(null);
+  const [customerForPayment, setCustomerForPayment] = useState<CustomerWithDebt | null>(null);
+  const [paymentHistory, setPaymentHistory] = useState<DebtHistoryItem[]>([]);
   const [isUpdating, startTransition] = useTransition();
   const [isExporting, startExportingTransition] = useTransition();
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
@@ -139,30 +178,42 @@ export default function CustomersPage() {
   const [loyaltyTierFilter, setLoyaltyTierFilter] = useState<LoyaltyTierFilter>('all');
   const { permissions, isLoading: isRoleLoading } = useUserRole();
 
-
-  const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
 
-  const customersQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, "customers"));
-  }, [firestore]);
-  
-  const salesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, "sales_transactions"));
-  }, [firestore]);
+  // Fetch customers from SQL Server API
+  useEffect(() => {
+    async function fetchCustomers() {
+      setIsLoading(true);
+      const result = await getCustomers(true);
+      if (result.success && result.customers) {
+        setCustomers(result.customers);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Lỗi",
+          description: result.error || "Không thể tải danh sách khách hàng",
+        });
+      }
+      setIsLoading(false);
+    }
+    fetchCustomers();
+  }, [toast]);
 
-  const paymentsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, "payments"));
-  }, [firestore]);
-
-  const { data: customers, isLoading: customersLoading } = useCollection<Customer>(customersQuery);
-  const { data: sales, isLoading: salesLoading } = useCollection<Sale>(salesQuery);
-  const { data: payments, isLoading: paymentsLoading } = useCollection<Payment>(paymentsQuery);
-
+  // Fetch payment history when viewing payments
+  useEffect(() => {
+    async function fetchPaymentHistory() {
+      if (viewingPaymentsFor) {
+        const result = await getCustomerDebt(viewingPaymentsFor.id, true);
+        if (result.success && result.history) {
+          setPaymentHistory(result.history.filter(h => h.type === 'payment'));
+        }
+      } else {
+        setPaymentHistory([]);
+      }
+    }
+    fetchPaymentHistory();
+  }, [viewingPaymentsFor]);
 
   const filteredCustomers = customers?.filter(customer => {
     if (loyaltyTierFilter !== 'all') {
@@ -196,7 +247,7 @@ export default function CustomersPage() {
     setIsFormOpen(true);
   }
 
-  const handleStatusChange = (customerId: string, status: Customer['status']) => {
+  const handleStatusChange = (customerId: string, status: 'active' | 'inactive') => {
     startTransition(async () => {
       const result = await updateCustomerStatus(customerId, status);
       if (result.success) {
@@ -204,7 +255,11 @@ export default function CustomersPage() {
           title: "Thành công!",
           description: "Trạng thái khách hàng đã được cập nhật.",
         });
-        router.refresh();
+        // Refresh customers list
+        const refreshResult = await getCustomers(true);
+        if (refreshResult.success && refreshResult.customers) {
+          setCustomers(refreshResult.customers);
+        }
       } else {
         toast({
           variant: "destructive",
@@ -224,7 +279,11 @@ export default function CustomersPage() {
         title: "Thành công!",
         description: `Đã xóa khách hàng "${customerToDelete.name}".`,
       });
-      router.refresh();
+      // Refresh customers list
+      const refreshResult = await getCustomers(true);
+      if (refreshResult.success && refreshResult.customers) {
+        setCustomers(refreshResult.customers);
+      }
     } else {
       toast({
         variant: "destructive",
@@ -235,44 +294,6 @@ export default function CustomersPage() {
     setIsDeleting(false);
     setCustomerToDelete(null);
   }
-  
-  const customerDebts = useMemo(() => {
-    if (!customers || !sales || !payments) return new Map();
-
-    const debtData: Map<string, { totalSales: number; payments: Payment[] }> = new Map();
-
-    // Initialize with all customers
-    customers.forEach(customer => {
-        debtData.set(customer.id, { totalSales: 0, payments: [] });
-    });
-
-    // Aggregate sales
-    sales.forEach(sale => {
-        const current = debtData.get(sale.customerId) || { totalSales: 0, payments: [] };
-        current.totalSales += sale.finalAmount || 0;
-        debtData.set(sale.customerId, current);
-    });
-
-    // Aggregate payments
-    payments.forEach(payment => {
-        const current = debtData.get(payment.customerId) || { totalSales: 0, payments: [] };
-        current.payments.push(payment);
-        debtData.set(payment.customerId, current);
-    });
-
-    // Calculate final debt map
-    const debtMap = new Map<string, { paid: number; debt: number; payments: Payment[] }>();
-    debtData.forEach((data, customerId) => {
-        const totalPaid = data.payments.reduce((sum, p) => sum + p.amount, 0);
-        debtMap.set(customerId, {
-            paid: totalPaid,
-            debt: data.totalSales - totalPaid,
-            payments: data.payments,
-        });
-    });
-
-    return debtMap;
-  }, [customers, sales, payments]);
 
   const handleExportTemplate = () => {
     startExportingTransition(async () => {
@@ -300,6 +321,7 @@ export default function CustomersPage() {
     }
   };
 
+
   const sortedCustomers = useMemo(() => {
     let sortableItems = [...(filteredCustomers || [])];
     if (sortKey) {
@@ -316,8 +338,8 @@ export default function CustomersPage() {
             valB = tierOrder[b.loyaltyTier || ''] || 0;
             break;
           case 'debt':
-            valA = customerDebts.get(a.id)?.debt || 0;
-            valB = customerDebts.get(b.id)?.debt || 0;
+            valA = a.calculatedDebt || a.currentDebt || 0;
+            valB = b.calculatedDebt || b.currentDebt || 0;
             break;
           case 'status':
           case 'customerType':
@@ -336,7 +358,7 @@ export default function CustomersPage() {
       });
     }
     return sortableItems;
-  }, [filteredCustomers, sortKey, sortDirection, customerDebts]);
+  }, [filteredCustomers, sortKey, sortDirection]);
 
   const SortableHeader = ({ sortKey: key, children, className }: { sortKey: SortKey; children: React.ReactNode; className?: string; }) => (
     <TableHead className={className}>
@@ -349,10 +371,9 @@ export default function CustomersPage() {
     </TableHead>
   );
 
+  const pageLoading = isLoading || isRoleLoading;
 
-  const isLoading = customersLoading || salesLoading || paymentsLoading || isRoleLoading;
-
-  if (isLoading) {
+  if (pageLoading) {
     return <p>Đang tải dữ liệu khách hàng...</p>;
   }
 
@@ -369,26 +390,38 @@ export default function CustomersPage() {
     );
   }
   
-  const customerPayments = viewingPaymentsFor ? customerDebts.get(viewingPaymentsFor.id)?.payments || [] : [];
-  const currentDebtInfo = customerForPayment ? customerDebts.get(customerForPayment.id) : undefined;
-  
   const canAddCustomer = permissions?.customers?.includes('add');
   const canEditCustomer = permissions?.customers?.includes('edit');
   const canDeleteCustomer = permissions?.customers?.includes('delete');
+
 
   return (
     <>
       <CustomerForm 
         isOpen={isFormOpen}
-        onOpenChange={setIsFormOpen}
+        onOpenChange={(open) => {
+          setIsFormOpen(open);
+          if (!open) {
+            // Refresh customers list when form closes
+            getCustomers(true).then(result => {
+              if (result.success && result.customers) {
+                setCustomers(result.customers);
+              }
+            });
+          }
+        }}
         customer={selectedCustomer}
       />
-       {currentDebtInfo && (
+      {customerForPayment && (
         <DebtPaymentDialog
           isOpen={!!customerForPayment}
           onOpenChange={() => setCustomerForPayment(null)}
-          customer={customerForPayment!}
-          debtInfo={currentDebtInfo}
+          customer={customerForPayment}
+          debtInfo={{
+            paid: customerForPayment.totalPayments,
+            debt: customerForPayment.calculatedDebt || customerForPayment.currentDebt,
+            payments: [],
+          }}
         />
       )}
       <AlertDialog open={!!customerToDelete} onOpenChange={(open) => !open && setCustomerToDelete(null)}>
@@ -426,12 +459,12 @@ export default function CustomersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {customerPayments.length > 0 ? (
-                customerPayments.map((payment) => (
+              {paymentHistory.length > 0 ? (
+                paymentHistory.map((payment) => (
                   <TableRow key={payment.id}>
                     <TableCell className="font-medium">{payment.id.slice(-6).toUpperCase()}</TableCell>
-                    <TableCell>{new Date(payment.paymentDate).toLocaleDateString()}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(payment.amount)}</TableCell>
+                    <TableCell>{new Date(payment.date).toLocaleDateString('vi-VN')}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(Math.abs(payment.amount))}</TableCell>
                   </TableRow>
                 ))
               ) : (
@@ -512,6 +545,7 @@ export default function CustomersPage() {
             )}
         </div>
       </div>
+
       <Card>
         <CardHeader>
            <div className="flex items-center gap-4">
@@ -557,14 +591,17 @@ export default function CustomersPage() {
             <TableBody>
               {isLoading && <TableRow><TableCell colSpan={10} className="text-center h-24">Đang tải...</TableCell></TableRow>}
               {!isLoading && sortedCustomers?.map((customer, index) => {
-                const debtInfo = customerDebts.get(customer.id);
-                const hasDebt = debtInfo && debtInfo.debt > 0;
+                const debt = customer.calculatedDebt || customer.currentDebt || 0;
+                const paid = customer.totalPayments || 0;
+                const hasDebt = debt > 0;
+                const isOverLimit = customer.creditLimit > 0 && debt > customer.creditLimit;
                 return (
                   <TableRow key={customer.id}>
                     <TableCell className="font-medium hidden md:table-cell">{index + 1}</TableCell>
                     <TableCell className="font-medium">
-                      <Link href={`/customers/${customer.id}`} className="hover:underline">
+                      <Link href={`/customers/${customer.id}`} className="hover:underline flex items-center gap-1">
                         {customer.name}
+                        {isOverLimit && <AlertTriangle className="h-4 w-4 text-destructive" title="Vượt hạn mức tín dụng" />}
                       </Link>
                     </TableCell>
                     <TableCell>
@@ -602,21 +639,21 @@ export default function CustomersPage() {
                       </Badge>
                     </TableCell>
                      <TableCell>
-                      {debtInfo ? (
-                        <div className="text-left">
-                          <button 
-                            className="underline cursor-pointer text-green-600" 
-                            onClick={() => setViewingPaymentsFor(customer)}
-                          >
-                            {formatCurrency(debtInfo.paid)}
-                          </button>
-                           <button onClick={() => hasDebt && setCustomerForPayment(customer)} className={`block w-full text-left underline cursor-pointer ${debtInfo.debt > 0 ? "text-destructive" : ""}`} disabled={!hasDebt}>
-                            {formatCurrency(debtInfo.debt)}
-                          </button>
-                        </div>
-                      ) : (
-                        <span>Đang tính...</span>
-                      )}
+                      <div className="text-left">
+                        <button 
+                          className="underline cursor-pointer text-green-600" 
+                          onClick={() => setViewingPaymentsFor(customer)}
+                        >
+                          {formatCurrency(paid)}
+                        </button>
+                         <button 
+                           onClick={() => hasDebt && setCustomerForPayment(customer)} 
+                           className={`block w-full text-left underline cursor-pointer ${debt > 0 ? "text-destructive" : ""}`} 
+                           disabled={!hasDebt}
+                         >
+                          {formatCurrency(debt)}
+                        </button>
+                      </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                       <Badge variant="outline">{customer.customerType === 'personal' ? 'Cá nhân' : 'Doanh nghiệp'}</Badge>

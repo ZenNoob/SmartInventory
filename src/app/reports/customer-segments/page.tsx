@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Bot, Search, ArrowUp, ArrowDown, Sparkles } from "lucide-react"
 
 import {
@@ -32,8 +32,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
-import { collection, query } from "firebase/firestore"
+import { useStore } from "@/contexts/store-context"
 import { Customer, Sale, Payment } from "@/lib/types"
 import { type SegmentCustomersOutput } from "@/ai/flows/segment-customers-flow"
 import { getCustomerSegments } from "@/app/actions"
@@ -63,16 +62,54 @@ export default function CustomerSegmentsPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const firestore = useFirestore();
+  const { currentStore } = useStore();
   const { permissions } = useUserRole();
 
-  const customersQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "customers")) : null, [firestore]);
-  const salesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "sales_transactions")) : null, [firestore]);
-  const paymentsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "payments")) : null, [firestore]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [customersLoading, setCustomersLoading] = useState(true);
+  const [salesLoading, setSalesLoading] = useState(true);
+  const [paymentsLoading, setPaymentsLoading] = useState(true);
 
-  const { data: customers, isLoading: customersLoading } = useCollection<Customer>(customersQuery);
-  const { data: sales, isLoading: salesLoading } = useCollection<Sale>(salesQuery);
-  const { data: payments, isLoading: paymentsLoading } = useCollection<Payment>(paymentsQuery);
+  useEffect(() => {
+    if (!currentStore) return;
+
+    const fetchData = async () => {
+      try {
+        setCustomersLoading(true);
+        const customersRes = await fetch('/api/customers');
+        if (customersRes.ok) {
+          const data = await customersRes.json();
+          setCustomers(data.data || []);
+        }
+        setCustomersLoading(false);
+
+        setSalesLoading(true);
+        const salesRes = await fetch('/api/sales');
+        if (salesRes.ok) {
+          const data = await salesRes.json();
+          setSales(data.data || []);
+        }
+        setSalesLoading(false);
+
+        setPaymentsLoading(true);
+        const paymentsRes = await fetch('/api/payments');
+        if (paymentsRes.ok) {
+          const data = await paymentsRes.json();
+          setPayments(data.data || []);
+        }
+        setPaymentsLoading(false);
+      } catch (error) {
+        console.error('Error fetching customer segments data:', error);
+        setCustomersLoading(false);
+        setSalesLoading(false);
+        setPaymentsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [currentStore]);
 
   const handleAnalyze = async () => {
     if (!customers || !sales || !payments) {

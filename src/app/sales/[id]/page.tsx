@@ -1,64 +1,155 @@
-
 import { notFound } from "next/navigation"
-import { getAdminServices } from "@/lib/admin-actions"
-import type { Customer, Sale, SalesItem, Product, Unit, ThemeSettings } from "@/lib/types"
+import { cookies } from "next/headers"
+import type { Customer, Product, Unit, ThemeSettings } from "@/lib/types"
 import { SaleInvoice } from "./components/sale-invoice";
 import { ThermalReceipt } from "./components/thermal-receipt";
-import { toPlainObject } from "@/lib/utils";
 
-async function getSaleData(saleId: string) {
-    const { firestore } = await getAdminServices();
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
-    const saleDoc = await firestore.collection('sales_transactions').doc(saleId).get();
-    if (!saleDoc.exists) {
-        return { sale: null, items: [], customer: null, productsMap: new Map(), unitsMap: new Map(), settings: null };
-    }
-    const sale = toPlainObject({ id: saleDoc.id, ...saleDoc.data() }) as Sale;
-
-    const itemsSnapshot = await firestore.collection('sales_transactions').doc(saleId).collection('sales_items').get();
-    const items = itemsSnapshot.docs.map(doc => toPlainObject({ id: doc.id, ...doc.data() }) as SalesItem);
-
-    let customer: Customer | null = null;
-    if (sale.customerId && sale.customerId !== 'walk-in-customer') {
-        const customerDoc = await firestore.collection('customers').doc(sale.customerId).get();
-        if (customerDoc.exists) {
-            customer = toPlainObject({ id: customerDoc.id, ...customerDoc.data() }) as Customer;
-        }
-    }
-
-    const productIds = [...new Set(items.map(item => item.productId))];
-    const productsMap = new Map<string, Product>();
-    if (productIds.length > 0) {
-        const productsSnapshot = await firestore.collection('products').where('__name__', 'in', productIds).get();
-        productsSnapshot.forEach(doc => {
-            productsMap.set(doc.id, toPlainObject({ id: doc.id, ...doc.data() }) as Product);
-        });
-    }
-
-    const unitsSnapshot = await firestore.collection('units').get();
-    const unitsMap = new Map<string, Unit>();
-    unitsSnapshot.forEach(doc => {
-        unitsMap.set(doc.id, toPlainObject({ id: doc.id, ...doc.data() }) as Unit);
-    });
-
-    const settingsDoc = await firestore.collection('settings').doc('theme').get();
-    const settings = settingsDoc.exists ? toPlainObject(settingsDoc.data()) as ThemeSettings : null;
-
-    return { sale, items, customer, productsMap, unitsMap, settings };
+async function getAuthHeaders() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get('auth-token')?.value;
+  const storeId = cookieStore.get('store-id')?.value;
+  
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` }),
+    ...(storeId && { 'X-Store-Id': storeId }),
+  };
 }
 
+async function getSaleData(saleId: string) {
+  try {
+    const headers = await getAuthHeaders();
 
-export default async function SaleDetailPage({ params, searchParams }: { params: { id: string }, searchParams: { [key: string]: string | string[] | undefined } }) {
-  const { sale, items, customer, productsMap, unitsMap, settings } = await getSaleData(params.id);
+    // Fetch sale with details
+    const saleResponse = await fetch(`${API_BASE_URL}/api/sales/${saleId}`, {
+      method: 'GET',
+      headers,
+      cache: 'no-store',
+    });
+
+    if (!saleResponse.ok) {
+      return { sale: null, items: [], customer: null, productsMap: new Map(), unitsMap: new Map(), settings: null };
+    }
+
+    const saleData = await saleResponse.json();
+    const sale = saleData.sale;
+    const items = sale?.items || [];
+
+    // Fetch customer if exists
+    let customer: Customer | null = null;
+    if (sale?.customerId) {
+      const customerResponse = await fetch(`${API_BASE_URL}/api/customers/${sale.customerId}`, {
+        method: 'GET',
+        headers,
+        cache: 'no-store',
+      });
+      if (customerResponse.ok) {
+        const customerData = await customerResponse.json();
+        customer = customerData.customer;
+      }
+    }
+
+    // Fetch products for items
+    const productsMap = new Map<string, Product>();
+    const productIds = [...new Set(items.map((item: any) => item.productId))];
+    
+    for (const productId of productIds) {
+      const productResponse = await fetch(`${API_BASE_URL}/api/products/${productId}`, {
+        method: 'GET',
+        headers,
+        cache: 'no-store',
+      });
+      if (productResponse.ok) {
+        const productData = await productResponse.json();
+        productsMap.set(productId as string, productData.product);
+      }
+    }
+
+    // Fetch units
+    const unitsMap = new Map<string, Unit>();
+    const unitsResponse = await fetch(`${API_BASE_URL}/api/units`, {
+      method: 'GET',
+      headers,
+      cache: 'no-store',
+    });
+    if (unitsResponse.ok) {
+      const unitsData = await unitsResponse.json();
+      (unitsData.data || []).forEach((unit: Unit) => {
+        unitsMap.set(unit.id, unit);
+      });
+    }
+
+    // Fetch settings
+    let settings: ThemeSettings | null = null;
+    const settingsResponse = await fetch(`${API_BASE_URL}/api/settings`, {
+      method: 'GET',
+      headers,
+      cache: 'no-store',
+    });
+    if (settingsResponse.ok) {
+      const settingsData = await settingsResponse.json();
+      settings = settingsData.settings;
+    }
+
+    // Map items to expected format
+    const mappedItems = items.map((item: any) => ({
+      id: item.id,
+      salesTransactionId: item.salesId,
+      productId: item.productId,
+      quantity: item.quantity,
+      price: item.price,
+    }));
+
+    // Map sale to expected format
+    const mappedSale = {
+      id: sale.id,
+      invoiceNumber: sale.invoiceNumber,
+      customerId: sale.customerId,
+      shiftId: sale.shiftId,
+      transactionDate: sale.transactionDate,
+      status: sale.status,
+      totalAmount: sale.totalAmount,
+      vatAmount: sale.vatAmount,
+      finalAmount: sale.finalAmount,
+      discount: sale.discount,
+      discountType: sale.discountType,
+      discountValue: sale.discountValue,
+      tierDiscountPercentage: sale.tierDiscountPercentage,
+      tierDiscountAmount: sale.tierDiscountAmount,
+      pointsUsed: sale.pointsUsed,
+      pointsDiscount: sale.pointsDiscount,
+      customerPayment: sale.customerPayment,
+      previousDebt: sale.previousDebt,
+      remainingDebt: sale.remainingDebt,
+    };
+
+    return { sale: mappedSale, items: mappedItems, customer, productsMap, unitsMap, settings };
+  } catch (error) {
+    console.error('Error fetching sale data:', error);
+    return { sale: null, items: [], customer: null, productsMap: new Map(), unitsMap: new Map(), settings: null };
+  }
+}
+
+interface PageProps {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
+export default async function SaleDetailPage({ params, searchParams }: PageProps) {
+  const { id } = await params;
+  const search = await searchParams;
+  
+  const { sale, items, customer, productsMap, unitsMap, settings } = await getSaleData(id);
 
   if (!sale) {
     notFound()
   }
 
-  const isPrintView = searchParams.print === 'true';
-  const invoiceFormat = settings?.invoiceFormat || 'A4'; // Default to A4 if not set
+  const isPrintView = search.print === 'true';
+  const invoiceFormat = settings?.invoiceFormat || 'A4';
 
-  // If print is requested, decide which component to use based on settings
   if (isPrintView) {
     if (invoiceFormat === '80mm' || invoiceFormat === '58mm') {
       return (
@@ -76,6 +167,5 @@ export default async function SaleDetailPage({ params, searchParams }: { params:
     }
   }
 
-  // Default view is the A4/A5 invoice
   return <SaleInvoice sale={sale} items={items} customer={customer} productsMap={productsMap} unitsMap={unitsMap} settings={settings} autoPrint={isPrintView} />
 }

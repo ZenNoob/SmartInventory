@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Unit } from '@/lib/types'
+import { Unit } from '@/hooks/use-units'
 import { upsertUnit } from '../actions'
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
@@ -51,9 +51,10 @@ interface UnitFormProps {
   onOpenChange: (isOpen: boolean) => void;
   unit?: Unit;
   allUnits: Unit[];
+  onSuccess?: () => void;
 }
 
-export function UnitForm({ isOpen, onOpenChange, unit, allUnits }: UnitFormProps) {
+export function UnitForm({ isOpen, onOpenChange, unit, allUnits, onSuccess }: UnitFormProps) {
   const { toast } = useToast();
   const router = useRouter();
 
@@ -103,6 +104,7 @@ export function UnitForm({ isOpen, onOpenChange, unit, allUnits }: UnitFormProps
         description: `Đã ${unit ? 'cập nhật' : 'tạo'} đơn vị tính thành công.`,
       });
       onOpenChange(false);
+      onSuccess?.();
       router.refresh();
     } else {
       toast({

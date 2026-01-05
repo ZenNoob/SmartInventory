@@ -26,8 +26,7 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
-import { collection, query } from "firebase/firestore"
+import { useStore } from "@/contexts/store-context"
 import { Product, PurchaseOrder, Unit } from "@/lib/types"
 import { formatCurrency, cn } from "@/lib/utils"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -57,15 +56,53 @@ export default function PurchaseReportPage() {
     to: endOfMonth(new Date()),
   });
 
-  const firestore = useFirestore();
+  const { currentStore } = useStore();
 
-  const productsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "products")) : null, [firestore]);
-  const purchasesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "purchase_orders")) : null, [firestore]);
-  const unitsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "units")) : null, [firestore]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [purchases, setPurchases] = useState<PurchaseOrder[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [purchasesLoading, setPurchasesLoading] = useState(true);
+  const [unitsLoading, setUnitsLoading] = useState(true);
 
-  const { data: products, isLoading: productsLoading } = useCollection<Product>(productsQuery);
-  const { data: purchases, isLoading: purchasesLoading } = useCollection<PurchaseOrder>(purchasesQuery);
-  const { data: units, isLoading: unitsLoading } = useCollection<Unit>(unitsQuery);
+  useEffect(() => {
+    if (!currentStore) return;
+
+    const fetchData = async () => {
+      try {
+        setProductsLoading(true);
+        const productsRes = await fetch('/api/products');
+        if (productsRes.ok) {
+          const data = await productsRes.json();
+          setProducts(data.data || []);
+        }
+        setProductsLoading(false);
+
+        setPurchasesLoading(true);
+        const purchasesRes = await fetch('/api/purchases');
+        if (purchasesRes.ok) {
+          const data = await purchasesRes.json();
+          setPurchases(data.data || []);
+        }
+        setPurchasesLoading(false);
+
+        setUnitsLoading(true);
+        const unitsRes = await fetch('/api/units');
+        if (unitsRes.ok) {
+          const data = await unitsRes.json();
+          setUnits(data.data || []);
+        }
+        setUnitsLoading(false);
+      } catch (error) {
+        console.error('Error fetching purchase report data:', error);
+        setProductsLoading(false);
+        setPurchasesLoading(false);
+        setUnitsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [currentStore]);
 
   const productsMap = useMemo(() => new Map(products?.map(p => [p.id, p])), [products]);
   const unitsMap = useMemo(() => new Map(units?.map(u => [u.id, u])), [units]);

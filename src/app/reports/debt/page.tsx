@@ -1,11 +1,10 @@
-
-
 'use client'
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import Link from "next/link"
-import { Search, ArrowUp, ArrowDown, MoreHorizontal, File } from "lucide-react"
+import { Search, ArrowUp, ArrowDown, File, FileText } from "lucide-react"
 import * as xlsx from 'xlsx';
+import { exportToPDF, formatCurrencyForExport } from "@/lib/export-utils"
 
 import {
   Card,
@@ -24,18 +23,9 @@ import {
   TableRow,
   TableFooter as ShadcnTableFooter
 } from "@/components/ui/table"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
-import { collection, query } from "firebase/firestore"
-import { Customer, Sale, Payment } from "@/lib/types"
+import { useStore } from "@/contexts/store-context"
 import { formatCurrency } from "@/lib/utils"
 import { PaymentForm } from "./components/payment-form"
 
@@ -48,112 +38,129 @@ export type CustomerDebtInfo = {
   finalDebt: number;
 }
 
-type SortKey = 'customerName' | 'customerPhone' | 'totalSales' | 'totalPayments' | 'finalDebt';
+interface DebtReportItem {
+  customerId: string;
+  customerName: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  creditLimit: number;
+  totalSales: number;
+  totalPayments: number;
+  currentDebt: number;
+  lastTransactionDate?: string;
+  lastPaymentDate?: string;
+  isOverCredit: boolean;
+}
+
+interface DebtReportResponse {
+  success: boolean;
+  data: DebtReportItem[];
+  totals: {
+    totalCustomers: number;
+    totalSales: number;
+    totalPayments: number;
+    totalDebt: number;
+  };
+  overCreditCount: number;
+}
+
+type SortKey = 'customerName' | 'customerPhone' | 'totalSales' | 'totalPayments' | 'currentDebt';
 
 const formatPhoneNumber = (phone?: string) => {
-    if (!phone) return 'N/A';
-    const cleaned = phone.replace(/\s/g, ''); // Remove existing spaces
-    if (cleaned.length === 10) {
-        return `${cleaned.substring(0, 4)} ${cleaned.substring(4, 7)} ${cleaned.substring(7, 10)}`;
-    }
-    if (cleaned.length === 9) {
-        return `${cleaned.substring(0, 3)} ${cleaned.substring(3, 6)} ${cleaned.substring(6, 9)}`;
-    }
-    return phone;
+  if (!phone) return 'N/A';
+  const cleaned = phone.replace(/\s/g, '');
+  if (cleaned.length === 10) {
+    return `${cleaned.substring(0, 4)} ${cleaned.substring(4, 7)} ${cleaned.substring(7, 10)}`;
+  }
+  if (cleaned.length === 9) {
+    return `${cleaned.substring(0, 3)} ${cleaned.substring(3, 6)} ${cleaned.substring(6, 9)}`;
+  }
+  return phone;
 };
 
 export default function DebtReportPage() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>('finalDebt');
+  const [sortKey, setSortKey] = useState<SortKey>('currentDebt');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [isPaymentFormOpen, setIsPaymentFormOpen] = useState(false);
   const [selectedCustomerForPayment, setSelectedCustomerForPayment] = useState<CustomerDebtInfo | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
+  const [reportData, setReportData] = useState<DebtReportResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
+  const { currentStore } = useStore();
 
-  const firestore = useFirestore();
+  const fetchReport = useCallback(async () => {
+    if (!currentStore?.id) return;
 
-  const customersQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, "customers"));
-  }, [firestore]);
-  
-  const salesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, "sales_transactions"));
-  }, [firestore]);
+    setIsLoading(true);
+    setError(null);
 
-  const paymentsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, "payments"));
-  }, [firestore]);
+    try {
+      const params = new URLSearchParams();
+      if (searchTerm) {
+        params.set('search', searchTerm);
+      }
+      params.set('hasDebtOnly', 'false'); // Show all customers with transactions
 
-  const { data: customers, isLoading: customersLoading } = useCollection<Customer>(customersQuery);
-  const { data: sales, isLoading: salesLoading } = useCollection<Sale>(salesQuery);
-  const { data: payments, isLoading: paymentsLoading } = useCollection<Payment>(paymentsQuery);
+      const response = await fetch(`/api/reports/debt?${params.toString()}`, {
+        headers: {
+          'x-store-id': currentStore.id,
+        },
+        credentials: 'include',
+      });
 
-  const customerDebtData = useMemo((): CustomerDebtInfo[] => {
-    if (!customers || !sales || !payments) return [];
+      if (!response.ok) {
+        throw new Error('Failed to fetch report');
+      }
 
-    return customers.map(customer => {
-      const customerSales = sales.filter(s => s.customerId === customer.id);
-      
-      const totalRevenue = customerSales.reduce((sum, s) => sum + (s.finalAmount || 0), 0);
-      
-      const totalPayments = payments
-        .filter(p => p.customerId === customer.id)
-        .reduce((sum, p) => sum + p.amount, 0);
-
-      const finalDebt = totalRevenue - totalPayments;
-      
-      return {
-        customerId: customer.id,
-        customerName: customer.name,
-        customerPhone: customer.phone,
-        totalSales: totalRevenue,
-        totalPayments: totalPayments,
-        finalDebt: finalDebt,
-      };
-    }).filter(data => data.totalSales > 0 || data.totalPayments > 0 || data.finalDebt !== 0);
-  }, [customers, sales, payments]);
-
-  const filteredDebtData = useMemo(() => {
-    let filtered = customerDebtData;
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(data => 
-        data.customerName.toLowerCase().includes(term) ||
-        (data.customerPhone && data.customerPhone.includes(term))
-      );
+      const data = await response.json();
+      setReportData(data);
+    } catch (err) {
+      console.error('Error fetching debt report:', err);
+      setError('Đã xảy ra lỗi khi tải báo cáo');
+    } finally {
+      setIsLoading(false);
     }
-    return filtered;
-  }, [customerDebtData, searchTerm]);
+  }, [currentStore?.id, searchTerm]);
+
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      fetchReport();
+    }, 300);
+
+    return () => clearTimeout(debounceTimer);
+  }, [fetchReport]);
 
   const sortedDebtData = useMemo(() => {
-    let sortableItems = [...(filteredDebtData || [])];
-    if (sortKey) {
-      sortableItems.sort((a, b) => {
-        let valA, valB;
+    if (!reportData?.data) return [];
+    
+    let sortableItems = [...reportData.data];
+    sortableItems.sort((a, b) => {
+      let valA: string | number, valB: string | number;
 
-        if (sortKey === 'customerPhone') {
-          valA = a.customerPhone || '';
-          valB = b.customerPhone || '';
-        } else {
-          valA = a[sortKey];
-          valB = b[sortKey];
-        }
+      if (sortKey === 'customerPhone') {
+        valA = a.customerPhone || '';
+        valB = b.customerPhone || '';
+      } else if (sortKey === 'currentDebt') {
+        valA = a.currentDebt;
+        valB = b.currentDebt;
+      } else {
+        valA = a[sortKey] as string | number;
+        valB = b[sortKey] as string | number;
+      }
 
-        if (typeof valA === 'string' && typeof valB === 'string') {
-          valA = valA.toLowerCase();
-          valB = valB.toLowerCase();
-        }
+      if (typeof valA === 'string' && typeof valB === 'string') {
+        valA = valA.toLowerCase();
+        valB = valB.toLowerCase();
+      }
 
-        if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
-        if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
+      if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+      if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
     return sortableItems;
-  }, [filteredDebtData, sortKey, sortDirection]);
+  }, [reportData, sortKey, sortDirection]);
   
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -164,8 +171,15 @@ export default function DebtReportPage() {
     }
   };
 
-  const handleOpenPaymentForm = (customer: CustomerDebtInfo) => {
-    setSelectedCustomerForPayment(customer);
+  const handleOpenPaymentForm = (customer: DebtReportItem) => {
+    setSelectedCustomerForPayment({
+      customerId: customer.customerId,
+      customerName: customer.customerName,
+      customerPhone: customer.customerPhone,
+      totalSales: customer.totalSales,
+      totalPayments: customer.totalPayments,
+      finalDebt: customer.currentDebt,
+    });
     setIsPaymentFormOpen(true);
   }
 
@@ -180,15 +194,7 @@ export default function DebtReportPage() {
     </TableHead>
   );
 
-  const isLoading = customersLoading || salesLoading || paymentsLoading;
-  
-  const totalRow = useMemo(() => {
-    return {
-      totalSales: sortedDebtData.reduce((acc, curr) => acc + curr.totalSales, 0),
-      totalPayments: sortedDebtData.reduce((acc, curr) => acc + curr.totalPayments, 0),
-      finalDebt: sortedDebtData.reduce((acc, curr) => acc + curr.finalDebt, 0),
-    };
-  }, [sortedDebtData]);
+  const totalRow = reportData?.totals || { totalSales: 0, totalPayments: 0, totalDebt: 0 };
 
   const handleExportExcel = () => {
     const dataToExport = sortedDebtData.map((data, index) => ({
@@ -197,7 +203,7 @@ export default function DebtReportPage() {
       'Số điện thoại': formatPhoneNumber(data.customerPhone),
       'Tổng phát sinh': data.totalSales,
       'Đã trả': data.totalPayments,
-      'Nợ cuối kỳ': data.finalDebt,
+      'Nợ cuối kỳ': data.currentDebt,
     }));
 
     const totalRowData = {
@@ -206,41 +212,70 @@ export default function DebtReportPage() {
       'Số điện thoại': '',
       'Tổng phát sinh': totalRow.totalSales,
       'Đã trả': totalRow.totalPayments,
-      'Nợ cuối kỳ': totalRow.finalDebt,
+      'Nợ cuối kỳ': totalRow.totalDebt,
     };
 
     const worksheet = xlsx.utils.json_to_sheet([...dataToExport, totalRowData]);
     const workbook = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(workbook, worksheet, "BaoCaoCongNo");
 
-    // Format number columns
     worksheet['!cols'] = [
-      { wch: 5 }, // STT
-      { wch: 30 }, // Tên khách hàng
-      { wch: 15 }, // Số điện thoại
-      { wch: 20 }, // Tổng phát sinh
-      { wch: 20 }, // Đã trả
-      { wch: 20 }, // Nợ cuối kỳ
+      { wch: 5 },
+      { wch: 30 },
+      { wch: 15 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 20 },
     ];
 
-     const numberFormat = '#,##0';
-     dataToExport.forEach((_, index) => {
-        const rowIndex = index + 2; // 1-based, +1 for header
-        ['D', 'E', 'F'].forEach(col => {
-            const cell = worksheet[`${col}${rowIndex}`];
-            if(cell) cell.z = numberFormat;
-        });
-    });
-     const totalRowIndex = dataToExport.length + 2;
+    const numberFormat = '#,##0';
+    dataToExport.forEach((_, index) => {
+      const rowIndex = index + 2;
       ['D', 'E', 'F'].forEach(col => {
-        const cell = worksheet[`${col}${totalRowIndex}`];
-        if(cell) {
-          cell.z = numberFormat;
-          cell.s = { font: { bold: true } }; // Make total row bold
-        }
+        const cell = worksheet[`${col}${rowIndex}`];
+        if (cell) cell.z = numberFormat;
+      });
+    });
+    const totalRowIndex = dataToExport.length + 2;
+    ['D', 'E', 'F'].forEach(col => {
+      const cell = worksheet[`${col}${totalRowIndex}`];
+      if (cell) {
+        cell.z = numberFormat;
+      }
     });
 
     xlsx.writeFile(workbook, "bao_cao_cong_no.xlsx");
+  };
+
+  const handleExportPDF = () => {
+    const headers = ["STT", "Tên khách hàng", "Số điện thoại", "Tổng phát sinh", "Đã trả", "Nợ cuối kỳ"];
+    const data = sortedDebtData.map((item, index) => [
+      index + 1,
+      item.customerName,
+      formatPhoneNumber(item.customerPhone),
+      formatCurrencyForExport(item.totalSales),
+      formatCurrencyForExport(item.totalPayments),
+      formatCurrencyForExport(item.currentDebt),
+    ]);
+
+    exportToPDF(
+      'BÁO CÁO CÔNG NỢ KHÁCH HÀNG',
+      headers,
+      data,
+      'bao_cao_cong_no',
+      {
+        orientation: 'portrait',
+        totals: [
+          '',
+          'Tổng cộng',
+          '',
+          formatCurrencyForExport(totalRow.totalSales),
+          formatCurrencyForExport(totalRow.totalPayments),
+          formatCurrencyForExport(totalRow.totalDebt),
+        ],
+        columnAligns: ['center', 'left', 'center', 'right', 'right', 'right'],
+      }
+    );
   };
 
   return (
@@ -255,96 +290,106 @@ export default function DebtReportPage() {
       <Card>
         <CardHeader>
           <div className="flex justify-between items-start">
-              <div>
-                  <CardTitle>Báo cáo công nợ khách hàng</CardTitle>
-                  <CardDescription>
-                  Tổng hợp công nợ và thực hiện ghi nhận thanh toán nhanh cho khách hàng.
-                  </CardDescription>
-              </div>
-              <div className="text-right">
-                  <p className="text-sm text-muted-foreground">Tổng nợ cuối kỳ</p>
-                  <p className={`text-2xl font-bold ${totalRow.finalDebt > 0 ? 'text-destructive' : 'text-primary'}`}>
-                      {formatCurrency(totalRow.finalDebt)}
-                  </p>
-              </div>
+            <div>
+              <CardTitle>Báo cáo công nợ khách hàng</CardTitle>
+              <CardDescription>
+                Tổng hợp công nợ và thực hiện ghi nhận thanh toán nhanh cho khách hàng.
+              </CardDescription>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-muted-foreground">Tổng nợ cuối kỳ</p>
+              <p className={`text-2xl font-bold ${totalRow.totalDebt > 0 ? 'text-destructive' : 'text-primary'}`}>
+                {formatCurrency(totalRow.totalDebt)}
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-4 pt-4">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                    type="search"
-                    placeholder="Tìm kiếm theo tên hoặc SĐT..."
-                    className="w-full rounded-lg bg-background pl-8 md:w-80"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <Button onClick={handleExportExcel} variant="outline" className="ml-auto">
-                <File className="mr-2 h-4 w-4" />
-                Xuất Excel
-              </Button>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Tìm kiếm theo tên hoặc SĐT..."
+                className="w-full rounded-lg bg-background pl-8 md:w-80"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <Button onClick={handleExportPDF} variant="outline" className="ml-auto">
+              <FileText className="mr-2 h-4 w-4" />
+              Xuất PDF
+            </Button>
+            <Button onClick={handleExportExcel} variant="outline">
+              <File className="mr-2 h-4 w-4" />
+              Xuất Excel
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
           <Table>
-              <TableHeader>
-                  <TableRow>
-                      <TableHead className="w-16">STT</TableHead>
-                      <SortableHeader sortKey="customerName">Tên khách hàng</SortableHeader>
-                      <SortableHeader sortKey="customerPhone">Số điện thoại</SortableHeader>
-                      <SortableHeader sortKey="totalSales" className="text-right">Tổng phát sinh</SortableHeader>
-                      <SortableHeader sortKey="totalPayments" className="text-right">Đã trả</SortableHeader>
-                      <SortableHeader sortKey="finalDebt" className="text-right">Nợ cuối kỳ</SortableHeader>
-                      <TableHead className="text-right">Hành động</TableHead>
-                  </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading && <TableRow><TableCell colSpan={7} className="text-center h-24">Đang tải dữ liệu...</TableCell></TableRow>}
-                {!isLoading && sortedDebtData.map((data, index) => (
-                  <TableRow key={data.customerId}>
-                    <TableCell>{index + 1}</TableCell>
-                    <TableCell className="font-medium">
-                      <Link href={`/customers/${data.customerId}`} className="hover:underline">
-                        {data.customerName}
-                      </Link>
-                    </TableCell>
-                    <TableCell>{formatPhoneNumber(data.customerPhone)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(data.totalSales)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(data.totalPayments)}</TableCell>
-                    <TableCell className={`text-right font-semibold ${data.finalDebt > 0 ? 'text-destructive' : ''}`}>
-                      {formatCurrency(data.finalDebt)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                       {data.finalDebt > 0 && (
-                          <Button variant="outline" size="sm" onClick={() => handleOpenPaymentForm(data)}>
-                            Thanh toán
-                          </Button>
-                        )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {!isLoading && sortedDebtData.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center h-24">Không có dữ liệu công nợ.</TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-              <ShadcnTableFooter>
-                  <TableRow className="text-base font-bold">
-                      <TableCell colSpan={3}>Tổng cộng</TableCell>
-                      <TableCell className="text-right">{formatCurrency(totalRow.totalSales)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(totalRow.totalPayments)}</TableCell>
-                      <TableCell className={`text-right ${totalRow.finalDebt > 0 ? 'text-destructive' : ''}`}>{formatCurrency(totalRow.finalDebt)}</TableCell>
-                      <TableCell></TableCell>
-                  </TableRow>
-              </ShadcnTableFooter>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-16">STT</TableHead>
+                <SortableHeader sortKey="customerName">Tên khách hàng</SortableHeader>
+                <SortableHeader sortKey="customerPhone">Số điện thoại</SortableHeader>
+                <SortableHeader sortKey="totalSales" className="text-right">Tổng phát sinh</SortableHeader>
+                <SortableHeader sortKey="totalPayments" className="text-right">Đã trả</SortableHeader>
+                <SortableHeader sortKey="currentDebt" className="text-right">Nợ cuối kỳ</SortableHeader>
+                <TableHead className="text-right">Hành động</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading && <TableRow><TableCell colSpan={7} className="text-center h-24">Đang tải dữ liệu...</TableCell></TableRow>}
+              {error && <TableRow><TableCell colSpan={7} className="text-center h-24 text-destructive">{error}</TableCell></TableRow>}
+              {!isLoading && !error && sortedDebtData.map((data, index) => (
+                <TableRow key={data.customerId} className={data.isOverCredit ? 'bg-destructive/10' : ''}>
+                  <TableCell>{index + 1}</TableCell>
+                  <TableCell className="font-medium">
+                    <Link href={`/customers/${data.customerId}`} className="hover:underline">
+                      {data.customerName}
+                    </Link>
+                  </TableCell>
+                  <TableCell>{formatPhoneNumber(data.customerPhone)}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(data.totalSales)}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(data.totalPayments)}</TableCell>
+                  <TableCell className={`text-right font-semibold ${data.currentDebt > 0 ? 'text-destructive' : ''}`}>
+                    {formatCurrency(data.currentDebt)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {data.currentDebt > 0 && (
+                      <Button variant="outline" size="sm" onClick={() => handleOpenPaymentForm(data)}>
+                        Thanh toán
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {!isLoading && !error && sortedDebtData.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center h-24">Không có dữ liệu công nợ.</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+            <ShadcnTableFooter>
+              <TableRow className="text-base font-bold">
+                <TableCell colSpan={3}>Tổng cộng</TableCell>
+                <TableCell className="text-right">{formatCurrency(totalRow.totalSales)}</TableCell>
+                <TableCell className="text-right">{formatCurrency(totalRow.totalPayments)}</TableCell>
+                <TableCell className={`text-right ${totalRow.totalDebt > 0 ? 'text-destructive' : ''}`}>{formatCurrency(totalRow.totalDebt)}</TableCell>
+                <TableCell></TableCell>
+              </TableRow>
+            </ShadcnTableFooter>
           </Table>
         </CardContent>
         <CardFooter>
-            <div className="text-xs text-muted-foreground">
-              Hiển thị <strong>{sortedDebtData.length}</strong> khách hàng có công nợ.
-            </div>
-          </CardFooter>
+          <div className="text-xs text-muted-foreground">
+            Hiển thị <strong>{sortedDebtData.length}</strong> khách hàng có công nợ.
+            {reportData?.overCreditCount ? (
+              <span className="text-destructive ml-2">
+                ({reportData.overCreditCount} khách hàng vượt hạn mức)
+              </span>
+            ) : null}
+          </div>
+        </CardFooter>
       </Card>
     </>
   )

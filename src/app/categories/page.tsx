@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useState, useMemo } from "react"
@@ -44,15 +43,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
-import { collection, query } from "firebase/firestore"
-import { Category } from "@/lib/types"
 import { CategoryForm } from "./components/category-form"
 import { deleteCategory } from "./actions"
 import { useToast } from "@/hooks/use-toast"
-import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { useUserRole } from "@/hooks/use-user-role"
+import { useCategories, type Category } from "@/hooks/use-categories"
 import Link from "next/link"
 
 type SortKey = 'name' | 'description';
@@ -66,17 +62,9 @@ export default function CategoriesPage() {
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   
-  const firestore = useFirestore();
   const { toast } = useToast();
-  const router = useRouter();
   const { permissions, isLoading: isRoleLoading } = useUserRole();
-
-  const categoriesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, "categories"));
-  }, [firestore]);
-
-  const { data: categories, isLoading: categoriesLoading } = useCollection<Category>(categoriesQuery);
+  const { categories, isLoading: categoriesLoading, refetch } = useCategories();
 
   const filteredCategories = categories?.filter(category => {
     const term = searchTerm.toLowerCase();
@@ -131,6 +119,10 @@ export default function CategoriesPage() {
     setIsFormOpen(true);
   }
 
+  const handleFormSuccess = () => {
+    refetch();
+  }
+
   const handleDelete = async () => {
     if (!categoryToDelete) return;
     setIsDeleting(true);
@@ -140,7 +132,7 @@ export default function CategoriesPage() {
         title: "Thành công!",
         description: `Đã xóa danh mục "${categoryToDelete.name}".`,
       });
-      router.refresh();
+      refetch();
     } else {
       toast({
         variant: "destructive",
@@ -182,6 +174,7 @@ export default function CategoriesPage() {
         isOpen={isFormOpen}
         onOpenChange={setIsFormOpen}
         category={selectedCategory}
+        onSuccess={handleFormSuccess}
       />
       <AlertDialog open={!!categoryToDelete} onOpenChange={(open) => !open && setCategoryToDelete(null)}>
         <AlertDialogContent>

@@ -1,7 +1,6 @@
-
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   Search,
   ArrowUp,
@@ -46,14 +45,13 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase'
-import { collection, query, orderBy, where } from 'firebase/firestore'
-import { Shift, AppUser } from '@/lib/types'
 import { Input } from '@/components/ui/input'
 import { formatCurrency, cn } from '@/lib/utils'
 import Link from 'next/link'
 import { Calendar } from '@/components/ui/calendar'
 import { useUserRole } from '@/hooks/use-user-role'
+import { getShifts } from './actions'
+import { Shift } from '@/lib/repositories/shift-repository'
 
 type SortKey = 'startTime' | 'userName' | 'status' | 'totalRevenue' | 'cashDifference';
 type StatusFilter = 'all' | 'active' | 'closed';
@@ -69,31 +67,50 @@ export default function ShiftsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [userFilter, setUserFilter] = useState<string>('all');
   
-  const firestore = useFirestore()
   const { permissions, isLoading: isRoleLoading } = useUserRole();
+  
+  const [shifts, setShifts] = useState<Shift[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const shiftsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    let q = query(collection(firestore, "shifts"));
+  // Get unique users from shifts for filter
+  const users = useMemo(() => {
+    const userMap = new Map<string, { id: string; name: string }>();
+    shifts.forEach(shift => {
+      if (!userMap.has(shift.userId)) {
+        userMap.set(shift.userId, { id: shift.userId, name: shift.userName });
+      }
+    });
+    return Array.from(userMap.values());
+  }, [shifts]);
 
-    if (dateRange?.from) {
-      q = query(q, where('startTime', '>=', dateRange.from.toISOString().split('T')[0]));
-    }
-     if (dateRange?.to) {
-      // Add one day to include the end date fully
-      const toDate = new Date(dateRange.to);
-      toDate.setDate(toDate.getDate() + 1);
-      q = query(q, where('startTime', '<', toDate.toISOString().split('T')[0]));
-    }
+  // Fetch shifts
+  const fetchShifts = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
     
-    q = query(q, orderBy("startTime", "desc"));
-    return q;
-  }, [firestore, dateRange]);
+    try {
+      const result = await getShifts({
+        dateFrom: dateRange?.from?.toISOString(),
+        dateTo: dateRange?.to?.toISOString(),
+        pageSize: 1000, // Get all shifts for client-side filtering
+      });
+      
+      if (result.success && result.data) {
+        setShifts(result.data);
+      } else {
+        setError(result.error || 'Không thể lấy danh sách ca làm việc');
+      }
+    } catch (err) {
+      setError('Đã xảy ra lỗi khi tải dữ liệu');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [dateRange]);
 
-  const usersQuery = useMemoFirebase(() => firestore ? query(collection(firestore, 'users')) : null, [firestore]);
-
-  const { data: shifts, isLoading: shiftsLoading } = useCollection<Shift>(shiftsQuery);
-  const { data: users, isLoading: usersLoading } = useCollection<AppUser>(usersQuery);
+  useEffect(() => {
+    fetchShifts();
+  }, [fetchShifts]);
 
   const filteredShifts = useMemo(() => {
     return shifts?.filter(shift => {
@@ -119,7 +136,7 @@ export default function ShiftsPage() {
   }
 
   const sortedShifts = useMemo(() => {
-    let sortableItems = [...(filteredShifts || [])]
+    const sortableItems = [...(filteredShifts || [])]
     if (sortKey) {
       sortableItems.sort((a, b) => {
         let valA, valB
@@ -177,10 +194,10 @@ export default function ShiftsPage() {
     </TableHead>
   )
 
-  const isLoading = shiftsLoading || usersLoading || isRoleLoading;
+  const pageLoading = isLoading || isRoleLoading;
   const canView = permissions?.reports_shifts?.includes('view');
 
-  if (isLoading) {
+  if (pageLoading) {
     return <p>Đang tải...</p>;
   }
 
@@ -193,6 +210,20 @@ export default function ShiftsPage() {
         </CardHeader>
         <CardContent>
           <Button asChild><Link href="/dashboard">Quay lại Bảng điều khiển</Link></Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Lỗi</CardTitle>
+          <CardDescription>{error}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={fetchShifts}>Thử lại</Button>
         </CardContent>
       </Card>
     );
@@ -267,8 +298,8 @@ export default function ShiftsPage() {
                     <DropdownMenuLabel>Lọc theo Nhân viên</DropdownMenuLabel>
                      <DropdownMenuRadioGroup value={userFilter} onValueChange={(v) => setUserFilter(v)}>
                         <DropdownMenuRadioItem value="all">Tất cả</DropdownMenuRadioItem>
-                        {users?.map(user => (
-                            <DropdownMenuRadioItem key={user.id} value={user.id!}>{user.displayName || user.email}</DropdownMenuRadioItem>
+                        {users.map(user => (
+                            <DropdownMenuRadioItem key={user.id} value={user.id}>{user.name}</DropdownMenuRadioItem>
                         ))}
                     </DropdownMenuRadioGroup>
                 </DropdownMenuContent>

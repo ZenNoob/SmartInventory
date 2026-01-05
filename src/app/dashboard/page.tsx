@@ -1,4 +1,3 @@
-
 'use client'
 
 import {
@@ -16,7 +15,6 @@ import { useState, useMemo, useEffect, useCallback } from "react"
 import { DateRange } from "react-day-picker"
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns"
 import * as xlsx from 'xlsx';
-
 
 import {
   Card,
@@ -44,17 +42,15 @@ import {
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
 import { cn, formatCurrency } from "@/lib/utils"
 import { Customer, Sale, Payment, Product, SalesItem, Unit, Category } from "@/lib/types"
-import { collection, query, getDocs } from "firebase/firestore"
 import { RevenueChart } from "../reports/revenue/components/revenue-chart"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Input } from "@/components/ui/input"
 import { PaymentForm } from "../reports/debt/components/payment-form"
 import { useUserRole } from "@/hooks/use-user-role"
-
+import { useStore } from "@/contexts/store-context"
 
 export type MonthlyRevenue = {
   month: string;
@@ -93,32 +89,136 @@ export default function Dashboard() {
   const [customerForPayment, setCustomerForPayment] = useState<CustomerDebtInfo | undefined>(undefined);
   const [isPaymentFormOpen, setIsPaymentFormOpen] = useState(false);
   const { permissions, isLoading: isRoleLoading } = useUserRole();
+  const { currentStore } = useStore();
 
-
-  const firestore = useFirestore();
-
-  const customersQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "customers")) : null, [firestore]);
-  const salesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "sales_transactions")) : null, [firestore]);
-  const paymentsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "payments")) : null, [firestore]);
-  const productsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "products")) : null, [firestore]);
-  const unitsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "units")) : null, [firestore]);
-  const categoriesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "categories")) : null, [firestore]);
-  
-  const { data: customers, isLoading: customersLoading } = useCollection<Customer>(customersQuery);
-  const { data: sales, isLoading: salesLoading } = useCollection<Sale>(salesQuery);
-  const { data: payments, isLoading: paymentsLoading } = useCollection<Payment>(paymentsQuery);
-  const { data: products, isLoading: productsLoading } = useCollection<Product>(productsQuery);
-  const { data: units, isLoading: unitsLoading } = useCollection<Unit>(unitsQuery);
-  const { data: categories, isLoading: categoriesLoading } = useCollection<Category>(categoriesQuery);
-
+  // State for data from SQL Server API
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [allSalesItems, setAllSalesItems] = useState<SalesItem[]>([]);
+  
+  const [customersLoading, setCustomersLoading] = useState(true);
+  const [salesLoading, setSalesLoading] = useState(true);
+  const [paymentsLoading, setPaymentsLoading] = useState(true);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [unitsLoading, setUnitsLoading] = useState(true);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [salesItemsLoading, setSalesItemsLoading] = useState(true);
+
+  // Fetch data from SQL Server API
+  useEffect(() => {
+    if (!currentStore) return;
+
+    const fetchData = async () => {
+      const storeId = currentStore.id;
+      
+      try {
+        // Fetch customers
+        setCustomersLoading(true);
+        const customersRes = await fetch(`/api/customers?storeId=${storeId}`);
+        if (customersRes.ok) {
+          const data = await customersRes.json();
+          setCustomers(data.customers || data.data || []);
+        }
+        setCustomersLoading(false);
+
+        // Fetch sales
+        setSalesLoading(true);
+        const salesRes = await fetch(`/api/sales?storeId=${storeId}`);
+        if (salesRes.ok) {
+          const data = await salesRes.json();
+          setSales(data.sales || data.data || []);
+        }
+        setSalesLoading(false);
+
+        // Fetch payments
+        setPaymentsLoading(true);
+        const paymentsRes = await fetch(`/api/payments?storeId=${storeId}`);
+        if (paymentsRes.ok) {
+          const data = await paymentsRes.json();
+          setPayments(data.payments || data.data || []);
+        }
+        setPaymentsLoading(false);
+
+        // Fetch products
+        setProductsLoading(true);
+        const productsRes = await fetch(`/api/products?storeId=${storeId}`);
+        if (productsRes.ok) {
+          const data = await productsRes.json();
+          setProducts(data.products || data.data || []);
+        }
+        setProductsLoading(false);
+
+        // Fetch units
+        setUnitsLoading(true);
+        const unitsRes = await fetch(`/api/units?storeId=${storeId}`);
+        if (unitsRes.ok) {
+          const data = await unitsRes.json();
+          setUnits(data.units || data.data || []);
+        }
+        setUnitsLoading(false);
+
+        // Fetch categories
+        setCategoriesLoading(true);
+        const categoriesRes = await fetch(`/api/categories?storeId=${storeId}`);
+        if (categoriesRes.ok) {
+          const data = await categoriesRes.json();
+          setCategories(data.categories || data.data || []);
+        }
+        setCategoriesLoading(false);
+
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        setCustomersLoading(false);
+        setSalesLoading(false);
+        setPaymentsLoading(false);
+        setProductsLoading(false);
+        setUnitsLoading(false);
+        setCategoriesLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [currentStore]);
+
+  // Fetch sales items after sales are loaded
+  useEffect(() => {
+    if (salesLoading || sales.length === 0) {
+      setSalesItemsLoading(false);
+      return;
+    }
+
+    const fetchSalesItems = async () => {
+      setSalesItemsLoading(true);
+      const items: SalesItem[] = [];
+      try {
+        for (const sale of sales) {
+          const res = await fetch(`/api/sales/${sale.id}/items`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.data) {
+              items.push(...data.data.map((item: SalesItem) => ({ ...item, salesTransactionId: sale.id })));
+            }
+          }
+        }
+        setAllSalesItems(items);
+      } catch (error) {
+        console.error('Error fetching sales items:', error);
+      } finally {
+        setSalesItemsLoading(false);
+      }
+    };
+
+    fetchSalesItems();
+  }, [sales, salesLoading]);
   
   const productsMap = useMemo(() => new Map(products?.map(p => [p.id, p])), [products]);
   const unitsMap = useMemo(() => new Map(units?.map(u => [u.id, u])), [units]);
   const categoriesMap = useMemo(() => new Map(categories?.map(c => [c.id, c.name])), [categories]);
   const customersMap = useMemo(() => new Map(customers?.map(c => [c.id, c.name])), [customers]);
-
 
   const filteredSales = useMemo(() => {
     if (!sales) return [];
@@ -141,34 +241,6 @@ export default function Dashboard() {
       (customersMap.get(sale.customerId) || '').toLowerCase().includes(term)
     );
   }, [filteredSales, salesSearchTerm, customersMap]);
-
-
-  useEffect(() => {
-    async function fetchAllSalesItems() {
-      if (!firestore || !sales) { // Fetch for all sales, not just filtered ones
-        if (!salesLoading) setSalesItemsLoading(false);
-        return;
-      }
-
-      setSalesItemsLoading(true);
-      const items: SalesItem[] = [];
-      try {
-        for (const sale of sales) {
-          const itemsCollectionRef = collection(firestore, `sales_transactions/${sale.id}/sales_items`);
-          const itemsSnapshot = await getDocs(itemsCollectionRef);
-          itemsSnapshot.forEach(doc => {
-            items.push({ id: doc.id, ...doc.data() } as SalesItem);
-          });
-        }
-        setAllSalesItems(items);
-      } catch (error) {
-        console.error("Error fetching sales items:", error);
-      } finally {
-        setSalesItemsLoading(false);
-      }
-    }
-    fetchAllSalesItems();
-  }, [firestore, sales, salesLoading]);
   
   const isLoading = customersLoading || salesLoading || paymentsLoading || productsLoading || unitsLoading || salesItemsLoading || categoriesLoading || isRoleLoading;
 
@@ -187,7 +259,7 @@ export default function Dashboard() {
   const getStockInfo = useCallback((product: Product) => {
     if (!product.unitId) return { stock: 0, sold: 0, stockInBaseUnit: 0, importedInBaseUnit: 0, baseUnit: undefined, mainUnit: undefined };
 
-    const { name: mainUnitName, baseUnit: mainBaseUnit, conversionFactor: mainConversionFactor } = getUnitInfo(product.unitId);
+    const { baseUnit: mainBaseUnit, conversionFactor: mainConversionFactor } = getUnitInfo(product.unitId);
     const mainUnit = unitsMap.get(product.unitId);
     
     let totalImportedInBaseUnit = 0;
@@ -232,7 +304,7 @@ export default function Dashboard() {
         stockDisplay: formatStockDisplay(stock, mainUnit, baseUnit),
         stock,
       };
-    }).sort((a,b) => a.stock - b.stock); // Sort by lowest stock
+    }).sort((a,b) => a.stock - b.stock);
   }, [products, getStockInfo]);
 
   const inventoryByCategory = useMemo(() => {
@@ -247,8 +319,6 @@ export default function Dashboard() {
     return grouped;
   }, [inventoryData, isLoading]);
 
-
-  // Memoized calculations
   const totalRevenue = useMemo(() => filteredSales.reduce((acc, sale) => acc + sale.finalAmount, 0), [filteredSales]);
   const totalSalesCount = filteredSales.length;
 
@@ -268,7 +338,6 @@ export default function Dashboard() {
         };
     });
   }, [customers, sales, payments]);
-
 
   const customersWithDebt = useMemo(() => {
     return allCustomerData.filter(c => c.finalDebt > 0).sort((a,b) => b.finalDebt - a.finalDebt);
@@ -309,7 +378,6 @@ export default function Dashboard() {
     const itemsInDateRange = allSalesItems.filter(item => {
         const sale = sales?.find(s => s.id === item.salesTransactionId);
         if (!sale || !dateRange?.from) {
-          // If no date range, consider all items
           return !dateRange;
         }
         const saleDate = new Date(sale.transactionDate);
@@ -347,7 +415,6 @@ export default function Dashboard() {
     return results.sort((a,b) => b.totalRevenue - a.totalRevenue);
   }, [allSalesItems, productsMap, unitsMap, sales, dateRange]);
 
-
   const setDatePreset = (preset: 'this_week' | 'this_month' | 'this_year' | 'all') => {
     const now = new Date();
     if (preset === 'all') {
@@ -375,13 +442,11 @@ export default function Dashboard() {
   const handleExportExcel = () => {
     const wb = xlsx.utils.book_new();
 
-    // Sheet 1: Revenue
     const revenueData = monthlyData.map(d => ({ 'Tháng': d.month, 'Số đơn': d.salesCount, 'Doanh thu': d.revenue }));
     const revenueTotal = { 'Tháng': 'Tổng', 'Số đơn': totalSalesCount, 'Doanh thu': totalRevenue };
     const ws1 = xlsx.utils.json_to_sheet([...revenueData, revenueTotal]);
     xlsx.utils.book_append_sheet(wb, ws1, "DoanhThu");
 
-    // Sheet 2: Sold Products
     const productsData = soldProductsData.map(p => ({ 'Sản phẩm': p.productName, 'Số lượng bán': `${p.totalQuantity.toLocaleString()} ${p.baseUnitName}`, 'Doanh thu': p.totalRevenue }));
     const ws2 = xlsx.utils.json_to_sheet(productsData);
     xlsx.utils.book_append_sheet(wb, ws2, "SPBanChay");
@@ -405,6 +470,7 @@ export default function Dashboard() {
       </Card>
     );
   }
+
 
   return (
     <>

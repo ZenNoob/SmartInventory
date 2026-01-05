@@ -1,4 +1,3 @@
-
 'use client'
 
 import {
@@ -6,6 +5,7 @@ import {
   PlusCircle,
   Search,
   ListFilter,
+  Store,
 } from "lucide-react"
 
 import {
@@ -48,16 +48,40 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase"
-import { collection, query } from "firebase/firestore"
-import { AppUser } from "@/lib/types"
 import { UserForm } from "./components/user-form"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import { useUserRole } from "@/hooks/use-user-role"
 import Link from "next/link"
-import { deleteUser } from "./actions"
+import { deleteUser, getUsers } from "./actions"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
+import type { Permissions } from "@/lib/types"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+
+interface UserStoreAssignment {
+  storeId: string;
+  storeName: string;
+  storeCode: string;
+  role?: string;
+  permissions?: Permissions;
+}
+
+interface UserWithStores {
+  id: string;
+  email: string;
+  displayName?: string;
+  role: 'admin' | 'accountant' | 'inventory_manager' | 'salesperson' | 'custom';
+  permissions?: Permissions;
+  status: 'active' | 'inactive';
+  stores: UserStoreAssignment[];
+  createdAt: string;
+  updatedAt: string;
+}
 
 function getRoleVietnamese(role: string) {
   switch (role) {
@@ -70,48 +94,70 @@ function getRoleVietnamese(role: string) {
     case 'salesperson':
       return 'Nhân viên bán hàng';
     case 'custom':
-        return 'Tùy chỉnh';
+      return 'Tùy chỉnh';
     default:
       return role;
   }
 }
 
+function getStatusBadge(status: string) {
+  switch (status) {
+    case 'active':
+      return <Badge variant="default">Hoạt động</Badge>;
+    case 'inactive':
+      return <Badge variant="secondary">Ngừng hoạt động</Badge>;
+    default:
+      return <Badge variant="outline">{status}</Badge>;
+  }
+}
+
 export default function UsersPage() {
-  const { user: currentUser } = useUser();
-  const { permissions, role: currentUserRole, isLoading: isRoleLoading } = useUserRole();
-  const firestore = useFirestore();
+  const { permissions, role: currentUserRole, isLoading: isRoleLoading, userId: currentUserId } = useUserRole();
   const { toast } = useToast();
   const router = useRouter();
-  
-  const usersQuery = useMemoFirebase(() => {
-      if (!firestore) return null;
-      return query(collection(firestore, "users"))
-    }, [firestore]
-  );
-  
-  const { data: users, isLoading: isUsersLoading } = useCollection<AppUser>(usersQuery);
-  
+
+  const [users, setUsers] = useState<UserWithStores[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<AppUser | undefined>(undefined);
-  const [userToDelete, setUserToDelete] = useState<AppUser | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserWithStores | undefined>(undefined);
+  const [userToDelete, setUserToDelete] = useState<UserWithStores | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [roleFilter, setRoleFilter] = useState<AppUser['role'] | 'all'>('all');
+  const [roleFilter, setRoleFilter] = useState<UserWithStores['role'] | 'all'>('all');
 
-  const isLoading = isUsersLoading || isRoleLoading;
-  
+  const fetchUsers = useCallback(async () => {
+    setIsLoading(true);
+    const result = await getUsers();
+    if (result.success && result.users) {
+      setUsers(result.users);
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: result.error || "Không thể tải danh sách người dùng",
+      });
+    }
+    setIsLoading(false);
+  }, [toast]);
+
+  useEffect(() => {
+    if (!isRoleLoading) {
+      fetchUsers();
+    }
+  }, [isRoleLoading, fetchUsers]);
+
   const filteredUsers = useMemo(() => {
     return users?.filter(user => {
       // Hide other admin accounts if the current user is not an admin
       if (user.role === 'admin' && currentUserRole !== 'admin') {
         return false;
       }
-      
+
       const term = searchTerm.toLowerCase();
       const roleMatch = roleFilter === 'all' || user.role === roleFilter;
-      const searchMatch = term === '' || 
-                          user.email.toLowerCase().includes(term) || 
-                          (user.displayName && user.displayName.toLowerCase().includes(term));
+      const searchMatch = term === '' ||
+        user.email.toLowerCase().includes(term) ||
+        (user.displayName && user.displayName.toLowerCase().includes(term));
       return roleMatch && searchMatch;
     });
   }, [users, searchTerm, roleFilter, currentUserRole]);
@@ -120,27 +166,27 @@ export default function UsersPage() {
   const canAdd = permissions?.users?.includes('add');
   const canEdit = permissions?.users?.includes('edit');
   const canDelete = permissions?.users?.includes('delete');
-  
+
   const handleAddUser = () => {
     setSelectedUser(undefined);
     setIsFormOpen(true);
   }
 
-  const handleEditUser = (user: AppUser) => {
+  const handleEditUser = (user: UserWithStores) => {
     setSelectedUser(user);
     setIsFormOpen(true);
   }
-  
+
   const handleDeleteUser = async () => {
     if (!userToDelete) return;
     setIsDeleting(true);
-    const result = await deleteUser(userToDelete.id!);
+    const result = await deleteUser(userToDelete.id);
     if (result.success) {
       toast({
         title: "Thành công!",
         description: `Đã xóa người dùng ${userToDelete.displayName || userToDelete.email}.`,
       });
-      router.refresh();
+      fetchUsers();
     } else {
       toast({
         variant: "destructive",
@@ -152,8 +198,14 @@ export default function UsersPage() {
     setUserToDelete(null);
   };
 
+  const handleFormClose = (open: boolean) => {
+    setIsFormOpen(open);
+    if (!open) {
+      fetchUsers();
+    }
+  };
 
-  if (isLoading) {
+  if (isLoading || isRoleLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div>Đang tải...</div>
@@ -180,16 +232,15 @@ export default function UsersPage() {
     );
   }
 
-
   return (
     <div>
       <UserForm
         isOpen={isFormOpen}
-        onOpenChange={setIsFormOpen}
+        onOpenChange={handleFormClose}
         user={selectedUser}
         allUsers={users}
       />
-       <AlertDialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
+      <AlertDialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Bạn có chắc chắn không?</AlertDialogTitle>
@@ -236,23 +287,23 @@ export default function UsersPage() {
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Lọc theo vai trò</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuRadioGroup value={roleFilter} onValueChange={(value) => setRoleFilter(value as AppUser['role'] | 'all')}>
+                <DropdownMenuRadioGroup value={roleFilter} onValueChange={(value) => setRoleFilter(value as UserWithStores['role'] | 'all')}>
                   <DropdownMenuRadioItem value="all">Tất cả</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="admin">Quản trị viên</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="accountant">Kế toán</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="inventory_manager">Quản lý kho</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="salesperson">Nhân viên bán hàng</DropdownMenuRadioItem>
-                   <DropdownMenuRadioItem value="custom">Tùy chỉnh</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="custom">Tùy chỉnh</DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
             </DropdownMenu>
             <div className="ml-auto flex items-center gap-2">
               {canAdd && (
                 <Button size="sm" className="h-10 gap-1" onClick={handleAddUser}>
-                    <PlusCircle className="h-3.5 w-3.5" />
-                    <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                  <PlusCircle className="h-3.5 w-3.5" />
+                  <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
                     Thêm người dùng
-                    </span>
+                  </span>
                 </Button>
               )}
             </div>
@@ -266,6 +317,8 @@ export default function UsersPage() {
                 <TableHead>Tên hiển thị</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Vai trò</TableHead>
+                <TableHead>Cửa hàng</TableHead>
+                <TableHead>Trạng thái</TableHead>
                 <TableHead>
                   <span className="sr-only">Hành động</span>
                 </TableHead>
@@ -274,11 +327,11 @@ export default function UsersPage() {
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center">Đang tải...</TableCell>
+                  <TableCell colSpan={7} className="text-center">Đang tải...</TableCell>
                 </TableRow>
               )}
               {!isLoading && filteredUsers?.map((user, index) => {
-                const isCurrentUser = user.id === currentUser?.uid;
+                const isCurrentUser = user.id === currentUserId;
                 return (
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">{index + 1}</TableCell>
@@ -288,6 +341,34 @@ export default function UsersPage() {
                     <TableCell>{user.email}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{getRoleVietnamese(user.role)}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {user.stores && user.stores.length > 0 ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-1 cursor-pointer">
+                                <Store className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-sm">{user.stores.length} cửa hàng</span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <div className="space-y-1">
+                                {user.stores.map((store) => (
+                                  <div key={store.storeId} className="text-sm">
+                                    {store.storeName} ({store.storeCode})
+                                  </div>
+                                ))}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">Chưa gán</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {getStatusBadge(user.status)}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -306,14 +387,14 @@ export default function UsersPage() {
                           {canEdit && <DropdownMenuItem onClick={() => handleEditUser(user)}>Sửa</DropdownMenuItem>}
                           {canDelete && (
                             <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                    className="text-destructive"
-                                    onClick={() => setUserToDelete(user)}
-                                    disabled={isCurrentUser}
-                                >
-                                    Xóa
-                                </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => setUserToDelete(user)}
+                                disabled={isCurrentUser}
+                              >
+                                Xóa
+                              </DropdownMenuItem>
                             </>
                           )}
                         </DropdownMenuContent>
@@ -322,11 +403,11 @@ export default function UsersPage() {
                   </TableRow>
                 );
               })}
-               {!isLoading && filteredUsers?.length === 0 && (
+              {!isLoading && filteredUsers?.length === 0 && (
                 <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">
-                        Không tìm thấy người dùng nào.
-                    </TableCell>
+                  <TableCell colSpan={7} className="h-24 text-center">
+                    Không tìm thấy người dùng nào.
+                  </TableCell>
                 </TableRow>
               )}
             </TableBody>

@@ -22,8 +22,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
-import { collection, query, getDocs } from "firebase/firestore"
+import { useStore } from "@/contexts/store-context"
 import { Sale, SalesItem, Product } from "@/lib/types"
 import { type MarketBasketAnalysisOutput } from "@/ai/flows/analyze-market-basket"
 import { getMarketBasketAnalysis } from "@/app/actions"
@@ -36,14 +35,43 @@ export default function MarketBasketAnalysisPage() {
   const [allSalesItems, setAllSalesItems] = useState<SalesItem[]>([]);
   const [salesItemsLoading, setSalesItemsLoading] = useState(true);
 
-  const firestore = useFirestore();
+  const { currentStore } = useStore();
   const { permissions } = useUserRole();
 
-  const salesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "sales_transactions")) : null, [firestore]);
-  const productsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "products")) : null, [firestore]);
-  
-  const { data: sales, isLoading: salesLoading } = useCollection<Sale>(salesQuery);
-  const { data: products, isLoading: productsLoading } = useCollection<Product>(productsQuery);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [salesLoading, setSalesLoading] = useState(true);
+  const [productsLoading, setProductsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!currentStore) return;
+
+    const fetchData = async () => {
+      try {
+        setSalesLoading(true);
+        const salesRes = await fetch('/api/sales');
+        if (salesRes.ok) {
+          const data = await salesRes.json();
+          setSales(data.data || []);
+        }
+        setSalesLoading(false);
+
+        setProductsLoading(true);
+        const productsRes = await fetch('/api/products');
+        if (productsRes.ok) {
+          const data = await productsRes.json();
+          setProducts(data.data || []);
+        }
+        setProductsLoading(false);
+      } catch (error) {
+        console.error('Error fetching market basket data:', error);
+        setSalesLoading(false);
+        setProductsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [currentStore]);
 
   const productsMap = useMemo(() => {
     if (!products) return new Map();
@@ -52,19 +80,21 @@ export default function MarketBasketAnalysisPage() {
 
   useEffect(() => {
     async function fetchAllSalesItems() {
-      if (!firestore || !sales) {
-        if (!salesLoading) setSalesItemsLoading(false);
+      if (salesLoading || sales.length === 0) {
+        setSalesItemsLoading(false);
         return;
       }
       setSalesItemsLoading(true);
       const items: SalesItem[] = [];
       try {
         for (const sale of sales) {
-          const itemsCollectionRef = collection(firestore, `sales_transactions/${sale.id}/sales_items`);
-          const itemsSnapshot = await getDocs(itemsCollectionRef);
-          itemsSnapshot.forEach(doc => {
-            items.push({ ...doc.data() as SalesItem, salesTransactionId: sale.id });
-          });
+          const res = await fetch(`/api/sales/${sale.id}/items`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.data) {
+              items.push(...data.data.map((item: SalesItem) => ({ ...item, salesTransactionId: sale.id })));
+            }
+          }
         }
         setAllSalesItems(items);
       } catch (error) {
@@ -74,7 +104,7 @@ export default function MarketBasketAnalysisPage() {
       }
     }
     fetchAllSalesItems();
-  }, [sales, firestore, salesLoading]);
+  }, [sales, salesLoading]);
 
   const handleAnalyze = async () => {
     if (!sales || !allSalesItems.length) {

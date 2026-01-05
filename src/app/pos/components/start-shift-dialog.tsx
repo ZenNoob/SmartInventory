@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useState } from 'react'
@@ -15,11 +14,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import { startShift } from '../actions'
-import type { User } from 'firebase/auth'
 
 interface StartShiftDialogProps {
-  user: User
-  onShiftStarted: () => void
+  userId: string;
+  userName: string;
+  onShiftStarted: () => void;
+  // Legacy support for user object
+  user?: { uid?: string; displayName?: string | null };
 }
 
 const FormattedNumberInput = ({
@@ -29,7 +30,7 @@ const FormattedNumberInput = ({
 }: {
   value: number
   onChange: (value: number) => void
-  [key: string]: any
+  [key: string]: unknown
 }) => {
   const [displayValue, setDisplayValue] = useState(
     value?.toLocaleString('en-US') || ''
@@ -51,14 +52,18 @@ const FormattedNumberInput = ({
   return <Input type="text" value={displayValue} onChange={handleChange} {...props} />
 }
 
-export function StartShiftDialog({ user, onShiftStarted }: StartShiftDialogProps) {
+export function StartShiftDialog({ userId, userName, onShiftStarted, user }: StartShiftDialogProps) {
   const [startingCash, setStartingCash] = useState(0)
   const [isStarting, setIsStarting] = useState(false)
   const { toast } = useToast()
 
+  // Support both new props and legacy user object
+  const effectiveUserId = userId || user?.uid || '';
+  const effectiveUserName = userName || user?.displayName || '';
+
   const handleStartShift = async () => {
     setIsStarting(true)
-    const result = await startShift(user.uid, user.displayName || user.email!, startingCash)
+    const result = await startShift(effectiveUserId, effectiveUserName, startingCash)
     if (result.success) {
       toast({
         title: 'Đã bắt đầu ca mới',

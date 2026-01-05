@@ -23,10 +23,8 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { CashTransaction } from '@/lib/types'
-import { upsertCashTransaction } from '../actions'
+import { upsertCashTransaction, CashTransaction } from '../actions'
 import { useToast } from '@/hooks/use-toast'
-import { useRouter } from 'next/navigation'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ChevronsUpDown, Check } from 'lucide-react'
@@ -75,9 +73,9 @@ interface CashTransactionFormProps {
   categories: string[];
 }
 
+
 export function CashTransactionForm({ isOpen, onOpenChange, transaction, categories }: CashTransactionFormProps) {
   const { toast } = useToast();
-  const router = useRouter();
   const [openCategoryPopover, setOpenCategoryPopover] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -97,8 +95,11 @@ export function CashTransactionForm({ isOpen, onOpenChange, transaction, categor
       form.reset(
         transaction 
         ? { 
-            ...transaction,
+            type: transaction.type,
             transactionDate: new Date(transaction.transactionDate).toISOString().split('T')[0],
+            amount: transaction.amount,
+            reason: transaction.reason,
+            category: transaction.category || '',
           } 
         : {
             type: 'chi',
@@ -112,14 +113,16 @@ export function CashTransactionForm({ isOpen, onOpenChange, transaction, categor
   }, [transaction, isOpen, form]);
 
   const onSubmit = async (data: TransactionFormValues) => {
-    const result = await upsertCashTransaction({ ...data, id: transaction?.id });
+    const result = await upsertCashTransaction({ 
+      ...data, 
+      id: transaction?.id 
+    });
     if (result.success) {
       toast({
         title: "Thành công!",
         description: `Đã ${transaction ? 'cập nhật' : 'tạo'} phiếu thành công.`,
       });
       onOpenChange(false);
-      router.refresh();
     } else {
       toast({
         variant: "destructive",

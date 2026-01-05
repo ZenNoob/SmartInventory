@@ -11,21 +11,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useAuth, useUser } from '@/firebase'
+import { useStore } from '@/contexts/store-context'
 import { useUserRole } from '@/hooks/use-user-role'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 export function UserNav() {
-  const { user } = useUser();
+  const { user, logout } = useStore();
   const { role, permissions } = useUserRole();
-  const auth = useAuth();
   const router = useRouter();
 
-  const handleLogout = () => {
-    auth.signOut().then(() => {
-      router.push('/login');
-    });
+  const handleLogout = async () => {
+    await logout();
+    router.push('/login');
   }
   
   const canViewSettings = permissions?.settings?.includes('view');

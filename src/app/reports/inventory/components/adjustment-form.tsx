@@ -27,8 +27,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
 import { upsertProduct } from '@/app/products/actions'
-import { useDoc, useFirestore, useMemoFirebase } from '@/firebase'
-import { doc } from 'firebase/firestore'
+import { useStore } from '@/contexts/store-context'
 import { Product, PurchaseLot, Unit } from '@/lib/types'
 
 const adjustmentFormSchema = z.object({
@@ -53,14 +52,27 @@ interface InventoryAdjustmentFormProps {
 export function InventoryAdjustmentForm({ isOpen, onOpenChange, productInfo }: InventoryAdjustmentFormProps) {
   const { toast } = useToast();
   const router = useRouter();
-  const firestore = useFirestore();
+  const { currentStore } = useStore();
 
-  const productRef = useMemoFirebase(() => {
-    if (!firestore || !productInfo) return null;
-    return doc(firestore, 'products', productInfo.productId);
-  }, [firestore, productInfo]);
+  const [productData, setProductData] = useState<Product | null>(null);
 
-  const { data: productData } = useDoc<Product>(productRef);
+  useEffect(() => {
+    if (!isOpen || !productInfo?.productId) return;
+
+    const fetchProduct = async () => {
+      try {
+        const res = await fetch(`/api/products/${productInfo.productId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setProductData(data.data || null);
+        }
+      } catch (error) {
+        console.error('Error fetching product:', error);
+      }
+    };
+
+    fetchProduct();
+  }, [isOpen, productInfo?.productId]);
   
   const conversionFactor = productInfo.mainUnit?.conversionFactor || 1;
 

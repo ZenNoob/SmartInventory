@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useState, useTransition, useMemo, useCallback, useEffect } from "react"
@@ -11,7 +10,8 @@ import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
-  Wrench,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -43,13 +43,6 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription
-} from "@/components/ui/dialog"
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -72,77 +65,137 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
-import { useCollection, useDoc, useFirestore, useMemoFirebase } from "@/firebase"
 import { formatCurrency } from "@/lib/utils"
 import { PredictShortageForm } from "./components/predict-shortage-form"
 import { ProductForm } from "./components/product-form"
-import { Category, Product, Sale, SalesItem, ThemeSettings, Unit } from "@/lib/types"
-import { collection, query, getDocs, doc } from "firebase/firestore"
+import { Category, Unit, ThemeSettings } from "@/lib/types"
 import { Input } from "@/components/ui/input"
-import { updateProductStatus, deleteProduct, generateProductTemplate } from "./actions"
+import { getProducts, updateProductStatus, deleteProduct, generateProductTemplate } from "./actions"
+import { getCategories } from "@/app/categories/actions"
+import { getUnits } from "@/app/units/actions"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { ImportProducts } from "./components/import-products"
 import { useUserRole } from "@/hooks/use-user-role"
 
 
+// Product type from SQL Server API
+interface ProductWithStock {
+  id: string;
+  storeId: string;
+  name: string;
+  barcode?: string;
+  description?: string;
+  categoryId: string;
+  unitId: string;
+  sellingPrice?: number;
+  status: 'active' | 'draft' | 'archived';
+  lowStockThreshold?: number;
+  createdAt: string;
+  updatedAt: string;
+  currentStock: number;
+  averageCost: number;
+  categoryName?: string;
+  unitName?: string;
+}
+
 type ProductStatus = 'active' | 'draft' | 'archived' | 'all';
 type SortKey = 'name' | 'status' | 'category' | 'avgCost' | 'stock' | 'totalValue';
 
 export default function ProductsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | undefined>(undefined);
-  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ProductWithStock | undefined>(undefined);
+  const [productToDelete, setProductToDelete] = useState<ProductWithStock | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<ProductStatus>('all');
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
   const [isUpdating, startTransition] = useTransition();
-  const [viewingLotsFor, setViewingLotsFor] = useState<Product | null>(null);
   const [isExporting, startExportingTransition] = useTransition();
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   
-  const firestore = useFirestore();
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(20);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalProducts, setTotalProducts] = useState(0);
+  
+  // Data state
+  const [products, setProducts] = useState<ProductWithStock[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
   const { toast } = useToast();
   const router = useRouter();
   const { permissions, isLoading: isRoleLoading } = useUserRole();
 
+  // Fetch products from SQL Server API
+  const fetchProducts = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const result = await getProducts({
+        page: currentPage,
+        pageSize,
+        search: searchTerm || undefined,
+        categoryId: categoryFilter !== 'all' ? categoryFilter : undefined,
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+      });
+      
+      if (result.success && result.data) {
+        setProducts(result.data);
+        setTotalPages(result.totalPages || 1);
+        setTotalProducts(result.total || 0);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Lỗi",
+          description: result.error || "Không thể tải danh sách sản phẩm",
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentPage, pageSize, searchTerm, categoryFilter, statusFilter, toast]);
 
-  const productsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, "products"));
-  }, [firestore]);
+  // Fetch categories and units
+  const fetchCategoriesAndUnits = useCallback(async () => {
+    try {
+      const [categoriesResult, unitsResult] = await Promise.all([
+        getCategories(),
+        getUnits(),
+      ]);
+      
+      if (categoriesResult.success && categoriesResult.categories) {
+        setCategories(categoriesResult.categories);
+      }
+      
+      if (unitsResult.success && unitsResult.units) {
+        setUnits(unitsResult.units);
+      }
+    } catch (error) {
+      console.error('Error fetching categories/units:', error);
+    }
+  }, []);
 
-  const categoriesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, "categories"));
-  }, [firestore]);
-  
-  const unitsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, "units"));
-  }, [firestore]);
+  // Initial data fetch
+  useEffect(() => {
+    fetchCategoriesAndUnits();
+  }, [fetchCategoriesAndUnits]);
 
-  const salesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, 'sales_transactions'));
-  }, [firestore]);
+  // Fetch products when filters change
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
 
-  const settingsRef = useMemoFirebase(() => {
-    if(!firestore) return null;
-    return doc(firestore, 'settings', 'theme');
-  }, [firestore])
-
-  const { data: products, isLoading: productsLoading } = useCollection<Product>(productsQuery);
-  const { data: categories, isLoading: categoriesLoading } = useCollection<Category>(categoriesQuery);
-  const { data: units, isLoading: unitsLoading } = useCollection<Unit>(unitsQuery);
-  const { data: sales, isLoading: salesLoading } = useCollection<Sale>(salesQuery);
-  const { data: settings, isLoading: settingsLoading } = useDoc<ThemeSettings>(settingsRef);
-  
-  const [allSalesItems, setAllSalesItems] = useState<SalesItem[]>([]);
-  const [salesItemsLoading, setSalesItemsLoading] = useState(true);
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, categoryFilter, statusFilter]);
 
   const unitsMap = useMemo(() => {
     const map = new Map<string, Unit>();
@@ -150,31 +203,13 @@ export default function ProductsPage() {
     return map;
   }, [units]);
 
-  useEffect(() => {
-    async function fetchAllSalesItems() {
-      if (!firestore || !sales) return;
-      
-      setSalesItemsLoading(true);
-      const items: SalesItem[] = [];
-      for (const sale of sales) {
-        const itemsCollectionRef = collection(firestore, `sales_transactions/${sale.id}/sales_items`);
-        const itemsSnapshot = await getDocs(itemsCollectionRef);
-        itemsSnapshot.forEach(doc => {
-          items.push({ id: doc.id, ...doc.data() } as SalesItem);
-        });
-      }
-      setAllSalesItems(items);
-      setSalesItemsLoading(false);
-    }
-    fetchAllSalesItems();
-  }, [sales, firestore]);
 
   const handleAddProduct = () => {
     setSelectedProduct(undefined);
     setIsFormOpen(true);
   }
 
-  const handleEditProduct = (product: Product) => {
+  const handleEditProduct = (product: ProductWithStock) => {
     setSelectedProduct(product);
     setIsFormOpen(true);
   }
@@ -188,7 +223,7 @@ export default function ProductsPage() {
         title: "Thành công!",
         description: `Đã xóa sản phẩm "${productToDelete.name}".`,
       });
-      router.refresh();
+      fetchProducts();
     } else {
       toast({
         variant: "destructive",
@@ -200,7 +235,7 @@ export default function ProductsPage() {
     setProductToDelete(null);
   };
 
-  const handleStatusChange = (productId: string, status: Product['status']) => {
+  const handleStatusChange = (productId: string, status: 'active' | 'draft' | 'archived') => {
     startTransition(async () => {
       const result = await updateProductStatus(productId, status);
       if (result.success) {
@@ -208,7 +243,7 @@ export default function ProductsPage() {
           title: "Thành công!",
           description: "Trạng thái sản phẩm đã được cập nhật.",
         });
-        router.refresh();
+        fetchProducts();
       } else {
         toast({
           variant: "destructive",
@@ -236,90 +271,6 @@ export default function ProductsPage() {
     });
   }
 
-  const isLoading = productsLoading || categoriesLoading || unitsLoading || salesLoading || salesItemsLoading || settingsLoading || isRoleLoading;
-  
-  const getUnitInfo = useCallback((unitId: string) => {
-    const unit = unitsMap.get(unitId);
-    if (!unit) return { baseUnit: undefined, conversionFactor: 1, name: '' };
-    
-    if (unit.baseUnitId && unit.conversionFactor) {
-      const baseUnit = unitsMap.get(unit.baseUnitId);
-      return { baseUnit, conversionFactor: unit.conversionFactor, name: unit.name };
-    }
-    
-    return { baseUnit: unit, conversionFactor: 1, name: unit.name };
-  }, [unitsMap]);
-
-
-  const getStockInfo = useCallback((product: Product) => {
-    if (!product.unitId) return { stock: 0, sold: 0, stockInBaseUnit: 0, importedInBaseUnit: 0, baseUnit: undefined, mainUnit: undefined };
-
-    const { name: mainUnitName, baseUnit: mainBaseUnit, conversionFactor: mainConversionFactor } = getUnitInfo(product.unitId);
-    const mainUnit = unitsMap.get(product.unitId);
-    
-    let totalImportedInBaseUnit = 0;
-    product.purchaseLots?.forEach(lot => {
-        const { conversionFactor } = getUnitInfo(lot.unitId);
-        totalImportedInBaseUnit += lot.quantity * conversionFactor;
-    });
-    
-    const totalSoldInBaseUnit = allSalesItems
-      .filter(item => item.productId === product.id)
-      .reduce((acc, item) => {
-         return acc + item.quantity; // a return will have a negative quantity
-      }, 0);
-
-    const stockInBaseUnit = totalImportedInBaseUnit - totalSoldInBaseUnit;
-    
-    const stockInMainUnit = stockInBaseUnit / (mainConversionFactor || 1);
-
-    return { stock: stockInMainUnit, sold: totalSoldInBaseUnit, stockInBaseUnit, importedInBaseUnit: totalImportedInBaseUnit, baseUnit: mainBaseUnit || mainUnit, mainUnit };
-  }, [allSalesItems, getUnitInfo, unitsMap]);
-
- const getAverageCost = (product: Product) => {
-    if (!product.purchaseLots || product.purchaseLots.length === 0 || !product.unitId) return { avgCost: 0, baseUnit: undefined};
-
-    let totalCost = 0;
-    let totalQuantityInBaseUnit = 0;
-    let costBaseUnit: Unit | undefined;
-
-    product.purchaseLots.forEach(lot => {
-        const { baseUnit, conversionFactor } = getUnitInfo(lot.unitId);
-        const quantityInBaseUnit = lot.quantity * conversionFactor;
-        // Do not include adjustment lots in cost calculation
-        if (lot.cost > 0) {
-          totalCost += lot.cost * quantityInBaseUnit;
-          totalQuantityInBaseUnit += quantityInBaseUnit;
-        }
-        if (baseUnit) {
-          costBaseUnit = baseUnit;
-        } else if(unitsMap.has(lot.unitId)) {
-          costBaseUnit = unitsMap.get(lot.unitId);
-        }
-    });
-    
-    if (totalQuantityInBaseUnit === 0) return { avgCost: 0, baseUnit: costBaseUnit };
-    
-    return { avgCost: totalCost / totalQuantityInBaseUnit, baseUnit: costBaseUnit };
-  }
-  
-  const formatStockDisplay = (stock: number, mainUnit?: Unit, baseUnit?: Unit): string => {
-    if (!mainUnit) return stock.toString();
-
-    if (mainUnit.id !== baseUnit?.id && mainUnit.conversionFactor && baseUnit) {
-        const stockInBaseUnits = stock * mainUnit.conversionFactor;
-        const wholePart = Math.floor(stock);
-        const fractionalPartInBase = stockInBaseUnits % mainUnit.conversionFactor;
-        
-        if (fractionalPartInBase > 0.01) {
-            return `${wholePart} ${mainUnit.name}, ${fractionalPartInBase.toFixed(1).replace(/\.0$/, '')} ${baseUnit.name}`;
-        }
-        return `${wholePart} ${mainUnit.name}`;
-    }
-    
-    return `${stock.toFixed(2).replace(/\.00$/, '')} ${mainUnit.name}`;
-  };
-
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -329,26 +280,19 @@ export default function ProductsPage() {
     }
   };
 
+  // Sort products locally (since API already returns paginated data)
   const sortedProducts = useMemo(() => {
-    let sortableProducts = products?.filter(product => {
-      if (statusFilter !== 'all' && product.status !== statusFilter) return false;
-      if (categoryFilter !== 'all' && product.categoryId !== categoryFilter) return false;
-      
-      const { stock } = getStockInfo(product);
-      if (showLowStockOnly) {
-        const lowStockThreshold = product.lowStockThreshold ?? settings?.lowStockThreshold ?? 0;
-        if (stock > lowStockThreshold) return false;
-      }
+    let sortableProducts = [...products];
+    
+    // Filter by low stock if enabled
+    if (showLowStockOnly) {
+      sortableProducts = sortableProducts.filter(product => {
+        const threshold = product.lowStockThreshold ?? 10;
+        return (product.currentStock ?? 0) <= threshold;
+      });
+    }
 
-      if (searchTerm) {
-        const term = searchTerm.toLowerCase();
-        const category = categories?.find(c => c.id === product.categoryId);
-        return product.name.toLowerCase().includes(term) || (category && category.name.toLowerCase().includes(term));
-      }
-      return true;
-    });
-
-    if (sortableProducts && sortKey) {
+    if (sortKey) {
       sortableProducts.sort((a, b) => {
         let valA: string | number, valB: string | number;
 
@@ -362,23 +306,21 @@ export default function ProductsPage() {
             valB = b.status;
             break;
           case 'category':
-            const categoryA = categories?.find(c => c.id === a.categoryId)?.name || '';
-            const categoryB = categories?.find(c => c.id === b.categoryId)?.name || '';
-            valA = categoryA.toLowerCase();
-            valB = categoryB.toLowerCase();
+            valA = (a.categoryName || '').toLowerCase();
+            valB = (b.categoryName || '').toLowerCase();
             break;
           case 'avgCost':
-            valA = getAverageCost(a).avgCost;
-            valB = getAverageCost(b).avgCost;
+            valA = a.averageCost ?? 0;
+            valB = b.averageCost ?? 0;
             break;
           case 'stock':
-            valA = getStockInfo(a).stock;
-            valB = getStockInfo(b).stock;
+            valA = a.currentStock ?? 0;
+            valB = b.currentStock ?? 0;
             break;
           case 'totalValue':
-              valA = getStockInfo(a).stockInBaseUnit * getAverageCost(a).avgCost;
-              valB = getStockInfo(b).stockInBaseUnit * getAverageCost(b).avgCost;
-              break;
+            valA = (a.currentStock ?? 0) * (a.averageCost ?? 0);
+            valB = (b.currentStock ?? 0) * (b.averageCost ?? 0);
+            break;
           default:
             return 0;
         }
@@ -390,7 +332,7 @@ export default function ProductsPage() {
     }
 
     return sortableProducts;
-  }, [products, statusFilter, categoryFilter, showLowStockOnly, searchTerm, sortKey, sortDirection, categories, getStockInfo, getAverageCost, settings]);
+  }, [products, showLowStockOnly, sortKey, sortDirection]);
 
 
   const SortableHeader = ({ sortKey: key, children, className }: { sortKey: SortKey, children: React.ReactNode, className?: string }) => (
@@ -409,12 +351,12 @@ export default function ProductsPage() {
   const canDelete = permissions?.products?.includes('delete');
   const canView = permissions?.products?.includes('view');
 
-  if (isLoading) {
+  if (isLoading || isRoleLoading) {
     return <p>Đang tải...</p>;
   }
 
   if (!canView) {
-     return (
+    return (
       <Card>
         <CardHeader>
           <CardTitle>Truy cập bị từ chối</CardTitle>
@@ -426,12 +368,31 @@ export default function ProductsPage() {
     );
   }
 
+  // Convert ProductWithStock to Product format for the form
+  const productForForm = selectedProduct ? {
+    id: selectedProduct.id,
+    name: selectedProduct.name,
+    barcode: selectedProduct.barcode,
+    description: selectedProduct.description,
+    categoryId: selectedProduct.categoryId,
+    unitId: selectedProduct.unitId,
+    sellingPrice: selectedProduct.sellingPrice,
+    status: selectedProduct.status,
+    lowStockThreshold: selectedProduct.lowStockThreshold,
+    purchaseLots: [], // Purchase lots are managed separately in SQL Server
+  } : undefined;
+
   return (
     <>
       <ProductForm 
         isOpen={isFormOpen}
-        onOpenChange={setIsFormOpen}
-        product={selectedProduct}
+        onOpenChange={(open) => {
+          setIsFormOpen(open);
+          if (!open) {
+            fetchProducts(); // Refresh after form closes
+          }
+        }}
+        product={productForForm}
         categories={categories || []}
         units={units || []}
       />
@@ -452,66 +413,7 @@ export default function ProductsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-       <Dialog open={!!viewingLotsFor} onOpenChange={(open) => !open && setViewingLotsFor(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Lịch sử nhập hàng cho: {viewingLotsFor?.name}</DialogTitle>
-            <DialogDescription>
-              Danh sách chi tiết tất cả các lần nhập hàng cho sản phẩm này.
-            </DialogDescription>
-          </DialogHeader>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Ngày nhập</TableHead>
-                <TableHead className="text-right">Số lượng</TableHead>
-                <TableHead>Đơn vị</TableHead>
-                <TableHead className="text-right">Giá nhập</TableHead>
-                <TableHead>Đơn vị giá</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {viewingLotsFor?.purchaseLots && viewingLotsFor.purchaseLots.length > 0 ? (
-                viewingLotsFor.purchaseLots.map((lot, index) => {
-                  const lotUnitInfo = getUnitInfo(lot.unitId);
-                  const costBaseUnit = lotUnitInfo.baseUnit || unitsMap.get(lot.unitId);
-                  const isAdjustment = lot.cost === 0;
-                  return (
-                  <TableRow key={index}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {isAdjustment && (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger>
-                                <Wrench className="h-4 w-4 text-muted-foreground" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Lô hàng điều chỉnh tồn kho</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                        {new Date(lot.importDate).toLocaleDateString()}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">{lot.quantity}</TableCell>
-                    <TableCell>{lotUnitInfo.name}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(lot.cost)}</TableCell>
-                    <TableCell>{costBaseUnit?.name}</TableCell>
-                  </TableRow>
-                )})
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center h-24">
-                    Không có dữ liệu nhập hàng cho sản phẩm này.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </DialogContent>
-      </Dialog>
+      
       <Tabs defaultValue="all" onValueChange={(value) => setStatusFilter(value as ProductStatus)}>
         <div className="flex items-center">
           <TabsList>
@@ -574,6 +476,7 @@ export default function ProductsPage() {
             )}
           </div>
         </div>
+
         <TabsContent value={statusFilter}>
           <Card>
             <CardHeader>
@@ -581,16 +484,16 @@ export default function ProductsPage() {
               <CardDescription>
                 Quản lý sản phẩm của bạn và xem hiệu suất bán hàng của chúng.
               </CardDescription>
-               <div className="relative mt-4">
+              <div className="relative mt-4">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                    type="search"
-                    placeholder="Tìm kiếm theo tên, loại..."
-                    className="w-full rounded-lg bg-background pl-8 md:w-1/3"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                  type="search"
+                  placeholder="Tìm kiếm theo tên, mã vạch..."
+                  className="w-full rounded-lg bg-background pl-8 md:w-1/3"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                 />
-            </div>
+              </div>
             </CardHeader>
             <CardContent>
               <Table>
@@ -601,9 +504,7 @@ export default function ProductsPage() {
                     <SortableHeader sortKey="status">Trạng thái</SortableHeader>
                     <SortableHeader sortKey="category">Loại</SortableHeader>
                     <SortableHeader sortKey="avgCost" className="hidden md:table-cell">Giá nhập TB</SortableHeader>
-                    <TableHead className="hidden md:table-cell">
-                      Bán / Nhập
-                    </TableHead>
+                    <TableHead className="hidden md:table-cell">Giá bán</TableHead>
                     <SortableHeader sortKey="stock">Tồn kho</SortableHeader>
                     <SortableHeader sortKey="totalValue">Thành tiền</SortableHeader>
                     <TableHead>
@@ -612,57 +513,63 @@ export default function ProductsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isLoading && <TableRow><TableCell colSpan={9} className="text-center">Đang tải...</TableCell></TableRow>}
+                  {isLoading && (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center">Đang tải...</TableCell>
+                    </TableRow>
+                  )}
                   {!isLoading && sortedProducts?.map((product, index) => {
-                    const category = categories?.find(c => c.id === product.categoryId);
-                    const { stock, sold, stockInBaseUnit, baseUnit, importedInBaseUnit, mainUnit } = getStockInfo(product);
-                    const { avgCost, baseUnit: costBaseUnit } = getAverageCost(product);
-                    const lowStockThreshold = product.lowStockThreshold ?? settings?.lowStockThreshold ?? 0;
-                    const hasPurchaseHistory = product.purchaseLots && product.purchaseLots.length > 0;
-                    const mainUnitTotalImport = importedInBaseUnit / (mainUnit?.conversionFactor || 1);
-                    const totalValue = stockInBaseUnit * avgCost;
+                    const lowStockThreshold = product.lowStockThreshold ?? 10;
+                    const currentStock = product.currentStock ?? 0;
+                    const averageCost = product.averageCost ?? 0;
+                    const isLowStock = currentStock <= lowStockThreshold;
+                    const totalValue = currentStock * averageCost;
+                    const unit = unitsMap.get(product.unitId);
 
                     return (
                       <TableRow key={product.id}>
-                        <TableCell className="font-medium">{index + 1}</TableCell>
+                        <TableCell className="font-medium">
+                          {(currentPage - 1) * pageSize + index + 1}
+                        </TableCell>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
-                             {stock <= lowStockThreshold && lowStockThreshold > 0 && (
+                            {isLowStock && lowStockThreshold > 0 && (
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger>
                                     <AlertTriangle className="h-4 w-4 text-destructive" />
                                   </TooltipTrigger>
                                   <TooltipContent>
-                                    <p>Tồn kho dưới ngưỡng ({lowStockThreshold} {mainUnit?.name})</p>
+                                    <p>Tồn kho dưới ngưỡng ({lowStockThreshold} {unit?.name || ''})</p>
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
                             )}
-                            {product.name}
+                            <div>
+                              <div>{product.name}</div>
+                              {product.barcode && (
+                                <div className="text-xs text-muted-foreground">{product.barcode}</div>
+                              )}
+                            </div>
                           </div>
                         </TableCell>
-                         <TableCell>
+                        <TableCell>
                           <Badge variant={product.status === 'active' ? 'default' : product.status === 'draft' ? 'secondary' : 'outline'}>
                             {product.status === 'active' ? 'Hoạt động' : product.status === 'draft' ? 'Bản nháp' : 'Lưu trữ'}
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline">{category?.name || 'N/A'}</Badge>
+                          <Badge variant="outline">{product.categoryName || 'N/A'}</Badge>
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
-                          {formatCurrency(avgCost)} / {costBaseUnit?.name || ''}
+                          {formatCurrency(product.averageCost)} / {unit?.name || ''}
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
-                            <button className="underline cursor-pointer text-left text-xs" onClick={() => setViewingLotsFor(product)}>
-                              <div>Đã bán: {sold.toLocaleString()} {baseUnit?.name}</div>
-                               <div>
-                                Đã nhập: {mainUnitTotalImport.toLocaleString()} {mainUnit?.name}
-                                {mainUnit?.id !== baseUnit?.id && ` (~${importedInBaseUnit.toLocaleString()} ${baseUnit?.name})`}
-                              </div>
-                            </button>
+                          {product.sellingPrice ? formatCurrency(product.sellingPrice) : '-'}
                         </TableCell>
-                        <TableCell className="font-medium">{formatStockDisplay(stock, mainUnit, baseUnit)}</TableCell>
+                        <TableCell className="font-medium">
+                          {currentStock.toFixed(2).replace(/\.00$/, '')} {unit?.name || ''}
+                        </TableCell>
                         <TableCell className="font-medium">{formatCurrency(totalValue)}</TableCell>
                         <TableCell>
                           <DropdownMenu>
@@ -679,55 +586,91 @@ export default function ProductsPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Hành động</DropdownMenuLabel>
-                              {canEdit && <DropdownMenuItem onClick={() => handleEditProduct(product)} disabled={isUpdating}>Nhập thêm sản phẩm</DropdownMenuItem>}
-                              {canDelete && <DropdownMenuItem 
-                                className="text-destructive" 
-                                onClick={() => setProductToDelete(product)} 
-                                disabled={isUpdating || hasPurchaseHistory}
-                              >
-                                Xóa
-                              </DropdownMenuItem>}
-                              {canEdit && <><DropdownMenuSeparator />
-                              <DropdownMenuLabel>Thay đổi trạng thái</DropdownMenuLabel>
-                               <DropdownMenuItem 
-                                onClick={() => handleStatusChange(product.id, 'active')}
-                                disabled={product.status === 'active' || isUpdating}
-                               >
-                                Chuyển sang Hoạt động
-                              </DropdownMenuItem>
-                               <DropdownMenuItem 
-                                onClick={() => handleStatusChange(product.id, 'draft')}
-                                disabled={product.status === 'draft' || isUpdating}
-                              >
-                                Chuyển sang Bản nháp
-                              </DropdownMenuItem>
-                               <DropdownMenuItem 
-                                onClick={() => handleStatusChange(product.id, 'archived')}
-                                disabled={product.status === 'archived' || isUpdating}
-                              >
-                                Chuyển sang Lưu trữ
-                              </DropdownMenuItem></>}
+                              {canEdit && (
+                                <DropdownMenuItem onClick={() => handleEditProduct(product)} disabled={isUpdating}>
+                                  Chỉnh sửa
+                                </DropdownMenuItem>
+                              )}
+                              {canDelete && (
+                                <DropdownMenuItem 
+                                  className="text-destructive" 
+                                  onClick={() => setProductToDelete(product)} 
+                                  disabled={isUpdating}
+                                >
+                                  Xóa
+                                </DropdownMenuItem>
+                              )}
+                              {canEdit && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuLabel>Thay đổi trạng thái</DropdownMenuLabel>
+                                  <DropdownMenuItem 
+                                    onClick={() => handleStatusChange(product.id, 'active')}
+                                    disabled={product.status === 'active' || isUpdating}
+                                  >
+                                    Chuyển sang Hoạt động
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    onClick={() => handleStatusChange(product.id, 'draft')}
+                                    disabled={product.status === 'draft' || isUpdating}
+                                  >
+                                    Chuyển sang Bản nháp
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    onClick={() => handleStatusChange(product.id, 'archived')}
+                                    disabled={product.status === 'archived' || isUpdating}
+                                  >
+                                    Chuyển sang Lưu trữ
+                                  </DropdownMenuItem>
+                                </>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     )
                   })}
-                   {!isLoading && sortedProducts?.length === 0 && (
+                  {!isLoading && sortedProducts?.length === 0 && (
                     <TableRow>
-                        <TableCell colSpan={9} className="text-center h-24">
-                            Không tìm thấy sản phẩm nào.
-                        </TableCell>
+                      <TableCell colSpan={9} className="text-center h-24">
+                        Không tìm thấy sản phẩm nào.
+                      </TableCell>
                     </TableRow>
-                )}
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
-            <CardFooter>
+
+            <CardFooter className="flex items-center justify-between">
               <div className="text-xs text-muted-foreground">
-                Hiển thị <strong>{sortedProducts?.length || 0}</strong> trên <strong>{products?.length || 0}</strong>{" "}
+                Hiển thị <strong>{sortedProducts?.length || 0}</strong> trên <strong>{totalProducts}</strong>{" "}
                 sản phẩm
               </div>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Trước
+                  </Button>
+                  <span className="text-sm">
+                    Trang {currentPage} / {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Sau
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
             </CardFooter>
           </Card>
         </TabsContent>

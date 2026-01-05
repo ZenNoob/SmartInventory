@@ -6,13 +6,14 @@ import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { SidebarTrigger } from '@/components/ui/sidebar'
-import { useUser } from '@/firebase'
+import { useStore } from '@/contexts/store-context'
 import { UserNav } from './user-nav'
 import { CommandMenu } from './command-menu'
+import { StoreSelectorCompact } from './store-selector'
 
 export function Header() {
   const pathname = usePathname()
-  const { user, isUserLoading } = useUser()
+  const { user, isLoading: isUserLoading } = useStore()
 
   if (pathname.startsWith('/login')) {
     return null;
@@ -33,6 +34,9 @@ export function Header() {
          <SidebarTrigger className="sm:hidden">
           <PanelLeft />
         </SidebarTrigger>
+      </div>
+      <div className="hidden sm:block">
+        <StoreSelectorCompact />
       </div>
       <div className="flex-1">
         <CommandMenu />

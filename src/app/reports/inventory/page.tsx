@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useMemo, useEffect, useCallback } from "react"
-import { Search, ArrowUp, ArrowDown, File, Calendar as CalendarIcon, Wrench } from "lucide-react"
+import { Search, ArrowUp, ArrowDown, File, FileText, Calendar as CalendarIcon, Wrench } from "lucide-react"
 import * as xlsx from 'xlsx';
+import { exportToPDF, formatCurrencyForExport } from "@/lib/export-utils"
 import { DateRange } from "react-day-picker"
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns"
 
@@ -24,25 +25,41 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
-import { collection, query, getDocs } from "firebase/firestore"
-import { Product, Sale, SalesItem, Unit, PurchaseLot } from "@/lib/types"
+import { useStore } from "@/contexts/store-context"
 import { cn } from "@/lib/utils"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { InventoryAdjustmentForm } from "./components/adjustment-form";
 
-type InventoryReportItem = {
+interface InventoryReportItem {
   productId: string;
   productName: string;
-  unitName: string;
+  barcode?: string;
+  categoryName?: string;
+  unitName?: string;
   openingStock: number;
   importStock: number;
   exportStock: number;
   closingStock: number;
-  mainUnit?: Unit;
-  baseUnit?: Unit;
-};
+  averageCost: number;
+  stockValue: number;
+  lowStockThreshold: number;
+  isLowStock: boolean;
+}
+
+interface InventoryReportResponse {
+  success: boolean;
+  data: InventoryReportItem[];
+  totals: {
+    totalProducts: number;
+    totalOpeningStock: number;
+    totalImportStock: number;
+    totalExportStock: number;
+    totalClosingStock: number;
+    totalStockValue: number;
+  };
+  lowStockCount: number;
+}
 
 type SortKey = 'productName' | 'openingStock' | 'importStock' | 'exportStock' | 'closingStock';
 
@@ -55,125 +72,73 @@ export default function InventoryReportPage() {
     to: endOfMonth(new Date()),
   });
   const [productToAdjust, setProductToAdjust] = useState<InventoryReportItem | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [reportData, setReportData] = useState<InventoryReportResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const firestore = useFirestore();
+  const { currentStore } = useStore();
 
-  const productsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "products")) : null, [firestore]);
-  const salesQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "sales_transactions")) : null, [firestore]);
-  const unitsQuery = useMemoFirebase(() => firestore ? query(collection(firestore, "units")) : null, [firestore]);
+  const fetchReport = useCallback(async () => {
+    if (!currentStore?.id) return;
 
-  const { data: products, isLoading: productsLoading } = useCollection<Product>(productsQuery);
-  const { data: sales, isLoading: salesLoading } = useCollection<Sale>(salesQuery);
-  const { data: units, isLoading: unitsLoading } = useCollection<Unit>(unitsQuery);
+    setIsLoading(true);
+    setError(null);
 
-  const [allSalesItems, setAllSalesItems] = useState<SalesItem[]>([]);
-  const [salesItemsLoading, setSalesItemsLoading] = useState(true);
+    try {
+      const params = new URLSearchParams();
+      if (dateRange?.from) {
+        params.set('dateFrom', dateRange.from.toISOString());
+      }
+      if (dateRange?.to) {
+        params.set('dateTo', dateRange.to.toISOString());
+      }
+      if (searchTerm) {
+        params.set('search', searchTerm);
+      }
+
+      const response = await fetch(`/api/reports/inventory?${params.toString()}`, {
+        headers: {
+          'x-store-id': currentStore.id,
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch report');
+      }
+
+      const data = await response.json();
+      setReportData(data);
+    } catch (err) {
+      console.error('Error fetching inventory report:', err);
+      setError('Đã xảy ra lỗi khi tải báo cáo');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentStore?.id, dateRange, searchTerm]);
 
   useEffect(() => {
-    async function fetchAllSalesItems() {
-      if (!firestore || !sales) return setSalesItemsLoading(false);
-      setSalesItemsLoading(true);
-      const items: SalesItem[] = [];
-      try {
-        for (const sale of sales) {
-          const itemsCollectionRef = collection(firestore, `sales_transactions/${sale.id}/sales_items`);
-          const itemsSnapshot = await getDocs(itemsCollectionRef);
-          itemsSnapshot.forEach(doc => {
-            items.push({ ...doc.data(), salesTransactionId: sale.id } as SalesItem);
-          });
-        }
-        setAllSalesItems(items);
-      } catch (error) {
-        console.error("Error fetching sales items:", error);
-      } finally {
-        setSalesItemsLoading(false);
-      }
-    }
-    fetchAllSalesItems();
-  }, [sales, firestore]);
+    const debounceTimer = setTimeout(() => {
+      fetchReport();
+    }, 300);
 
-  const unitsMap = useMemo(() => new Map(units?.map(u => [u.id, u])), [units]);
-  const salesMap = useMemo(() => new Map(sales?.map(s => [s.id, s])), [sales]);
-  
-  const getUnitInfo = useCallback((unitId: string) => {
-    const unit = unitsMap.get(unitId);
-    if (!unit) return { baseUnit: undefined, conversionFactor: 1, name: '' };
-    if (unit.baseUnitId && unit.conversionFactor) {
-      const baseUnit = unitsMap.get(unit.baseUnitId);
-      return { baseUnit, conversionFactor: unit.conversionFactor, name: unit.name };
-    }
-    return { baseUnit: unit, conversionFactor: 1, name: unit.name };
-  }, [unitsMap]);
-
-  const inventoryReportData = useMemo((): InventoryReportItem[] => {
-    if (!products) return [];
-
-    return products.map(product => {
-      const unitInfo = getUnitInfo(product.unitId);
-      const baseUnit = unitInfo.baseUnit;
-
-      const fromDate = dateRange?.from;
-      const toDate = dateRange?.to;
-
-      // Calculate Opening Stock
-      const openingImports = (product.purchaseLots || []).filter(lot => fromDate && new Date(lot.importDate) < fromDate)
-        .reduce((sum, lot) => sum + (lot.quantity * getUnitInfo(lot.unitId).conversionFactor), 0);
-      const openingExports = allSalesItems.filter(item => {
-        const sale = salesMap.get(item.salesTransactionId);
-        return item.productId === product.id && sale && fromDate && new Date(sale.transactionDate) < fromDate;
-      }).reduce((sum, item) => sum + item.quantity, 0);
-      const openingStock = openingImports - openingExports;
-
-      // Calculate movements within the period
-      const importStock = (product.purchaseLots || []).filter(lot => {
-        const importDate = new Date(lot.importDate);
-        if(!fromDate || !toDate) return true;
-        return importDate >= fromDate && importDate <= toDate;
-      }).reduce((sum, lot) => sum + (lot.quantity * getUnitInfo(lot.unitId).conversionFactor), 0);
-
-      const exportStock = allSalesItems.filter(item => {
-        const sale = salesMap.get(item.salesTransactionId);
-        if (!sale) return false;
-        const saleDate = new Date(sale.transactionDate);
-        if(!fromDate || !toDate) return item.productId === product.id;
-        return item.productId === product.id && saleDate >= fromDate && saleDate <= toDate;
-      }).reduce((sum, item) => sum + item.quantity, 0);
-
-      const closingStock = openingStock + importStock - exportStock;
-
-      return {
-        productId: product.id,
-        productName: product.name,
-        unitName: baseUnit?.name || unitInfo.name,
-        openingStock,
-        importStock,
-        exportStock,
-        closingStock,
-        mainUnit: unitsMap.get(product.unitId),
-        baseUnit: baseUnit
-      };
-    });
-  }, [products, allSalesItems, salesMap, dateRange, getUnitInfo, unitsMap]);
-
-
-  const filteredReportData = useMemo(() => {
-    return inventoryReportData.filter(data => 
-        data.productName.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [inventoryReportData, searchTerm]);
+    return () => clearTimeout(debounceTimer);
+  }, [fetchReport]);
 
   const sortedReportData = useMemo(() => {
-    let sortableItems = [...filteredReportData];
+    if (!reportData?.data) return [];
+    
+    let sortableItems = [...reportData.data];
     sortableItems.sort((a, b) => {
-        const valA = a[sortKey];
-        const valB = b[sortKey];
-        if (typeof valA === 'string' && typeof valB === 'string') {
-          return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
-        }
-        return sortDirection === 'asc' ? valA - valB : valB - valA;
-      });
+      const valA = a[sortKey];
+      const valB = b[sortKey];
+      if (typeof valA === 'string' && typeof valB === 'string') {
+        return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      }
+      return sortDirection === 'asc' ? (valA as number) - (valB as number) : (valB as number) - (valA as number);
+    });
     return sortableItems;
-  }, [filteredReportData, sortKey, sortDirection]);
+  }, [reportData, sortKey, sortDirection]);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -217,26 +182,17 @@ export default function InventoryReportPage() {
     </TableHead>
   );
 
-  const formatStockWithMainUnit = (quantityInBase: number, mainUnit?: Unit, baseUnit?: Unit) => {
-    if (quantityInBase === 0) return "0";
-    if (!mainUnit || !baseUnit) return quantityInBase.toLocaleString();
-
-    const formattedBase = `${quantityInBase.toLocaleString(undefined, {maximumFractionDigits: 2})}`;
-
-    if (mainUnit.id !== baseUnit.id && mainUnit.conversionFactor) {
-      const quantityInMain = quantityInBase / mainUnit.conversionFactor;
-      return `${formattedBase} ${baseUnit.name} (${quantityInMain.toLocaleString(undefined, {maximumFractionDigits: 2})} ${mainUnit.name})`;
-    }
-    
-    return `${formattedBase} ${baseUnit.name}`;
+  const formatStock = (quantity: number, unitName?: string) => {
+    if (quantity === 0) return "0";
+    const formatted = quantity.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    return unitName ? `${formatted} ${unitName}` : formatted;
   }
-
 
   const handleExportExcel = () => {
     const dataToExport = sortedReportData.map((data, index) => ({
       'STT': index + 1,
       'Sản phẩm': data.productName,
-      'ĐVT': data.unitName,
+      'ĐVT': data.unitName || '',
       'Tồn đầu kỳ': data.openingStock,
       'Nhập trong kỳ': data.importStock,
       'Xuất trong kỳ': data.exportStock,
@@ -247,25 +203,61 @@ export default function InventoryReportPage() {
     const workbook = xlsx.utils.book_new();
     xlsx.utils.book_append_sheet(workbook, worksheet, "BaoCaoTonKho");
 
-    worksheet['!cols'] = [ {wch: 5}, {wch: 40}, {wch: 10}, {wch: 15}, {wch: 15}, {wch: 15}, {wch: 15} ];
+    worksheet['!cols'] = [{ wch: 5 }, { wch: 40 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
     const numberFormat = '#,##0';
     dataToExport.forEach((_, index) => {
-       const rowIndex = index + 2;
-       ['D', 'E', 'F', 'G'].forEach(col => {
-           const cell = worksheet[`${col}${rowIndex}`];
-           if(cell) cell.z = numberFormat;
-       });
-   });
+      const rowIndex = index + 2;
+      ['D', 'E', 'F', 'G'].forEach(col => {
+        const cell = worksheet[`${col}${rowIndex}`];
+        if (cell) cell.z = numberFormat;
+      });
+    });
 
     xlsx.writeFile(workbook, "bao_cao_ton_kho.xlsx");
+  };
+
+  const handleExportPDF = () => {
+    const headers = ["STT", "Sản phẩm", "ĐVT", "Tồn đầu kỳ", "Nhập trong kỳ", "Xuất trong kỳ", "Tồn cuối kỳ"];
+    const data = sortedReportData.map((item, index) => [
+      index + 1,
+      item.productName,
+      item.unitName || '',
+      item.openingStock.toLocaleString(),
+      item.importStock.toLocaleString(),
+      item.exportStock.toLocaleString(),
+      item.closingStock.toLocaleString(),
+    ]);
+
+    const dateRangeStr = dateRange?.from 
+      ? `${format(dateRange.from, "dd/MM/yyyy")} - ${dateRange.to ? format(dateRange.to, "dd/MM/yyyy") : format(dateRange.from, "dd/MM/yyyy")}`
+      : 'Tất cả thời gian';
+
+    const totals = reportData?.totals;
+    exportToPDF(
+      'BÁO CÁO NHẬP - XUẤT - TỒN',
+      headers,
+      data,
+      'bao_cao_ton_kho',
+      {
+        orientation: 'landscape',
+        dateRange: dateRangeStr,
+        totals: totals ? [
+          '',
+          'Tổng cộng',
+          '',
+          totals.totalOpeningStock.toLocaleString(),
+          totals.totalImportStock.toLocaleString(),
+          totals.totalExportStock.toLocaleString(),
+          totals.totalClosingStock.toLocaleString(),
+        ] : undefined,
+        columnAligns: ['center', 'left', 'center', 'right', 'right', 'right', 'right'],
+      }
+    );
   };
   
   const handleOpenAdjustment = (item: InventoryReportItem) => {
     setProductToAdjust(item);
   };
-
-
-  const isLoading = productsLoading || salesLoading || unitsLoading || salesItemsLoading;
 
   return (
     <>
@@ -273,7 +265,12 @@ export default function InventoryReportPage() {
         <InventoryAdjustmentForm
           isOpen={!!productToAdjust}
           onOpenChange={() => setProductToAdjust(null)}
-          productInfo={productToAdjust}
+          productInfo={{
+            productId: productToAdjust.productId,
+            productName: productToAdjust.productName,
+            unitName: productToAdjust.unitName || '',
+            closingStock: productToAdjust.closingStock,
+          }}
         />
       )}
       <Card>
@@ -283,38 +280,42 @@ export default function InventoryReportPage() {
             Xem lại lịch sử nhập, xuất và tồn kho của sản phẩm trong một khoảng thời gian.
           </CardDescription>
           <div className="flex flex-wrap items-center gap-4 pt-4">
-             <Popover>
-                <PopoverTrigger asChild>
-                  <Button id="date" variant={"outline"} className={cn("w-[300px] justify-start text-left font-normal", !dateRange && "text-muted-foreground")}>
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}</>) : format(dateRange.from, "dd/MM/yyyy")) : (<span>Tất cả thời gian</span>)}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                   <Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} />
-                   <div className="p-2 border-t grid grid-cols-3 gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_week')}>Tuần này</Button>
-                      <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_month')}>Tháng này</Button>
-                      <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_quarter')}>Quý này</Button>
-                      <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_year')}>Năm nay</Button>
-                      <Button variant="ghost" size="sm" onClick={() => setDatePreset('all')}>Tất cả</Button>
-                  </div>
-                </PopoverContent>
-              </Popover>
-              <div className="relative ml-auto">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Tìm sản phẩm..."
-                  className="w-full rounded-lg bg-background pl-8 md:w-80"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <Button onClick={handleExportExcel} variant="outline">
-                <File className="mr-2 h-4 w-4" />
-                Xuất Excel
-              </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button id="date" variant={"outline"} className={cn("w-[300px] justify-start text-left font-normal", !dateRange && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}</>) : format(dateRange.from, "dd/MM/yyyy")) : (<span>Tất cả thời gian</span>)}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} />
+                <div className="p-2 border-t grid grid-cols-3 gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_week')}>Tuần này</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_month')}>Tháng này</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_quarter')}>Quý này</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setDatePreset('this_year')}>Năm nay</Button>
+                  <Button variant="ghost" size="sm" onClick={() => setDatePreset('all')}>Tất cả</Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+            <div className="relative ml-auto">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Tìm sản phẩm..."
+                className="w-full rounded-lg bg-background pl-8 md:w-80"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <Button onClick={handleExportPDF} variant="outline">
+              <FileText className="mr-2 h-4 w-4" />
+              Xuất PDF
+            </Button>
+            <Button onClick={handleExportExcel} variant="outline">
+              <File className="mr-2 h-4 w-4" />
+              Xuất Excel
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -333,19 +334,20 @@ export default function InventoryReportPage() {
             </TableHeader>
             <TableBody>
               {isLoading && <TableRow><TableCell colSpan={8} className="text-center h-24">Đang tải dữ liệu...</TableCell></TableRow>}
-              {!isLoading && sortedReportData.map((data, index) => (
-                <TableRow key={data.productId}>
+              {error && <TableRow><TableCell colSpan={8} className="text-center h-24 text-destructive">{error}</TableCell></TableRow>}
+              {!isLoading && !error && sortedReportData.map((data, index) => (
+                <TableRow key={data.productId} className={data.isLowStock ? 'bg-destructive/10' : ''}>
                   <TableCell>{index + 1}</TableCell>
                   <TableCell className="font-medium">{data.productName}</TableCell>
                   <TableCell>{data.unitName}</TableCell>
-                  <TableCell className="text-right">{formatStockWithMainUnit(data.openingStock, data.mainUnit, data.baseUnit)}</TableCell>
+                  <TableCell className="text-right">{formatStock(data.openingStock, data.unitName)}</TableCell>
                   <TableCell className="text-right text-green-600">
-                    {data.importStock > 0 ? `+${formatStockWithMainUnit(data.importStock, data.mainUnit, data.baseUnit)}` : 0}
+                    {data.importStock > 0 ? `+${formatStock(data.importStock, data.unitName)}` : '0'}
                   </TableCell>
                   <TableCell className="text-right text-red-600">
-                    {data.exportStock > 0 ? `-${formatStockWithMainUnit(data.exportStock, data.mainUnit, data.baseUnit)}` : 0}
+                    {data.exportStock > 0 ? `-${formatStock(data.exportStock, data.unitName)}` : '0'}
                   </TableCell>
-                  <TableCell className="text-right font-semibold">{formatStockWithMainUnit(data.closingStock, data.mainUnit, data.baseUnit)}</TableCell>
+                  <TableCell className="text-right font-semibold">{formatStock(data.closingStock, data.unitName)}</TableCell>
                   <TableCell className="text-center">
                     <Button variant="ghost" size="icon" onClick={() => handleOpenAdjustment(data)}>
                       <Wrench className="h-4 w-4" />
@@ -353,7 +355,7 @@ export default function InventoryReportPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {!isLoading && sortedReportData.length === 0 && (
+              {!isLoading && !error && sortedReportData.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center h-24">Không có dữ liệu tồn kho.</TableCell>
                 </TableRow>
@@ -361,11 +363,16 @@ export default function InventoryReportPage() {
             </TableBody>
           </Table>
         </CardContent>
-         <CardFooter>
-              <div className="text-xs text-muted-foreground">
-                Hiển thị <strong>{sortedReportData.length}</strong> sản phẩm.
-              </div>
-            </CardFooter>
+        <CardFooter>
+          <div className="text-xs text-muted-foreground">
+            Hiển thị <strong>{sortedReportData.length}</strong> sản phẩm.
+            {reportData?.lowStockCount ? (
+              <span className="text-destructive ml-2">
+                ({reportData.lowStockCount} sản phẩm sắp hết hàng)
+              </span>
+            ) : null}
+          </div>
+        </CardFooter>
       </Card>
     </>
   );
