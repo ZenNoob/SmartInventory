@@ -31,6 +31,18 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Handle images - could be JSON array or single URL string
+    let images: string[] = [];
+    if (product.images) {
+      try {
+        const parsed = JSON.parse(product.images);
+        images = Array.isArray(parsed) ? parsed : [product.images];
+      } catch {
+        // If not valid JSON, treat as single URL
+        images = [product.images];
+      }
+    }
+
     // Map to storefront-friendly format
     const storefrontProduct = {
       id: product.id,
@@ -39,7 +51,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       sku: product.productSku,
       price: product.onlinePrice ?? product.productPrice,
       description: product.onlineDescription,
-      images: product.images ? JSON.parse(product.images) : [],
+      images,
       categoryName: product.categoryName,
       stockQuantity: product.stockQuantity,
       inStock: product.stockQuantity > 0,

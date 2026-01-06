@@ -3,7 +3,6 @@
 import { useEffect, useState, createContext, useContext, ReactNode } from 'react';
 import { StorefrontHeader } from './components/storefront-header';
 import { StorefrontFooter } from './components/storefront-footer';
-import { Toaster } from '@/components/ui/toaster';
 
 /**
  * Store configuration interface for storefront theming
@@ -102,6 +101,12 @@ export default function StorefrontLayout({ children, params }: StorefrontLayoutP
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  // Handle client-side mounting to avoid hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Resolve params
   useEffect(() => {
@@ -115,24 +120,34 @@ export default function StorefrontLayout({ children, params }: StorefrontLayoutP
     const fetchStoreData = async () => {
       try {
         setIsLoading(true);
+        setError(null);
         
         // Fetch store config via products API (includes store info)
+        console.log('Fetching products for slug:', slug);
         const productsRes = await fetch(`/api/storefront/${slug}/products`);
+        console.log('Products response status:', productsRes.status);
+        
         if (!productsRes.ok) {
+          const errorData = await productsRes.json().catch(() => ({}));
+          console.error('Products API error:', errorData);
           if (productsRes.status === 404) {
             setError('Cửa hàng không tồn tại hoặc đang tạm ngưng hoạt động');
           } else {
-            setError('Không thể tải thông tin cửa hàng');
+            setError(`Không thể tải thông tin cửa hàng: ${errorData.error || productsRes.statusText}`);
           }
           return;
         }
         
         const productsData = await productsRes.json();
+        console.log('Products data:', productsData);
         
         // Fetch full store config
         const storeRes = await fetch(`/api/storefront/${slug}/config`);
+        console.log('Config response status:', storeRes.status);
+        
         if (storeRes.ok) {
           const storeData = await storeRes.json();
+          console.log('Store config:', storeData);
           setStore(storeData.store);
         } else {
           // Fallback to basic store info from products
@@ -178,67 +193,53 @@ export default function StorefrontLayout({ children, params }: StorefrontLayoutP
     }
   };
 
-  // Apply theme CSS variables
+  // Apply theme CSS variables only on client
   useEffect(() => {
-    if (store) {
+    if (store && mounted) {
       document.documentElement.style.setProperty('--storefront-primary', store.primaryColor);
       document.documentElement.style.setProperty('--storefront-secondary', store.secondaryColor);
       document.documentElement.style.setProperty('--storefront-font', store.fontFamily);
     }
-  }, [store]);
+  }, [store, mounted]);
 
   if (error) {
     return (
-      <html lang="vi">
-        <body className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="text-center p-8">
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">Không tìm thấy cửa hàng</h1>
-            <p className="text-gray-600">{error}</p>
-          </div>
-        </body>
-      </html>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center p-8">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Không tìm thấy cửa hàng</h1>
+          <p className="text-gray-600">{error}</p>
+        </div>
+      </div>
     );
   }
 
   return (
-    <html lang="vi">
-      <head>
-        {store?.favicon && <link rel="icon" href={store.favicon} />}
-        <title>{store?.storeName || 'Cửa hàng'}</title>
-        <meta name="description" content={store?.description || ''} />
-      </head>
-      <body 
-        className="min-h-screen bg-gray-50"
-        style={{
-          fontFamily: store?.fontFamily || 'Inter, sans-serif',
-        }}
+    <StorefrontContext.Provider 
+      value={{ 
+        store, 
+        cart, 
+        customer, 
+        isLoading, 
+        refreshCart,
+        setCustomer,
+      }}
+    >
+      <div 
+        className="flex flex-col min-h-screen bg-gray-50"
+        style={mounted && store?.fontFamily ? { fontFamily: `${store.fontFamily}, sans-serif` } : undefined}
       >
-        <StorefrontContext.Provider 
-          value={{ 
-            store, 
-            cart, 
-            customer, 
-            isLoading, 
-            refreshCart,
-            setCustomer,
-          }}
-        >
-          <div className="flex flex-col min-h-screen">
-            <StorefrontHeader />
-            <main className="flex-1">
-              {isLoading ? (
-                <div className="flex items-center justify-center min-h-[400px]">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-                </div>
-              ) : (
-                children
-              )}
-            </main>
-            <StorefrontFooter />
-          </div>
-        </StorefrontContext.Provider>
-        <Toaster />
-      </body>
-    </html>
+        <StorefrontHeader />
+        <main className="flex-1">
+          {isLoading ? (
+            <div className="flex items-center justify-center min-h-[400px]">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+            </div>
+          ) : (
+            children
+          )}
+        </main>
+        <StorefrontFooter />
+      </div>
+    </StorefrontContext.Provider>
   );
 }

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest, getStoreIdFromRequest, verifyStoreAccess } from '@/lib/auth';
 import { onlineStoreRepository } from '@/lib/repositories/online-store-repository';
+import { onlineProductRepository } from '@/lib/repositories/online-product-repository';
+import { onlineOrderRepository } from '@/lib/repositories/online-order-repository';
 
 const MAX_STORES_PER_OWNER = 10;
 
@@ -37,10 +39,23 @@ export async function GET(request: NextRequest) {
 
     const onlineStores = await onlineStoreRepository.findByStoreId(storeId);
 
+    // Get product and order counts for each store
+    const storesWithStats = await Promise.all(
+      onlineStores.map(async (store) => {
+        const productCount = await onlineProductRepository.count(store.id);
+        const orderCount = await onlineOrderRepository.count(store.id);
+        return {
+          ...store,
+          productCount,
+          orderCount,
+        };
+      })
+    );
+
     return NextResponse.json({
       success: true,
-      onlineStores,
-      data: onlineStores,
+      onlineStores: storesWithStats,
+      data: storesWithStats,
     });
   } catch (error) {
     console.error('Get online stores error:', error);

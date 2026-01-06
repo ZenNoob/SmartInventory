@@ -55,6 +55,27 @@ export default async function RootLayout({
      )
   }
 
+  // Check if this is a storefront page by looking at children segment
+  const childSegment = (children as React.ReactElement)?.props?.childProp?.segment;
+  const isStorefront = childSegment === 'store';
+
+  // Storefront pages - minimal layout without admin navigation
+  if (isStorefront) {
+    return (
+      <html lang="vi" suppressHydrationWarning>
+        <body
+          className={cn(
+            'min-h-screen bg-background font-sans antialiased',
+            ptSans.variable
+          )}
+        >
+          {children}
+          <Toaster />
+        </body>
+      </html>
+    );
+  }
+
   return (
     <html lang="vi" suppressHydrationWarning>
       <body

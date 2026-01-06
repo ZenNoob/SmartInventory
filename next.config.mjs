@@ -34,6 +34,18 @@ const nextConfig = {
         port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'images.pokemontcg.io',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.ygoprodeck.com',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
   devIndicators: {

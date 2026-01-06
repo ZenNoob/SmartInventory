@@ -26,20 +26,34 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const products = await onlineProductRepository.findPublished(onlineStore.id);
 
     // Map to storefront-friendly format (exclude sensitive data)
-    const storefrontProducts = products.map((product) => ({
-      id: product.id,
-      name: product.productName,
-      slug: product.seoSlug,
-      sku: product.productSku,
-      price: product.onlinePrice ?? product.productPrice,
-      description: product.onlineDescription,
-      images: product.images ? JSON.parse(product.images) : [],
-      categoryName: product.categoryName,
-      stockQuantity: product.stockQuantity,
-      inStock: product.stockQuantity > 0,
-      seoTitle: product.seoTitle,
-      seoDescription: product.seoDescription,
-    }));
+    const storefrontProducts = products.map((product) => {
+      // Handle images - could be JSON array or single URL string
+      let images: string[] = [];
+      if (product.images) {
+        try {
+          const parsed = JSON.parse(product.images);
+          images = Array.isArray(parsed) ? parsed : [product.images];
+        } catch {
+          // If not valid JSON, treat as single URL
+          images = [product.images];
+        }
+      }
+
+      return {
+        id: product.id,
+        name: product.productName,
+        slug: product.seoSlug,
+        sku: product.productSku,
+        price: product.onlinePrice ?? product.productPrice,
+        description: product.onlineDescription,
+        images,
+        categoryName: product.categoryName,
+        stockQuantity: product.stockQuantity,
+        inStock: product.stockQuantity > 0,
+        seoTitle: product.seoTitle,
+        seoDescription: product.seoDescription,
+      };
+    });
 
     return NextResponse.json({
       success: true,

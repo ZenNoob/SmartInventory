@@ -16,6 +16,10 @@ export function middleware(request: NextRequest) {
   // Handles: subdomain.smartinventory.com, subdomain.localhost:3000
   const subdomain = getSubdomain(hostname);
   
+  // Create response with pathname header for layout detection
+  const response = NextResponse.next();
+  response.headers.set('x-pathname', url.pathname);
+  
   // If there's a subdomain and we're not already on /store path
   if (subdomain && !url.pathname.startsWith('/store/') && !url.pathname.startsWith('/api/')) {
     // Skip for static files and Next.js internals
@@ -24,15 +28,17 @@ export function middleware(request: NextRequest) {
       url.pathname.startsWith('/favicon') ||
       url.pathname.includes('.')
     ) {
-      return NextResponse.next();
+      return response;
     }
     
     // Rewrite to /store/[subdomain] path
     url.pathname = `/store/${subdomain}${url.pathname}`;
-    return NextResponse.rewrite(url);
+    const rewriteResponse = NextResponse.rewrite(url);
+    rewriteResponse.headers.set('x-pathname', `/store/${subdomain}${request.nextUrl.pathname}`);
+    return rewriteResponse;
   }
   
-  return NextResponse.next();
+  return response;
 }
 
 /**

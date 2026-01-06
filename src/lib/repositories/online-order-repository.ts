@@ -630,6 +630,17 @@ export class OnlineOrderRepository {
       averageOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0,
     };
   }
+
+  /**
+   * Count total orders for an online store
+   */
+  async count(onlineStoreId: string): Promise<number> {
+    const result = await queryOne<{ total: number }>(
+      `SELECT COUNT(*) as total FROM OnlineOrders WHERE online_store_id = @onlineStoreId`,
+      { onlineStoreId }
+    );
+    return result?.total ?? 0;
+  }
 }
 
 // Export singleton instance

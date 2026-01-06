@@ -46,19 +46,24 @@ export default function ProductDetailPage() {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
 
+  const slug = params.slug as string;
   const productSlug = params.productSlug as string;
 
   useEffect(() => {
-    if (!store?.slug || !productSlug) return;
+    if (!slug || !productSlug) return;
 
     const fetchProduct = async () => {
       try {
-        const res = await fetch(`/api/storefront/${store.slug}/products/${productSlug}`);
+        console.log('Fetching product:', slug, productSlug);
+        const res = await fetch(`/api/storefront/${slug}/products/${productSlug}`);
+        console.log('Response status:', res.status);
         if (res.ok) {
           const data = await res.json();
+          console.log('Product data:', data);
           setProduct(data.product);
         } else if (res.status === 404) {
-          router.push(`/store/${store.slug}/products`);
+          const errorData = await res.json();
+          console.error('Product not found:', errorData);
         }
       } catch (error) {
         console.error('Error fetching product:', error);
@@ -68,7 +73,7 @@ export default function ProductDetailPage() {
     };
 
     fetchProduct();
-  }, [store?.slug, productSlug, router]);
+  }, [slug, productSlug]);
 
   const handleQuantityChange = (value: number) => {
     if (value < 1) return;
