@@ -212,4 +212,116 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// GET /api/customers/:id/debt - Lấy thông tin công nợ và lịch sử thanh toán
+router.get('/:id/debt', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const storeId = req.storeId!;
+    const includeHistory = req.query.includeHistory === 'true';
+
+    // Lấy tổng tiền bán hàng (công nợ phát sinh)
+    const salesResult = await query(
+      `SELECT COALESCE(SUM(total_amount), 0) as totalSales
+       FROM Sales 
+       WHERE customer_id = @id AND store_id = @storeId`,
+      { id, storeId }
+    );
+    const totalSales = (salesResult[0] as { totalSales: number })?.totalSales || 0;
+
+    // Lấy tổng tiền đã thanh toán
+    const paymentsResult = await query(
+      `SELECT COALESCE(SUM(amount), 0) as totalPayments
+       FROM Payments 
+       WHERE customer_id = @id AND store_id = @storeId`,
+      { id, storeId }
+    );
+    const totalPayments = (paymentsResult[0] as { totalPayments: number })?.totalPayments || 0;
+
+    // Tính công nợ hiện tại
+    const currentDebt = totalSales - totalPayments;
+
+    // Lấy hạn mức tín dụng của khách hàng
+    const customer = await query(
+      `SELECT credit_limit FROM Customers WHERE id = @id AND store_id = @storeId`,
+      { id, storeId }
+    );
+    const creditLimit = (customer[0] as { credit_limit: number })?.credit_limit || 0;
+
+    const debtInfo = {
+      totalSales,
+      totalPayments,
+      currentDebt,
+      creditLimit,
+      availableCredit: Math.max(0, creditLimit - currentDebt),
+      isOverLimit: creditLimit > 0 && currentDebt > creditLimit,
+    };
+
+    let history: Array<{
+      id: string;
+      type: 'sale' | 'payment';
+      date: string;
+      amount: number;
+      description: string;
+      runningBalance: number;
+    }> = [];
+
+    if (includeHistory) {
+      // Lấy lịch sử bán hàng
+      const sales = await query(
+        `SELECT id, created_at as date, total_amount as amount, 'sale' as type
+         FROM Sales 
+         WHERE customer_id = @id AND store_id = @storeId
+         ORDER BY created_at ASC`,
+        { id, storeId }
+      );
+
+      // Lấy lịch sử thanh toán
+      const payments = await query(
+        `SELECT id, payment_date as date, amount, notes, 'payment' as type
+         FROM Payments 
+         WHERE customer_id = @id AND store_id = @storeId
+         ORDER BY payment_date ASC`,
+        { id, storeId }
+      );
+
+      // Kết hợp và sắp xếp theo thời gian
+      const allTransactions = [
+        ...sales.map((s: Record<string, unknown>) => ({
+          id: s.id as string,
+          type: 'sale' as const,
+          date: s.date as string,
+          amount: s.amount as number,
+          description: 'Mua hàng',
+        })),
+        ...payments.map((p: Record<string, unknown>) => ({
+          id: p.id as string,
+          type: 'payment' as const,
+          date: p.date as string,
+          amount: -(p.amount as number), // Âm vì là trả nợ
+          description: (p.notes as string) || 'Thanh toán công nợ',
+        })),
+      ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      // Tính số dư chạy
+      let runningBalance = 0;
+      history = allTransactions.map(t => {
+        runningBalance += t.type === 'sale' ? t.amount : -t.amount;
+        return {
+          ...t,
+          runningBalance,
+        };
+      });
+    }
+
+    res.json({
+      success: true,
+      debtInfo,
+      history,
+    });
+  } catch (error) {
+    console.error('Get customer debt error:', error);
+    res.status(500).json({ error: 'Failed to get customer debt' });
+  }
+});
+
 export default router;

@@ -28,6 +28,7 @@ import {
   Building,
   Briefcase,
   Globe,
+  Calculator,
 } from 'lucide-react'
 
 import {
@@ -337,6 +338,11 @@ export function MainNav() {
                           </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       )}
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={isActive('/inventory-check')}>
+                            <Link href="/inventory-check" className='flex items-center gap-2'><Calculator className="h-4 w-4" />Kiểm tra tính toán</Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
                   </SidebarMenuSub>
                 </CollapsibleContent>
               </SidebarMenuItem>

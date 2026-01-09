@@ -2,17 +2,91 @@
 
 import { apiClient } from '@/lib/api-client';
 
+interface DebtHistoryItem {
+  id: string;
+  type: 'sale' | 'payment';
+  date: string;
+  amount: number;
+  description: string;
+  runningBalance: number;
+}
+
+interface DebtInfo {
+  totalSales: number;
+  totalPayments: number;
+  currentDebt: number;
+  creditLimit: number;
+  availableCredit: number;
+  isOverLimit: boolean;
+}
+
+interface CustomerWithDebt {
+  id: string;
+  storeId: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  customerType?: string;
+  customerGroup?: string;
+  gender?: string;
+  birthday?: string;
+  zalo?: string;
+  bankName?: string;
+  bankAccountNumber?: string;
+  bankBranch?: string;
+  creditLimit: number;
+  currentDebt: number;
+  loyaltyPoints?: number;
+  lifetimePoints?: number;
+  loyaltyTier?: string;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  totalSales: number;
+  totalPayments: number;
+  calculatedDebt: number;
+}
+
 /**
- * Fetch all customers for the current store
+ * Fetch all customers for the current store with debt info
  */
-export async function getCustomers(): Promise<{
+export async function getCustomers(includeDebt: boolean = false): Promise<{
   success: boolean;
-  customers?: Array<Record<string, unknown>>;
+  customers?: CustomerWithDebt[];
   error?: string;
 }> {
   try {
-    const customers = await apiClient.getCustomers();
-    return { success: true, customers };
+    const customers = await apiClient.getCustomers() as Array<Record<string, unknown>>;
+    
+    if (includeDebt) {
+      // Lấy thông tin công nợ cho từng khách hàng
+      const customersWithDebt = await Promise.all(
+        customers.map(async (customer) => {
+          try {
+            const debtResult = await getCustomerDebt(customer.id as string, false);
+            return {
+              ...customer,
+              totalSales: debtResult.debtInfo?.totalSales || 0,
+              totalPayments: debtResult.debtInfo?.totalPayments || 0,
+              calculatedDebt: debtResult.debtInfo?.currentDebt || 0,
+              currentDebt: debtResult.debtInfo?.currentDebt || 0,
+            } as CustomerWithDebt;
+          } catch {
+            return {
+              ...customer,
+              totalSales: 0,
+              totalPayments: 0,
+              calculatedDebt: 0,
+              currentDebt: 0,
+            } as CustomerWithDebt;
+          }
+        })
+      );
+      return { success: true, customers: customersWithDebt };
+    }
+    
+    return { success: true, customers: customers as unknown as CustomerWithDebt[] };
   } catch (error: unknown) {
     console.error('Error fetching customers:', error);
     return { 
@@ -25,13 +99,22 @@ export async function getCustomers(): Promise<{
 /**
  * Get a single customer by ID
  */
-export async function getCustomer(customerId: string): Promise<{
+export async function getCustomer(customerId: string, options?: { includeDebt?: boolean; includeLoyalty?: boolean }): Promise<{
   success: boolean;
   customer?: Record<string, unknown>;
   error?: string;
 }> {
   try {
-    const customer = await apiClient.getCustomer(customerId);
+    const customer = await apiClient.getCustomer(customerId) as Record<string, unknown>;
+    
+    if (options?.includeDebt) {
+      const debtResult = await getCustomerDebt(customerId, false);
+      if (debtResult.success && debtResult.debtInfo) {
+        customer.currentDebt = debtResult.debtInfo.currentDebt;
+        customer.creditLimit = debtResult.debtInfo.creditLimit || customer.creditLimit || 0;
+      }
+    }
+    
     return { success: true, customer };
   } catch (error: unknown) {
     console.error('Error fetching customer:', error);
@@ -115,18 +198,25 @@ export async function generateCustomerTemplate(): Promise<{
 }
 
 /**
- * Get customer debt information
+ * Get customer debt information and history
  */
-export async function getCustomerDebt(customerId: string): Promise<{
+export async function getCustomerDebt(customerId: string, includeHistory: boolean = false): Promise<{
   success: boolean;
-  debt?: number;
+  debtInfo?: DebtInfo;
+  history?: DebtHistoryItem[];
   error?: string;
 }> {
   try {
-    const customer = await apiClient.getCustomer(customerId);
+    const data = await apiClient.request<{
+      success: boolean;
+      debtInfo: DebtInfo;
+      history: DebtHistoryItem[];
+    }>(`/customers/${customerId}/debt?includeHistory=${includeHistory}`);
+    
     return { 
       success: true, 
-      debt: (customer as { debt?: number }).debt || 0 
+      debtInfo: data.debtInfo,
+      history: data.history,
     };
   } catch (error: unknown) {
     console.error('Error fetching customer debt:', error);

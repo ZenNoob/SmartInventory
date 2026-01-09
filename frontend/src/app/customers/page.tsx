@@ -420,7 +420,6 @@ export default function CustomersPage() {
           debtInfo={{
             paid: customerForPayment.totalPayments,
             debt: customerForPayment.calculatedDebt || customerForPayment.currentDebt,
-            payments: [],
           }}
         />
       )}
