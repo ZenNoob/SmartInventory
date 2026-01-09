@@ -66,7 +66,7 @@ router.get('/:slug/products', async (req: Request, res: Response) => {
       SELECT op.id, op.online_store_id, op.product_id, op.category_id,
              op.is_published, op.online_price, op.online_description,
              op.display_order, op.seo_title, op.seo_description, op.seo_slug, op.images,
-             p.name as product_name, p.sku, p.cost_price,
+             p.name as product_name, p.sku, p.cost_price, p.stock_quantity,
              c.name as category_name
       FROM OnlineProducts op
       LEFT JOIN Products p ON op.product_id = p.id
@@ -128,6 +128,7 @@ router.get('/:slug/products', async (req: Request, res: Response) => {
             images = [p.images as string];
           }
         }
+        const stockQuantity = (p.stock_quantity as number) || 0;
         return {
           id: p.id,
           name: p.product_name,
@@ -140,6 +141,8 @@ router.get('/:slug/products', async (req: Request, res: Response) => {
           sku: p.sku,
           seoTitle: p.seo_title,
           seoDescription: p.seo_description,
+          stockQuantity: stockQuantity,
+          inStock: stockQuantity > 0,
         };
       }),
       pagination: {
@@ -171,7 +174,7 @@ router.get('/:slug/products/:productSlug', async (req: Request, res: Response) =
     }
 
     const product = await queryOne(
-      `SELECT op.*, p.name as product_name, p.sku, c.name as category_name
+      `SELECT op.*, p.name as product_name, p.sku, p.stock_quantity, c.name as category_name
        FROM OnlineProducts op
        LEFT JOIN Products p ON op.product_id = p.id
        LEFT JOIN Categories c ON op.category_id = c.id
@@ -183,6 +186,8 @@ router.get('/:slug/products/:productSlug', async (req: Request, res: Response) =
       res.status(404).json({ error: 'Product not found' });
       return;
     }
+
+    const stockQuantity = product.stock_quantity || 0;
 
     res.json({
       product: {
@@ -197,6 +202,8 @@ router.get('/:slug/products/:productSlug', async (req: Request, res: Response) =
         sku: product.sku,
         seoTitle: product.seo_title,
         seoDescription: product.seo_description,
+        stockQuantity: stockQuantity,
+        inStock: stockQuantity > 0,
       }
     });
   } catch (error) {
