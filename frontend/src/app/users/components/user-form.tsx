@@ -224,9 +224,10 @@ interface UserFormProps {
   onOpenChange: (isOpen: boolean) => void;
   user?: UserWithStores;
   allUsers?: UserWithStores[];
+  onUserUpdated?: () => void;
 }
 
-export function UserForm({ isOpen, onOpenChange, user, allUsers }: UserFormProps) {
+export function UserForm({ isOpen, onOpenChange, user, allUsers, onUserUpdated }: UserFormProps) {
   const { toast } = useToast();
   const { role: currentUserRole, userStores } = useUserRole();
   const [copyUserPopoverOpen, setCopyUserPopoverOpen] = useState(false);
@@ -335,6 +336,8 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers }: UserFormProps
         title: "Thành công!",
         description: `Đã ${user ? 'cập nhật' : 'tạo'} thông tin người dùng.`,
       });
+      // Refresh danh sách người dùng
+      onUserUpdated?.();
       if (!user) {
         onOpenChange(false);
         infoForm.reset();
@@ -356,6 +359,8 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers }: UserFormProps
         description: `Đã cập nhật phân quyền.`,
       });
       permissionsForm.reset(data, { keepValues: true });
+      // Refresh danh sách người dùng
+      onUserUpdated?.();
     } else {
       toast({
         variant: "destructive",

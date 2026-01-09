@@ -10,6 +10,7 @@ import {
   ShoppingCart,
   ExternalLink,
   Settings,
+  RefreshCw,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -47,32 +48,64 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
-import { getOnlineStores, deleteOnlineStore, permanentDeleteOnlineStore, OnlineStore } from "./actions"
+import { apiClient } from "@/lib/api-client"
+import { getOnlineStores, deleteOnlineStore, permanentDeleteOnlineStore, syncOnlineStoreProducts, OnlineStore } from "./actions"
 import { OnlineStoreForm } from "./components/online-store-form"
+
+interface Category {
+  id: string;
+  name: string;
+}
 
 export default function OnlineStoresPage() {
   const [stores, setStores] = useState<OnlineStore[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [storeToDelete, setStoreToDelete] = useState<OnlineStore | null>(null);
   const [storeToPermDelete, setStoreToPermDelete] = useState<OnlineStore | null>(null);
+  const [storeToSync, setStoreToSync] = useState<OnlineStore | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const { toast } = useToast();
 
   const fetchStores = useCallback(async () => {
     setIsLoading(true);
     try {
-      const result = await getOnlineStores();
-      if (result.success && result.data) {
-        setStores(result.data);
+      const [storesResult, categoriesData] = await Promise.all([
+        getOnlineStores(),
+        apiClient.getCategories(),
+      ]);
+      
+      if (storesResult.success && storesResult.data) {
+        setStores(storesResult.data);
       } else {
         toast({
           variant: "destructive",
           title: "Lỗi",
-          description: result.error || "Không thể tải danh sách cửa hàng online",
+          description: storesResult.error || "Không thể tải danh sách cửa hàng online",
         });
       }
+      
+      setCategories(categoriesData as Category[]);
     } catch (error) {
       console.error('Error fetching stores:', error);
     } finally {
@@ -124,6 +157,36 @@ export default function OnlineStoresPage() {
     }
     setIsDeleting(false);
     setStoreToPermDelete(null);
+  };
+
+  const handleSync = async (store: OnlineStore) => {
+    setStoreToSync(store);
+    setSelectedCategoryId("");
+  };
+
+  const handleConfirmSync = async () => {
+    if (!storeToSync) return;
+    
+    setIsSyncing(true);
+    const result = await syncOnlineStoreProducts(
+      storeToSync.id, 
+      selectedCategoryId || undefined
+    );
+    if (result.success) {
+      toast({
+        title: "Đồng bộ thành công!",
+        description: result.message,
+      });
+      fetchStores();
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Lỗi đồng bộ",
+        description: result.error,
+      });
+    }
+    setIsSyncing(false);
+    setStoreToSync(null);
   };
 
   const activeStores = stores.filter(s => s.isActive).length;
@@ -182,6 +245,55 @@ export default function OnlineStoresPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Sync Dialog with Category Selection */}
+      <Dialog open={!!storeToSync} onOpenChange={(open) => !open && setStoreToSync(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Đồng bộ sản phẩm</DialogTitle>
+            <DialogDescription>
+              Chọn danh mục sản phẩm để đồng bộ vào cửa hàng <strong>{storeToSync?.storeName}</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="category">Danh mục sản phẩm</Label>
+            <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
+              <SelectTrigger className="mt-2">
+                <SelectValue placeholder="Chọn danh mục (hoặc để trống để đồng bộ tất cả)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tất cả danh mục</SelectItem>
+                {categories.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground mt-2">
+              Chỉ các sản phẩm thuộc danh mục đã chọn sẽ được đồng bộ. Sản phẩm đã tồn tại sẽ được bỏ qua.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStoreToSync(null)} disabled={isSyncing}>
+              Hủy
+            </Button>
+            <Button onClick={handleConfirmSync} disabled={isSyncing}>
+              {isSyncing ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Đang đồng bộ...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Đồng bộ
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -356,6 +468,13 @@ export default function OnlineStoresPage() {
                               <ShoppingCart className="h-4 w-4 mr-2" />
                               Đơn hàng
                             </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            onClick={() => handleSync(store)}
+                          >
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Đồng bộ sản phẩm
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem 

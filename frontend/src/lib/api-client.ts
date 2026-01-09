@@ -16,6 +16,41 @@ interface ApiError extends Error {
   status?: number;
 }
 
+// Store types
+export interface Store {
+  id: string;
+  ownerId: string;
+  name: string;
+  slug?: string;
+  description?: string;
+  logoUrl?: string;
+  address?: string;
+  phone?: string;
+  businessType?: string;
+  domain?: string;
+  status: 'active' | 'inactive';
+  settings?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateStoreRequest {
+  name: string;
+  description?: string;
+  address?: string;
+  phone?: string;
+  businessType?: string;
+}
+
+export interface UpdateStoreRequest {
+  name?: string;
+  description?: string;
+  address?: string;
+  phone?: string;
+  businessType?: string;
+  status?: 'active' | 'inactive';
+}
+
 class ApiClient {
   private token: string | null = null;
   private storeId: string | null = null;
@@ -110,6 +145,8 @@ class ApiClient {
   async logout() {
     try {
       await this.request('/auth/logout', { method: 'POST' });
+    } catch {
+      // Ignore logout errors - session may already be invalid
     } finally {
       this.setToken(null);
       this.setStoreId(null);
@@ -294,12 +331,53 @@ class ApiClient {
   }
 
   // ==================== Cash Flow ====================
-  async getCashFlow() {
-    return this.request<Array<Record<string, unknown>>>('/cash-flow');
+  async getCashFlow(params?: { 
+    page?: number; 
+    pageSize?: number; 
+    type?: 'thu' | 'chi'; 
+    category?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    includeSummary?: boolean;
+  }) {
+    const searchParams = new URLSearchParams();
+    if (params?.page) searchParams.set('page', String(params.page));
+    if (params?.pageSize) searchParams.set('pageSize', String(params.pageSize));
+    if (params?.type) searchParams.set('type', params.type);
+    if (params?.category) searchParams.set('category', params.category);
+    if (params?.dateFrom) searchParams.set('dateFrom', params.dateFrom);
+    if (params?.dateTo) searchParams.set('dateTo', params.dateTo);
+    if (params?.includeSummary) searchParams.set('includeSummary', 'true');
+    const query = searchParams.toString();
+    return this.request<Record<string, unknown>>(`/cash-flow${query ? `?${query}` : ''}`);
+  }
+
+  async getCashFlowSummary(params?: { dateFrom?: string; dateTo?: string }) {
+    const searchParams = new URLSearchParams();
+    if (params?.dateFrom) searchParams.set('dateFrom', params.dateFrom);
+    if (params?.dateTo) searchParams.set('dateTo', params.dateTo);
+    const query = searchParams.toString();
+    return this.request<Record<string, unknown>>(`/cash-flow/summary${query ? `?${query}` : ''}`);
+  }
+
+  async getCashFlowCategories() {
+    return this.request<string[]>('/cash-flow/categories');
+  }
+
+  async getCashTransaction(id: string) {
+    return this.request<Record<string, unknown>>(`/cash-flow/${id}`);
   }
 
   async createCashTransaction(data: Record<string, unknown>) {
     return this.request('/cash-flow', { method: 'POST', body: data });
+  }
+
+  async updateCashTransaction(id: string, data: Record<string, unknown>) {
+    return this.request(`/cash-flow/${id}`, { method: 'PUT', body: data });
+  }
+
+  async deleteCashTransaction(id: string) {
+    return this.request<{ success: boolean }>(`/cash-flow/${id}`, { method: 'DELETE' });
   }
 
   // ==================== Payments ====================
@@ -330,15 +408,37 @@ class ApiClient {
 
   // ==================== Stores ====================
   async getStores() {
-    return this.request<Array<Record<string, unknown>>>('/stores');
+    return this.request<Array<Store>>('/stores');
+  }
+
+  async syncStores() {
+    return this.request<{ success: boolean; message: string; stores: Array<Store>; addedStores: string[] }>(
+      '/stores/sync',
+      { method: 'POST' }
+    );
   }
 
   async getStore(id: string) {
-    return this.request<Record<string, unknown>>(`/stores/${id}`);
+    return this.request<Store>(`/stores/${id}`);
   }
 
-  async createStore(data: Record<string, unknown>) {
-    return this.request('/stores', { method: 'POST', body: data });
+  async createStore(data: CreateStoreRequest) {
+    return this.request<Store>('/stores', { method: 'POST', body: data });
+  }
+
+  async updateStore(id: string, data: UpdateStoreRequest) {
+    return this.request<Store>(`/stores/${id}`, { method: 'PUT', body: data });
+  }
+
+  async deleteStore(id: string) {
+    return this.request<Store>(`/stores/${id}`, { method: 'DELETE' });
+  }
+
+  async deleteStorePermanently(id: string) {
+    return this.request<{ success: boolean; message: string; deletedData?: { products: number; orders: number; customers: number } }>(
+      `/stores/${id}/permanent?confirm=true`, 
+      { method: 'DELETE' }
+    );
   }
 
   // ==================== Users ====================
@@ -412,6 +512,10 @@ class ApiClient {
     return this.request<Array<Record<string, unknown>>>(`/sales/${saleId}/items`);
   }
 
+  async getAllSaleItems() {
+    return this.request<Array<Record<string, unknown>>>('/sales/items/all');
+  }
+
   // ==================== Online Store ====================
   async getOnlineStores() {
     return this.request<Array<Record<string, unknown>>>('/online-stores');
@@ -427,6 +531,92 @@ class ApiClient {
 
   async updateOnlineStore(id: string, data: Record<string, unknown>) {
     return this.request(`/online-stores/${id}`, { method: 'PUT', body: data });
+  }
+
+  async deleteOnlineStore(id: string) {
+    return this.request<{ success: boolean }>(`/online-stores/${id}`, { method: 'DELETE' });
+  }
+
+  // Online Store Products
+  async getOnlineStoreProducts(onlineStoreId: string) {
+    return this.request<Array<Record<string, unknown>>>(`/online-stores/${onlineStoreId}/products`);
+  }
+
+  async addOnlineStoreProduct(onlineStoreId: string, data: Record<string, unknown>) {
+    return this.request(`/online-stores/${onlineStoreId}/products`, { method: 'POST', body: data });
+  }
+
+  async updateOnlineStoreProduct(onlineStoreId: string, productId: string, data: Record<string, unknown>) {
+    return this.request(`/online-stores/${onlineStoreId}/products/${productId}`, { method: 'PUT', body: data });
+  }
+
+  async deleteOnlineStoreProduct(onlineStoreId: string, productId: string) {
+    return this.request<{ success: boolean }>(`/online-stores/${onlineStoreId}/products/${productId}`, { method: 'DELETE' });
+  }
+
+  async syncOnlineStoreProducts(onlineStoreId: string, data?: { categoryId?: string }) {
+    return this.request<{ success: boolean; synced: number; skipped: number; total: number; message: string }>(
+      `/online-stores/${onlineStoreId}/sync`, 
+      { method: 'POST', body: data || {} }
+    );
+  }
+
+  // ==================== Storefront (Public) ====================
+  async getStorefrontConfig(slug: string) {
+    return this.request<{ store: Record<string, unknown> }>(`/storefront/${slug}/config`);
+  }
+
+  async getStorefrontProducts(slug: string, params?: { category?: string; search?: string; page?: number; limit?: number }) {
+    const searchParams = new URLSearchParams();
+    if (params?.category) searchParams.set('category', params.category);
+    if (params?.search) searchParams.set('search', params.search);
+    if (params?.page) searchParams.set('page', String(params.page));
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    const query = searchParams.toString();
+    return this.request<{ store: Record<string, unknown>; products: Array<Record<string, unknown>>; pagination: Record<string, unknown> }>(
+      `/storefront/${slug}/products${query ? `?${query}` : ''}`
+    );
+  }
+
+  async getStorefrontProduct(slug: string, productSlug: string) {
+    return this.request<{ product: Record<string, unknown> }>(`/storefront/${slug}/products/${productSlug}`);
+  }
+
+  async getStorefrontCategories(slug: string) {
+    return this.request<{ categories: Array<Record<string, unknown>> }>(`/storefront/${slug}/categories`);
+  }
+
+  async getStorefrontCart(slug: string, sessionId: string) {
+    return this.request<{ cart: Record<string, unknown> }>(`/storefront/${slug}/cart`, {
+      headers: { 'X-Session-Id': sessionId }
+    });
+  }
+
+  async addToStorefrontCart(slug: string, sessionId: string, data: { productId: string; quantity?: number }) {
+    return this.request<{ success: boolean; message: string }>(`/storefront/${slug}/cart/items`, {
+      method: 'POST',
+      body: data,
+      headers: { 'X-Session-Id': sessionId }
+    });
+  }
+
+  async storefrontCheckout(slug: string, sessionId: string, data: {
+    customerEmail: string;
+    customerName: string;
+    customerPhone: string;
+    shippingAddress: Record<string, unknown>;
+    paymentMethod: string;
+    customerNote?: string;
+  }) {
+    return this.request<{ success: boolean; order: Record<string, unknown> }>(`/storefront/${slug}/checkout`, {
+      method: 'POST',
+      body: data,
+      headers: { 'X-Session-Id': sessionId }
+    });
+  }
+
+  async getStorefrontOrder(slug: string, orderNumber: string) {
+    return this.request<{ order: Record<string, unknown> }>(`/storefront/${slug}/orders/${orderNumber}`);
   }
 }
 

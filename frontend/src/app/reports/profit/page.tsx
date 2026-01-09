@@ -80,38 +80,64 @@ export default function ProfitReportPage() {
     setError(null);
 
     try {
-      const params = new URLSearchParams();
+      const params: Record<string, string> = {};
       if (dateRange?.from) {
-        params.set('dateFrom', dateRange.from.toISOString());
+        params.dateFrom = dateRange.from.toISOString();
       }
       if (dateRange?.to) {
-        params.set('dateTo', dateRange.to.toISOString());
+        params.dateTo = dateRange.to.toISOString();
       }
-      if (searchTerm) {
-        params.set('search', searchTerm);
-      }
-      params.set('groupBy', 'product');
+      params.groupBy = 'product';
 
-      const response = await fetch(`/api/reports/profit?${params.toString()}`, {
+      // Get token from localStorage
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+      
+      const searchParams = new URLSearchParams(params);
+      const response = await fetch(`http://localhost:3001/api/reports/profit?${searchParams.toString()}`, {
         headers: {
-          'x-store-id': currentStore.id,
+          'Content-Type': 'application/json',
+          'X-Store-Id': currentStore.id,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
-        credentials: 'include',
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch report');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to fetch report');
       }
 
       const data = await response.json();
-      setReportData(data);
+      
+      // Transform data to match expected format
+      const transformedData: ProfitReportResponse = {
+        success: true,
+        data: data.data?.map((item: Record<string, unknown>) => ({
+          productId: item.productId as string,
+          productName: item.productName as string,
+          totalQuantity: Number(item.totalQuantity) || 0,
+          totalRevenue: Number(item.totalRevenue) || 0,
+          totalCost: Number(item.totalCost) || 0,
+          totalProfit: Number(item.profit) || 0,
+          profitMargin: item.totalRevenue ? (Number(item.profit) / Number(item.totalRevenue) * 100) : 0,
+        })) || [],
+        totals: data.totals || {
+          totalQuantity: 0,
+          totalRevenue: 0,
+          totalCost: 0,
+          totalProfit: 0,
+          totalProducts: data.total || 0,
+          profitMargin: 0,
+        },
+      };
+
+      setReportData(transformedData);
     } catch (err) {
       console.error('Error fetching profit report:', err);
-      setError('Đã xảy ra lỗi khi tải báo cáo');
+      setError(err instanceof Error ? err.message : 'Đã xảy ra lỗi khi tải báo cáo');
     } finally {
       setIsLoading(false);
     }
-  }, [currentStore?.id, dateRange, searchTerm]);
+  }, [currentStore?.id, dateRange]);
 
   useEffect(() => {
     const debounceTimer = setTimeout(() => {

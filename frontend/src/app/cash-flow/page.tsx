@@ -122,7 +122,7 @@ export default function CashFlowPage() {
   }, [fetchTransactions]);
 
   const categories = useMemo(() => {
-    if (!transactions) return [];
+    if (!transactions || !Array.isArray(transactions)) return [];
     const uniqueCategories = new Set<string>();
     transactions.forEach(t => {
         if (t.category) {
@@ -133,7 +133,8 @@ export default function CashFlowPage() {
   }, [transactions]);
 
   const filteredTransactions = useMemo(() => {
-    return transactions?.filter(transaction => {
+    if (!transactions || !Array.isArray(transactions)) return [];
+    return transactions.filter(transaction => {
         const typeMatch = typeFilter === 'all' || transaction.type === typeFilter;
         
         const term = searchTerm.toLowerCase();
@@ -142,7 +143,7 @@ export default function CashFlowPage() {
             (transaction.category && transaction.category.toLowerCase().includes(term));
             
         return typeMatch && searchMatch;
-    }) || [];
+    });
   }, [transactions, typeFilter, searchTerm]);
 
   const handleSort = (key: SortKey) => {

@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import { v4 as uuidv4 } from 'uuid';
 import { query, queryOne } from '../db';
 import { authenticate, storeContext, AuthRequest } from '../middleware/auth';
 
@@ -96,17 +97,20 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       notes,
     } = req.body;
 
-    const result = await queryOne(
+    const customerId = uuidv4();
+
+    await query(
       `INSERT INTO Customers (
-        store_id, full_name, email, phone, address, customer_type, customer_group,
+        id, store_id, full_name, email, phone, address, customer_type, customer_group,
         status, lifetime_points, loyalty_tier, notes,
         created_at, updated_at
-      ) OUTPUT INSERTED.id VALUES (
-        @storeId, @name, @email, @phone, @address, @customerType, @customerGroup,
+      ) VALUES (
+        @id, @storeId, @name, @email, @phone, @address, @customerType, @customerGroup,
         @status, @lifetimePoints, @loyaltyTier, @notes,
         GETDATE(), GETDATE()
       )`,
       {
+        id: customerId,
         storeId,
         name,
         email: email || null,
@@ -121,7 +125,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       }
     );
 
-    res.status(201).json({ id: result?.id, success: true });
+    res.status(201).json({ id: customerId, success: true });
   } catch (error) {
     console.error('Create customer error:', error);
     res.status(500).json({ error: 'Failed to create customer' });

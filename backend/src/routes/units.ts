@@ -42,6 +42,35 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// GET /api/units/:id
+router.get('/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const storeId = req.storeId!;
+
+    const unit = await queryOne<UnitRecord>(
+      'SELECT * FROM Units WHERE id = @id AND store_id = @storeId',
+      { id, storeId }
+    );
+
+    if (!unit) {
+      res.status(404).json({ error: 'Không tìm thấy đơn vị' });
+      return;
+    }
+
+    res.json({
+      id: unit.id,
+      name: unit.name,
+      description: unit.description,
+      baseUnitId: unit.base_unit_id,
+      conversionFactor: unit.conversion_factor,
+    });
+  } catch (error) {
+    console.error('Get unit error:', error);
+    res.status(500).json({ error: 'Failed to get unit' });
+  }
+});
+
 // POST /api/units
 router.post('/', async (req: AuthRequest, res: Response) => {
   try {

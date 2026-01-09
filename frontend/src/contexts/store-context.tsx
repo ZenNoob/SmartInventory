@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { apiClient } from '@/lib/api-client';
+import { apiClient, CreateStoreRequest, UpdateStoreRequest } from '@/lib/api-client';
 
 export interface Store {
   id: string;
@@ -34,6 +34,10 @@ interface StoreContextType {
   switchStore: (storeId: string) => void;
   refreshStores: () => Promise<void>;
   logout: () => Promise<void>;
+  createStore: (data: CreateStoreRequest) => Promise<Store>;
+  updateStore: (id: string, data: UpdateStoreRequest) => Promise<Store>;
+  deactivateStore: (id: string) => Promise<void>;
+  deleteStorePermanently: (id: string) => Promise<void>;
 }
 
 const STORE_STORAGE_KEY = 'smartinventory_current_store_id';
@@ -113,6 +117,16 @@ export function StoreProvider({ children }: StoreProviderProps) {
       const data = await apiClient.getMe();
       
       if (data.user) {
+        // Sync stores first to ensure user has access to all stores
+        try {
+          const syncResult = await apiClient.syncStores();
+          if (syncResult.addedStores && syncResult.addedStores.length > 0) {
+            console.log('Auto-synced stores:', syncResult.addedStores);
+          }
+        } catch (syncError) {
+          console.warn('Store sync failed, continuing with existing stores:', syncError);
+        }
+
         // Fetch stores
         const storesData = await apiClient.getStores();
         const userStores = storesData as Store[];
@@ -186,6 +200,69 @@ export function StoreProvider({ children }: StoreProviderProps) {
     }
   }, [saveStoreId]);
 
+  // Create a new store
+  const createStore = useCallback(async (data: CreateStoreRequest): Promise<Store> => {
+    const newStore = await apiClient.createStore(data);
+    // Refresh stores list to include the new store
+    const storesData = await apiClient.getStores();
+    const userStores = storesData as Store[];
+    setStores(userStores);
+    // Auto-switch to the new store
+    setCurrentStore(newStore as Store);
+    saveStoreId(newStore.id);
+    return newStore as Store;
+  }, [saveStoreId]);
+
+  // Update an existing store
+  const updateStore = useCallback(async (id: string, data: UpdateStoreRequest): Promise<Store> => {
+    const updatedStore = await apiClient.updateStore(id, data);
+    // Update local state
+    setStores(prevStores => 
+      prevStores.map(store => store.id === id ? { ...store, ...updatedStore } as Store : store)
+    );
+    // Update current store if it's the one being updated
+    if (currentStore?.id === id) {
+      setCurrentStore(prev => prev ? { ...prev, ...updatedStore } as Store : null);
+    }
+    return updatedStore as Store;
+  }, [currentStore?.id]);
+
+  // Deactivate a store (soft delete)
+  const deactivateStore = useCallback(async (id: string): Promise<void> => {
+    await apiClient.deleteStore(id);
+    // Remove from stores list
+    const remainingStores = stores.filter(store => store.id !== id);
+    setStores(remainingStores);
+    // If the deactivated store was the current store, switch to another
+    if (currentStore?.id === id) {
+      if (remainingStores.length > 0) {
+        setCurrentStore(remainingStores[0]);
+        saveStoreId(remainingStores[0].id);
+      } else {
+        setCurrentStore(null);
+        saveStoreId(null);
+      }
+    }
+  }, [stores, currentStore?.id, saveStoreId]);
+
+  // Permanently delete a store (hard delete)
+  const deleteStorePermanently = useCallback(async (id: string): Promise<void> => {
+    await apiClient.deleteStorePermanently(id);
+    // Remove from stores list
+    const remainingStores = stores.filter(store => store.id !== id);
+    setStores(remainingStores);
+    // If the deleted store was the current store, switch to another
+    if (currentStore?.id === id) {
+      if (remainingStores.length > 0) {
+        setCurrentStore(remainingStores[0]);
+        saveStoreId(remainingStores[0].id);
+      } else {
+        setCurrentStore(null);
+        saveStoreId(null);
+      }
+    }
+  }, [stores, currentStore?.id, saveStoreId]);
+
   // Initial load
   useEffect(() => {
     fetchUserAndStores();
@@ -200,7 +277,11 @@ export function StoreProvider({ children }: StoreProviderProps) {
     switchStore,
     refreshStores,
     logout,
-  }), [currentStore, stores, user, isLoading, error, switchStore, refreshStores, logout]);
+    createStore,
+    updateStore,
+    deactivateStore,
+    deleteStorePermanently,
+  }), [currentStore, stores, user, isLoading, error, switchStore, refreshStores, logout, createStore, updateStore, deactivateStore, deleteStorePermanently]);
 
   return (
     <StoreContext.Provider value={value}>

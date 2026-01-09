@@ -5,14 +5,31 @@ import { apiClient } from '@/lib/api-client';
 /**
  * Fetch all shifts for the current store
  */
-export async function getShifts(): Promise<{
+export async function getShifts(params?: {
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<{
   success: boolean;
-  shifts?: Array<Record<string, unknown>>;
+  data?: Array<Record<string, unknown>>;
   error?: string;
 }> {
   try {
     const shifts = await apiClient.getShifts();
-    return { success: true, shifts };
+    
+    // Client-side filtering by date if needed
+    let filteredShifts = shifts;
+    if (params?.dateFrom || params?.dateTo) {
+      filteredShifts = shifts.filter((shift: Record<string, unknown>) => {
+        const shiftDate = new Date(shift.startTime as string);
+        if (params.dateFrom && shiftDate < new Date(params.dateFrom)) return false;
+        if (params.dateTo && shiftDate > new Date(params.dateTo)) return false;
+        return true;
+      });
+    }
+    
+    return { success: true, data: filteredShifts };
   } catch (error: unknown) {
     console.error('Error fetching shifts:', error);
     return { 

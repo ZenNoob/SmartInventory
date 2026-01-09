@@ -93,6 +93,9 @@ export function MainNav() {
   const showCatalogMenu = hasPermission('categories', 'view') || hasPermission('units', 'view') || hasPermission('customers', 'view') || hasPermission('suppliers', 'view');
   const showReportsMenu = hasPermission('reports_shifts', 'view') || hasPermission('reports_income_statement', 'view') || hasPermission('reports_profit', 'view') || hasPermission('reports_debt', 'view') || hasPermission('reports_supplier_debt', 'view') || hasPermission('reports_transactions', 'view') || hasPermission('reports_supplier_debt_tracking', 'view') || hasPermission('reports_revenue', 'view') || hasPermission('reports_sold_products', 'view') || hasPermission('reports_inventory', 'view') || hasPermission('reports_ai_segmentation', 'view') || hasPermission('reports_ai_basket_analysis', 'view');
   const showSystemMenu = hasPermission('users', 'view') || hasPermission('settings', 'view');
+  
+  // Check if user is owner (admin role) to show store management
+  const isOwner = user?.role === 'admin';
 
   return (
     <Sidebar>
@@ -347,11 +350,11 @@ export function MainNav() {
             <SidebarSeparator />
           </SidebarMenuItem>
 
-          {showSystemMenu && (
+          {(showSystemMenu || isOwner) && (
             <Collapsible asChild>
                 <SidebarMenuItem>
                     <CollapsibleTrigger asChild>
-                        <SidebarMenuButton className="w-full justify-start" isActive={isActive('/users') || isActive('/settings')} tooltip="Hệ thống">
+                        <SidebarMenuButton className="w-full justify-start" isActive={isActive('/users') || isActive('/settings') || isActive('/stores')} tooltip="Hệ thống">
                             <div className="flex items-center gap-2 flex-1">
                                 <Settings />
                                 {state === 'expanded' && <span>Hệ thống</span>}
@@ -361,6 +364,13 @@ export function MainNav() {
                     </CollapsibleTrigger>
                     <CollapsibleContent asChild>
                         <SidebarMenuSub>
+                            {isOwner && (
+                                <SidebarMenuSubItem>
+                                    <SidebarMenuSubButton asChild isActive={isActive('/stores')}>
+                                        <Link href="/stores" className='flex items-center gap-2'><Store className="h-4 w-4" />Quản lý cửa hàng</Link>
+                                    </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                            )}
                             {hasPermission('users', 'view') && (
                                 <SidebarMenuSubItem>
                                     <SidebarMenuSubButton asChild isActive={isActive('/users')}>

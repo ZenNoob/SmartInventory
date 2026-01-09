@@ -8,11 +8,20 @@ import { apiClient } from '@/lib/api-client';
 export async function getCashFlow(): Promise<{
   success: boolean;
   transactions?: Array<Record<string, unknown>>;
+  summary?: Record<string, unknown>;
   error?: string;
 }> {
   try {
-    const transactions = await apiClient.getCashFlow();
-    return { success: true, transactions };
+    const result = await apiClient.getCashFlow({ includeSummary: true, pageSize: 1000 }) as {
+      data?: Array<Record<string, unknown>>;
+      summary?: Record<string, unknown>;
+    };
+    // API returns { data: [...], summary: {...} }
+    return { 
+      success: true, 
+      transactions: result.data || [],
+      summary: result.summary
+    };
   } catch (error: unknown) {
     console.error('Error fetching cash flow:', error);
     return { 
@@ -46,12 +55,35 @@ export async function createCashTransaction(transaction: Record<string, unknown>
 /**
  * Get cash transactions (alias for getCashFlow)
  */
-export async function getCashTransactions(): Promise<{
+export async function getCashTransactions(params?: {
+  pageSize?: number;
+  includeSummary?: boolean;
+}): Promise<{
   success: boolean;
   transactions?: Array<Record<string, unknown>>;
+  summary?: Record<string, unknown>;
   error?: string;
 }> {
-  return getCashFlow();
+  try {
+    const result = await apiClient.getCashFlow({ 
+      includeSummary: params?.includeSummary ?? true, 
+      pageSize: params?.pageSize ?? 1000 
+    }) as {
+      data?: Array<Record<string, unknown>>;
+      summary?: Record<string, unknown>;
+    };
+    return { 
+      success: true, 
+      transactions: result.data || [],
+      summary: result.summary
+    };
+  } catch (error: unknown) {
+    console.error('Error fetching cash transactions:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Đã xảy ra lỗi khi lấy danh sách thu chi' 
+    };
+  }
 }
 
 /**

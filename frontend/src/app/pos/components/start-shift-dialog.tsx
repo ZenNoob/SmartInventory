@@ -63,7 +63,7 @@ export function StartShiftDialog({ userId, userName, onShiftStarted, user }: Sta
 
   const handleStartShift = async () => {
     setIsStarting(true)
-    const result = await startShift(effectiveUserId, effectiveUserName, startingCash)
+    const result = await startShift({ startingCash })
     if (result.success) {
       toast({
         title: 'Đã bắt đầu ca mới',

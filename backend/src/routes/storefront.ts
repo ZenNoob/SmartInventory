@@ -329,4 +329,386 @@ router.get('/:slug/cart', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/storefront/:slug/cart/items - Add item to cart
+router.post('/:slug/cart/items', async (req: Request, res: Response) => {
+  try {
+    const { slug } = req.params;
+    const sessionId = req.headers['x-session-id'] as string;
+    const { productId, quantity = 1 } = req.body;
+
+    if (!sessionId) {
+      res.status(400).json({ error: 'Session ID is required' });
+      return;
+    }
+
+    if (!productId) {
+      res.status(400).json({ error: 'Product ID is required' });
+      return;
+    }
+
+    const store = await queryOne(
+      `SELECT id FROM OnlineStores WHERE slug = @slug AND is_active = 1`,
+      { slug }
+    );
+
+    if (!store) {
+      res.status(404).json({ error: 'Store not found' });
+      return;
+    }
+
+    // Get the online product
+    const product = await queryOne(
+      `SELECT op.*, p.stock_quantity 
+       FROM OnlineProducts op
+       LEFT JOIN Products p ON op.product_id = p.id
+       WHERE op.id = @productId AND op.online_store_id = @onlineStoreId AND op.is_published = 1`,
+      { productId, onlineStoreId: store.id }
+    );
+
+    if (!product) {
+      res.status(404).json({ error: 'Product not found' });
+      return;
+    }
+
+    if (product.stock_quantity < quantity) {
+      res.status(400).json({ error: 'Insufficient stock' });
+      return;
+    }
+
+    // Get or create cart
+    let cart = await queryOne(
+      `SELECT * FROM ShoppingCarts WHERE online_store_id = @onlineStoreId AND session_id = @sessionId`,
+      { onlineStoreId: store.id, sessionId }
+    );
+
+    if (!cart) {
+      // Create new cart with 30 day expiry
+      const cartId = require('crypto').randomUUID();
+      await query(
+        `INSERT INTO ShoppingCarts (id, online_store_id, session_id, subtotal, discount_amount, shipping_fee, total, created_at, updated_at, expires_at)
+         VALUES (@id, @onlineStoreId, @sessionId, 0, 0, 0, 0, GETDATE(), GETDATE(), DATEADD(day, 30, GETDATE()))`,
+        { id: cartId, onlineStoreId: store.id, sessionId }
+      );
+      cart = { id: cartId, subtotal: 0, discount_amount: 0, shipping_fee: 0, total: 0 };
+    }
+
+    // Check if item already exists in cart
+    const existingItem = await queryOne(
+      `SELECT * FROM CartItems WHERE cart_id = @cartId AND online_product_id = @productId`,
+      { cartId: cart.id, productId }
+    );
+
+    const unitPrice = product.online_price;
+    
+    if (existingItem) {
+      // Update quantity
+      const newQuantity = existingItem.quantity + quantity;
+      const newTotalPrice = newQuantity * unitPrice;
+      await query(
+        `UPDATE CartItems SET quantity = @quantity, total_price = @totalPrice
+         WHERE id = @id`,
+        { id: existingItem.id, quantity: newQuantity, totalPrice: newTotalPrice }
+      );
+    } else {
+      // Add new item
+      const itemId = require('crypto').randomUUID();
+      const totalPrice = quantity * unitPrice;
+      await query(
+        `INSERT INTO CartItems (id, cart_id, online_product_id, quantity, unit_price, total_price, created_at)
+         VALUES (@id, @cartId, @productId, @quantity, @unitPrice, @totalPrice, GETDATE())`,
+        { id: itemId, cartId: cart.id, productId, quantity, unitPrice, totalPrice }
+      );
+    }
+
+    // Update cart totals
+    const cartTotals = await queryOne(
+      `SELECT SUM(total_price) as subtotal FROM CartItems WHERE cart_id = @cartId`,
+      { cartId: cart.id }
+    );
+    
+    const subtotal = cartTotals?.subtotal || 0;
+    const total = subtotal - (cart.discount_amount || 0) + (cart.shipping_fee || 0);
+    
+    await query(
+      `UPDATE ShoppingCarts SET subtotal = @subtotal, total = @total, updated_at = GETDATE()
+       WHERE id = @id`,
+      { id: cart.id, subtotal, total }
+    );
+
+    res.json({ success: true, message: 'Item added to cart' });
+  } catch (error) {
+    console.error('Add to cart error:', error);
+    res.status(500).json({ error: 'Failed to add item to cart' });
+  }
+});
+
+// POST /api/storefront/:slug/checkout - Create order from cart
+router.post('/:slug/checkout', async (req: Request, res: Response) => {
+  try {
+    const { slug } = req.params;
+    const sessionId = req.headers['x-session-id'] as string;
+    const { 
+      customerEmail, 
+      customerName, 
+      customerPhone, 
+      shippingAddress, 
+      paymentMethod, 
+      customerNote 
+    } = req.body;
+
+    if (!sessionId) {
+      res.status(400).json({ error: 'Session ID is required' });
+      return;
+    }
+
+    const store = await queryOne(
+      `SELECT id FROM OnlineStores WHERE slug = @slug AND is_active = 1`,
+      { slug }
+    );
+
+    if (!store) {
+      res.status(404).json({ error: 'Store not found' });
+      return;
+    }
+
+    // Get cart
+    const cart = await queryOne(
+      `SELECT * FROM ShoppingCarts WHERE online_store_id = @onlineStoreId AND session_id = @sessionId`,
+      { onlineStoreId: store.id, sessionId }
+    );
+
+    if (!cart) {
+      res.status(400).json({ error: 'Cart not found' });
+      return;
+    }
+
+    // Get cart items with product_id for stock update
+    const cartItems = await query(
+      `SELECT ci.*, p.name as product_name, p.sku as product_sku, op.online_price, op.product_id
+       FROM CartItems ci
+       LEFT JOIN OnlineProducts op ON ci.online_product_id = op.id
+       LEFT JOIN Products p ON op.product_id = p.id
+       WHERE ci.cart_id = @cartId`,
+      { cartId: cart.id }
+    );
+
+    if (cartItems.length === 0) {
+      res.status(400).json({ error: 'Cart is empty' });
+      return;
+    }
+
+    // Generate order number
+    const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+    const orderId = require('crypto').randomUUID();
+
+    // Format shipping address as JSON string
+    const shippingAddressStr = JSON.stringify(shippingAddress);
+
+    // Calculate totals
+    const subtotal = cart.subtotal;
+    const discountAmount = cart.discount_amount || 0;
+    const shippingFee = cart.shipping_fee || 0;
+    const total = subtotal - discountAmount + shippingFee;
+
+    // Create order
+    await query(
+      `INSERT INTO OnlineOrders (
+        id, order_number, online_store_id, customer_email, customer_name, customer_phone,
+        shipping_address, shipping_fee, subtotal, discount_amount, total,
+        status, payment_status, payment_method, customer_note, created_at, updated_at
+      ) VALUES (
+        @id, @orderNumber, @onlineStoreId, @customerEmail, @customerName, @customerPhone,
+        @shippingAddress, @shippingFee, @subtotal, @discountAmount, @total,
+        'pending', 'pending', @paymentMethod, @customerNote, GETDATE(), GETDATE()
+      )`,
+      {
+        id: orderId,
+        orderNumber,
+        onlineStoreId: store.id,
+        customerEmail,
+        customerName,
+        customerPhone,
+        shippingAddress: shippingAddressStr,
+        shippingFee,
+        subtotal,
+        discountAmount,
+        total,
+        paymentMethod,
+        customerNote: customerNote || null,
+      }
+    );
+
+    // Create order items and reduce stock
+    for (const item of cartItems) {
+      const orderItemId = require('crypto').randomUUID();
+      await query(
+        `INSERT INTO OnlineOrderItems (
+          id, order_id, online_product_id, product_name, product_sku, quantity, unit_price, total_price, created_at
+        ) VALUES (
+          @id, @orderId, @onlineProductId, @productName, @productSku, @quantity, @unitPrice, @totalPrice, GETDATE()
+        )`,
+        {
+          id: orderItemId,
+          orderId,
+          onlineProductId: item.online_product_id,
+          productName: item.product_name,
+          productSku: item.product_sku || null,
+          quantity: item.quantity,
+          unitPrice: item.unit_price,
+          totalPrice: item.total_price,
+        }
+      );
+
+      // Reduce stock quantity in Products table
+      await query(
+        `UPDATE Products SET stock_quantity = stock_quantity - @quantity, updated_at = GETDATE()
+         WHERE id = @productId AND stock_quantity >= @quantity`,
+        {
+          productId: item.product_id,
+          quantity: item.quantity,
+        }
+      );
+    }
+
+    // Sync to Sales table for reports - get store_id from OnlineStores
+    const onlineStore = await queryOne(
+      `SELECT store_id FROM OnlineStores WHERE id = @onlineStoreId`,
+      { onlineStoreId: store.id }
+    );
+
+    if (onlineStore?.store_id) {
+      const saleId = require('crypto').randomUUID();
+      const invoiceNumber = `ONLINE-${orderNumber}`;
+
+      // Create Sales record
+      await query(
+        `INSERT INTO Sales (
+          id, store_id, invoice_number, customer_id, shift_id, transaction_date,
+          status, total_amount, vat_amount, final_amount, discount, discount_type,
+          discount_value, payment_method, customer_payment, previous_debt, remaining_debt,
+          created_at, updated_at
+        ) VALUES (
+          @id, @storeId, @invoiceNumber, NULL, NULL, GETDATE(),
+          'completed', @totalAmount, 0, @finalAmount, @discount, NULL,
+          0, @paymentMethod, @finalAmount, 0, 0,
+          GETDATE(), GETDATE()
+        )`,
+        {
+          id: saleId,
+          storeId: onlineStore.store_id,
+          invoiceNumber,
+          totalAmount: subtotal,
+          finalAmount: total,
+          discount: discountAmount,
+          paymentMethod: paymentMethod === 'cod' ? 'cash' : paymentMethod,
+        }
+      );
+
+      // Create SalesItems records
+      for (const item of cartItems) {
+        await query(
+          `INSERT INTO SalesItems (id, sales_transaction_id, product_id, quantity, price, created_at)
+           VALUES (NEWID(), @saleId, @productId, @quantity, @price, GETDATE())`,
+          {
+            saleId,
+            productId: item.product_id,
+            quantity: item.quantity,
+            price: item.unit_price,
+          }
+        );
+      }
+    }
+
+    // Delete cart items and cart
+    await query(`DELETE FROM CartItems WHERE cart_id = @cartId`, { cartId: cart.id });
+    await query(`DELETE FROM ShoppingCarts WHERE id = @id`, { id: cart.id });
+
+    res.json({
+      success: true,
+      order: {
+        id: orderId,
+        orderNumber,
+        total,
+        status: 'pending',
+        paymentStatus: 'pending',
+      }
+    });
+  } catch (error) {
+    console.error('Checkout error:', error);
+    res.status(500).json({ error: 'Failed to process checkout' });
+  }
+});
+
+// GET /api/storefront/:slug/orders/:orderNumber - Get order details
+router.get('/:slug/orders/:orderNumber', async (req: Request, res: Response) => {
+  try {
+    const { slug, orderNumber } = req.params;
+
+    const store = await queryOne(
+      `SELECT id FROM OnlineStores WHERE slug = @slug AND is_active = 1`,
+      { slug }
+    );
+
+    if (!store) {
+      res.status(404).json({ error: 'Store not found' });
+      return;
+    }
+
+    const order = await queryOne(
+      `SELECT * FROM OnlineOrders WHERE online_store_id = @onlineStoreId AND order_number = @orderNumber`,
+      { onlineStoreId: store.id, orderNumber }
+    );
+
+    if (!order) {
+      res.status(404).json({ error: 'Order not found' });
+      return;
+    }
+
+    // Get order items
+    const items = await query(
+      `SELECT * FROM OnlineOrderItems WHERE order_id = @orderId`,
+      { orderId: order.id }
+    );
+
+    // Parse shipping address
+    let shippingAddress = {};
+    try {
+      shippingAddress = JSON.parse(order.shipping_address);
+    } catch {
+      shippingAddress = { addressLine: order.shipping_address };
+    }
+
+    res.json({
+      order: {
+        id: order.id,
+        orderNumber: order.order_number,
+        status: order.status,
+        paymentStatus: order.payment_status,
+        paymentMethod: order.payment_method,
+        customerEmail: order.customer_email,
+        customerName: order.customer_name,
+        customerPhone: order.customer_phone,
+        shippingAddress,
+        subtotal: order.subtotal,
+        shippingFee: order.shipping_fee,
+        discountAmount: order.discount_amount,
+        total: order.total,
+        customerNote: order.customer_note,
+        createdAt: order.created_at,
+        items: items.map((item: Record<string, unknown>) => ({
+          id: item.id,
+          productName: item.product_name,
+          productSku: item.product_sku,
+          quantity: item.quantity,
+          unitPrice: item.unit_price,
+          totalPrice: item.total_price,
+        })),
+      }
+    });
+  } catch (error) {
+    console.error('Get order error:', error);
+    res.status(500).json({ error: 'Failed to get order' });
+  }
+});
+
 export default router;

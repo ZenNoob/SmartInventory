@@ -65,32 +65,37 @@ export default function OrderConfirmationPage() {
 
     const fetchOrder = async () => {
       try {
-        // For now, we'll show a confirmation based on the order number
-        // In a real app, you'd fetch the order details from an API
-        setOrder({
-          id: '',
-          orderNumber,
-          status: 'pending',
-          paymentStatus: 'pending',
-          paymentMethod: 'cod',
-          customerEmail: '',
-          customerName: '',
-          customerPhone: '',
-          shippingAddress: {
-            fullName: '',
-            phone: '',
-            province: '',
-            district: '',
-            ward: '',
-            addressLine: '',
-          },
-          subtotal: 0,
-          shippingFee: 0,
-          discountAmount: 0,
-          total: 0,
-          createdAt: new Date().toISOString(),
-          items: [],
-        });
+        const res = await fetch(`/api/storefront/${store.slug}/orders/${orderNumber}`);
+        if (res.ok) {
+          const data = await res.json();
+          setOrder(data.order);
+        } else {
+          // Fallback to basic info if order not found
+          setOrder({
+            id: '',
+            orderNumber,
+            status: 'pending',
+            paymentStatus: 'pending',
+            paymentMethod: 'cod',
+            customerEmail: '',
+            customerName: '',
+            customerPhone: '',
+            shippingAddress: {
+              fullName: '',
+              phone: '',
+              province: '',
+              district: '',
+              ward: '',
+              addressLine: '',
+            },
+            subtotal: 0,
+            shippingFee: 0,
+            discountAmount: 0,
+            total: 0,
+            createdAt: new Date().toISOString(),
+            items: [],
+          });
+        }
       } catch (error) {
         console.error('Error fetching order:', error);
       } finally {

@@ -191,16 +191,24 @@ export default function Dashboard() {
 
   // Fetch sales items after sales are loaded
   useEffect(() => {
-    if (salesLoading || sales.length === 0) {
-      setSalesItemsLoading(false);
+    if (salesLoading || !currentStore) {
       return;
     }
 
-    // For now, skip fetching sales items as the endpoint may not exist
-    // TODO: Implement getSaleItems in apiClient when backend supports it
-    setSalesItemsLoading(false);
-    setAllSalesItems([]);
-  }, [sales, salesLoading]);
+    const fetchSalesItems = async () => {
+      setSalesItemsLoading(true);
+      try {
+        const items = await apiClient.getAllSaleItems();
+        setAllSalesItems(items as SalesItem[]);
+      } catch (e) {
+        console.error('Error fetching sales items:', e);
+        setAllSalesItems([]);
+      }
+      setSalesItemsLoading(false);
+    };
+
+    fetchSalesItems();
+  }, [salesLoading, currentStore]);
   
   const productsMap = useMemo(() => new Map(products?.map(p => [p.id, p])), [products]);
   const unitsMap = useMemo(() => new Map(units?.map(u => [u.id, u])), [units]);
@@ -244,26 +252,25 @@ export default function Dashboard() {
   }, [unitsMap]);
 
   const getStockInfo = useCallback((product: Product) => {
-    if (!product.unitId) return { stock: 0, sold: 0, stockInBaseUnit: 0, importedInBaseUnit: 0, baseUnit: undefined, mainUnit: undefined };
-
-    const { baseUnit: mainBaseUnit, conversionFactor: mainConversionFactor } = getUnitInfo(product.unitId);
-    const mainUnit = unitsMap.get(product.unitId);
+    // Use stockQuantity directly from product instead of calculating from purchaseLots
+    const mainUnit = product.unitId ? unitsMap.get(product.unitId) : undefined;
+    const baseUnit = mainUnit?.baseUnitId ? unitsMap.get(mainUnit.baseUnitId) : mainUnit;
     
-    let totalImportedInBaseUnit = 0;
-    product.purchaseLots?.forEach(lot => {
-        const { conversionFactor } = getUnitInfo(lot.unitId);
-        totalImportedInBaseUnit += lot.quantity * conversionFactor;
-    });
+    const stock = product.stockQuantity || 0;
     
     const totalSoldInBaseUnit = allSalesItems
       .filter(item => item.productId === product.id)
       .reduce((acc, item) => acc + item.quantity, 0);
 
-    const stockInBaseUnit = totalImportedInBaseUnit - totalSoldInBaseUnit;
-    const stockInMainUnit = stockInBaseUnit / (mainConversionFactor || 1);
-
-    return { stock: stockInMainUnit, sold: totalSoldInBaseUnit, stockInBaseUnit, importedInBaseUnit: totalImportedInBaseUnit, baseUnit: mainBaseUnit || mainUnit, mainUnit };
-  }, [allSalesItems, getUnitInfo, unitsMap]);
+    return { 
+      stock, 
+      sold: totalSoldInBaseUnit, 
+      stockInBaseUnit: stock, 
+      importedInBaseUnit: 0, 
+      baseUnit, 
+      mainUnit 
+    };
+  }, [allSalesItems, unitsMap]);
 
   const formatStockDisplay = (stock: number, mainUnit?: Unit, baseUnit?: Unit): string => {
     if (!mainUnit) return stock.toString();

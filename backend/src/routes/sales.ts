@@ -53,6 +53,39 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// GET /api/sales/items/all - Get all sale items for dashboard (must be before /:id)
+router.get('/items/all', async (req: AuthRequest, res: Response) => {
+  try {
+    const storeId = req.storeId!;
+
+    const items = await query(
+      `SELECT si.id, si.sales_transaction_id, si.product_id, si.quantity, si.price,
+              p.name as product_name, s.transaction_date
+       FROM SalesItems si
+       JOIN Products p ON si.product_id = p.id
+       JOIN Sales s ON si.sales_transaction_id = s.id
+       WHERE s.store_id = @storeId
+       ORDER BY s.transaction_date DESC`,
+      { storeId }
+    );
+
+    res.json(items.map((i: Record<string, unknown>) => ({
+      id: i.id,
+      salesTransactionId: i.sales_transaction_id,
+      productId: i.product_id,
+      productName: i.product_name,
+      unitName: null,
+      quantity: i.quantity,
+      price: i.price,
+      totalPrice: (i.quantity as number) * (i.price as number),
+      transactionDate: i.transaction_date,
+    })));
+  } catch (error) {
+    console.error('Get all sale items error:', error);
+    res.status(500).json({ error: 'Failed to get sale items' });
+  }
+});
+
 // GET /api/sales/:id
 router.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
@@ -102,24 +135,24 @@ router.get('/:id/items', async (req: AuthRequest, res: Response) => {
     const storeId = req.storeId!;
 
     const items = await query(
-      `SELECT si.*, p.name as product_name, u.name as unit_name
-       FROM SaleItems si
+      `SELECT si.id, si.sales_transaction_id, si.product_id, si.quantity, si.price,
+              p.name as product_name
+       FROM SalesItems si
        JOIN Products p ON si.product_id = p.id
-       LEFT JOIN Units u ON p.unit_id = u.id
-       JOIN Sales s ON si.sale_id = s.id
-       WHERE si.sale_id = @id AND s.store_id = @storeId`,
+       JOIN Sales s ON si.sales_transaction_id = s.id
+       WHERE si.sales_transaction_id = @id AND s.store_id = @storeId`,
       { id, storeId }
     );
 
     res.json(items.map((i: Record<string, unknown>) => ({
       id: i.id,
-      saleId: i.sale_id,
+      saleId: i.sales_transaction_id,
       productId: i.product_id,
       productName: i.product_name,
-      unitName: i.unit_name,
+      unitName: null,
       quantity: i.quantity,
-      unitPrice: i.unit_price,
-      totalPrice: i.total_price,
+      unitPrice: i.price,
+      totalPrice: (i.quantity as number) * (i.price as number),
     })));
   } catch (error) {
     console.error('Get sale items error:', error);
@@ -169,14 +202,13 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     if (items && items.length > 0) {
       for (const item of items) {
         await query(
-          `INSERT INTO SaleItems (id, sale_id, product_id, quantity, unit_price, total_price, created_at)
-           VALUES (NEWID(), @saleId, @productId, @quantity, @unitPrice, @totalPrice, GETDATE())`,
+          `INSERT INTO SalesItems (id, sales_transaction_id, product_id, quantity, price, created_at)
+           VALUES (NEWID(), @saleId, @productId, @quantity, @price, GETDATE())`,
           { 
             saleId: sale.id, 
             productId: item.productId, 
             quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            totalPrice: item.totalPrice || item.quantity * item.unitPrice
+            price: item.unitPrice,
           }
         );
 
@@ -232,7 +264,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
     const storeId = req.storeId!;
 
     // Delete sale items first
-    await query('DELETE FROM SaleItems WHERE sale_id = @id', { id });
+    await query('DELETE FROM SalesItems WHERE sales_transaction_id = @id', { id });
     
     // Delete sale
     await query('DELETE FROM Sales WHERE id = @id AND store_id = @storeId', { id, storeId });

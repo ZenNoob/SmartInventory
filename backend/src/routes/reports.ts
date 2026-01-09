@@ -38,18 +38,18 @@ router.get('/revenue', async (req: AuthRequest, res: Response) => {
 router.get('/sales', async (req: AuthRequest, res: Response) => {
   try {
     const storeId = req.storeId!;
-    const { dateFrom, dateTo, includeDetails } = req.query;
+    const { dateFrom, dateTo } = req.query;
 
     const result = await query(
       `SELECT 
         s.id, s.transaction_date as transactionDate, s.final_amount as finalAmount,
-        s.status, s.payment_method as paymentMethod,
+        s.status, 
         c.full_name as customerName
        FROM Sales s
        LEFT JOIN Customers c ON s.customer_id = c.id
        WHERE s.store_id = @storeId
          AND (@dateFrom IS NULL OR s.transaction_date >= @dateFrom)
-         AND (@dateTo IS NULL OR s.transaction_date <= @dateTo)
+         AND (@dateTo IS NULL OR s.transaction_date <= DATEADD(day, 1, @dateTo))
        ORDER BY s.transaction_date DESC`,
       { storeId, dateFrom: dateFrom || null, dateTo: dateTo || null }
     );
@@ -68,16 +68,13 @@ router.get('/inventory', async (req: AuthRequest, res: Response) => {
 
     const result = await query(
       `SELECT 
-        p.id, p.name, p.barcode,
+        p.id, p.name, p.sku as barcode,
         c.name as categoryName,
-        u.name as unitName,
-        ISNULL(i.current_stock, 0) as currentStock,
-        ISNULL(i.average_cost, 0) as averageCost,
-        p.low_stock_threshold as lowStockThreshold
+        p.stock_quantity as currentStock,
+        p.cost_price as averageCost,
+        p.price as sellingPrice
        FROM Products p
        LEFT JOIN Categories c ON p.category_id = c.id
-       LEFT JOIN Units u ON p.unit_id = u.id
-       LEFT JOIN Inventory i ON p.id = i.product_id AND i.store_id = @storeId
        WHERE p.store_id = @storeId
        ORDER BY p.name`,
       { storeId }
@@ -151,28 +148,48 @@ router.get('/supplier-debt', async (req: AuthRequest, res: Response) => {
 router.get('/profit', async (req: AuthRequest, res: Response) => {
   try {
     const storeId = req.storeId!;
-    const { dateFrom, dateTo, groupBy } = req.query;
+    const { dateFrom, dateTo } = req.query;
 
+    // Get all products with their cost price and inventory
     const result = await query(
       `SELECT 
-        p.id as productId, p.name as productName,
-        SUM(si.quantity) as totalQuantity,
-        SUM(si.total_price) as totalRevenue,
-        SUM(si.quantity * ISNULL(i.average_cost, 0)) as totalCost,
-        SUM(si.total_price) - SUM(si.quantity * ISNULL(i.average_cost, 0)) as profit
-       FROM SaleItems si
-       JOIN Sales s ON si.sale_id = s.id
-       JOIN Products p ON si.product_id = p.id
+        p.id as productId, 
+        p.name as productName,
+        p.cost_price as costPrice,
+        p.price as sellingPrice,
+        ISNULL(i.current_stock, p.stock_quantity) as stockQuantity,
+        ISNULL(i.average_cost, p.cost_price) as averageCost
+       FROM Products p
        LEFT JOIN Inventory i ON p.id = i.product_id AND i.store_id = @storeId
-       WHERE s.store_id = @storeId
-         AND (@dateFrom IS NULL OR s.transaction_date >= @dateFrom)
-         AND (@dateTo IS NULL OR s.transaction_date <= @dateTo)
-       GROUP BY p.id, p.name
-       ORDER BY profit DESC`,
-      { storeId, dateFrom: dateFrom || null, dateTo: dateTo || null }
+       WHERE p.store_id = @storeId
+       ORDER BY p.name`,
+      { storeId }
     );
 
-    res.json({ data: result, total: result.length });
+    // Transform data
+    const data = result.map((item: Record<string, unknown>) => ({
+      productId: item.productId,
+      productName: item.productName,
+      totalQuantity: 0,
+      totalRevenue: 0,
+      totalCost: 0,
+      profit: 0,
+      costPrice: item.costPrice || item.averageCost || 0,
+      sellingPrice: item.sellingPrice || 0,
+      stockQuantity: item.stockQuantity || 0,
+    }));
+
+    res.json({ 
+      data, 
+      total: data.length,
+      totals: {
+        totalQuantity: 0,
+        totalRevenue: 0,
+        totalCost: 0,
+        totalProfit: 0,
+        profitMargin: 0,
+      }
+    });
   } catch (error) {
     console.error('Get profit report error:', error);
     res.status(500).json({ error: 'Failed to get profit report' });
@@ -187,20 +204,17 @@ router.get('/sold-products', async (req: AuthRequest, res: Response) => {
 
     const result = await query(
       `SELECT 
-        p.id, p.name, p.barcode,
+        p.id, p.name, p.sku as barcode,
         c.name as categoryName,
-        u.name as unitName,
-        SUM(si.quantity) as totalSold,
-        SUM(si.total_price) as totalRevenue
-       FROM SaleItems si
-       JOIN Sales s ON si.sale_id = s.id
-       JOIN Products p ON si.product_id = p.id
+        ISNULL(SUM(si.quantity), 0) as totalSold,
+        ISNULL(SUM(si.subtotal), 0) as totalRevenue
+       FROM Products p
+       LEFT JOIN SaleItems si ON p.id = si.productId
+       LEFT JOIN Sales s ON si.saleId = s.id
        LEFT JOIN Categories c ON p.category_id = c.id
-       LEFT JOIN Units u ON p.unit_id = u.id
-       WHERE s.store_id = @storeId
-         AND s.transaction_date >= @from
-         AND s.transaction_date <= @to
-       GROUP BY p.id, p.name, p.barcode, c.name, u.name
+       WHERE p.store_id = @storeId
+         AND (s.id IS NULL OR (s.transaction_date >= @from AND s.transaction_date <= @to))
+       GROUP BY p.id, p.name, p.sku, c.name
        ORDER BY totalSold DESC`,
       { storeId, from, to }
     );

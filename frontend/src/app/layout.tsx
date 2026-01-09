@@ -7,6 +7,7 @@ import GlobalError from './global-error';
 import { Providers } from './providers';
 import { MainNav } from '@/components/main-nav';
 import { Header } from '@/components/header';
+import { NoStorePrompt } from '@/components/stores';
 
 const ptSans = PT_Sans({
   subsets: ['latin'],
@@ -39,7 +40,9 @@ export default function RootLayout({
               <MainNav />
               <div className="flex-1 flex flex-col p-6 gap-6 min-w-0">
                 <Header />
-                <main className="flex-1 overflow-y-auto">{children}</main>
+                <main className="flex-1 overflow-y-auto">
+                  <NoStorePrompt>{children}</NoStorePrompt>
+                </main>
               </div>
             </div>
           </Providers>

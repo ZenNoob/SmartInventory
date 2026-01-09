@@ -40,7 +40,41 @@ export async function getProducts(params?: GetProductsParams): Promise<{
   error?: string;
 }> {
   try {
-    const products = await apiClient.getProducts() as ProductWithStock[];
+    const rawProducts = await apiClient.getProducts() as Array<{
+      id: string;
+      storeId: string;
+      name: string;
+      sku?: string;
+      description?: string;
+      categoryId: string;
+      categoryName?: string;
+      price?: number;
+      costPrice?: number;
+      stockQuantity?: number;
+      images?: string;
+      status: 'active' | 'draft' | 'archived';
+      createdAt: string;
+      updatedAt: string;
+    }>;
+    
+    // Map API response to ProductWithStock format
+    const products: ProductWithStock[] = rawProducts.map(p => ({
+      id: p.id,
+      storeId: p.storeId,
+      name: p.name,
+      barcode: p.sku,
+      description: p.description,
+      categoryId: p.categoryId,
+      categoryName: p.categoryName,
+      unitId: '',
+      sellingPrice: p.price || 0,
+      status: p.status,
+      lowStockThreshold: 10,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+      currentStock: p.stockQuantity || 0,
+      averageCost: p.costPrice || 0,
+    }));
     
     // Apply client-side filtering since backend doesn't support query params yet
     let filtered = [...products];
