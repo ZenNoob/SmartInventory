@@ -44,6 +44,7 @@ import {
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { useUserRole } from '@/hooks/use-user-role'
 import { Badge } from '@/components/ui/badge'
+import { apiClient } from '@/lib/api-client'
 
 interface UserStoreAssignment {
   storeId: string;
@@ -230,17 +231,40 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers }: UserFormProps
   const { toast } = useToast();
   const { role: currentUserRole, userStores } = useUserRole();
   const [copyUserPopoverOpen, setCopyUserPopoverOpen] = useState(false);
+  const [allStores, setAllStores] = useState<StoreOption[]>([]);
+  const [storesLoading, setStoresLoading] = useState(false);
 
   const isEditMode = !!user;
 
-  // Get available stores from current user's stores
-  const availableStores: StoreOption[] = useMemo(() => {
-    return userStores?.map(s => ({
-      id: s.storeId,
-      name: s.storeName,
-      code: s.storeCode,
-    })) || [];
-  }, [userStores]);
+  // Fetch all stores when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      const fetchAllStores = async () => {
+        setStoresLoading(true);
+        try {
+          const stores = await apiClient.getAllStores();
+          setAllStores(stores.map((s: Record<string, unknown>) => ({
+            id: s.id as string,
+            name: s.name as string,
+            code: s.slug as string || s.id as string,
+          })));
+        } catch (error) {
+          console.error('Error fetching all stores:', error);
+          // Fallback to user's stores if getAllStores fails
+          setAllStores(userStores?.map(s => ({
+            id: s.storeId,
+            name: s.storeName,
+            code: s.storeCode,
+          })) || []);
+        }
+        setStoresLoading(false);
+      };
+      fetchAllStores();
+    }
+  }, [isOpen, userStores]);
+
+  // Use all stores for selection
+  const availableStores: StoreOption[] = allStores;
 
   const infoForm = useForm<z.infer<typeof userInfoSchemaBase> & { password?: string }>({
     resolver: zodResolver(isEditMode ? updateUserInfoSchema : newUserInfoSchema),

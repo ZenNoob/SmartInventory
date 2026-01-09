@@ -333,6 +333,10 @@ class ApiClient {
     return this.request<Array<Record<string, unknown>>>('/stores');
   }
 
+  async getAllStores() {
+    return this.request<Array<Record<string, unknown>>>('/stores/all');
+  }
+
   async getStore(id: string) {
     return this.request<Record<string, unknown>>(`/stores/${id}`);
   }

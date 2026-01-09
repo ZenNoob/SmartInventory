@@ -6,7 +6,7 @@ const router = Router();
 
 router.use(authenticate);
 
-// GET /api/stores
+// GET /api/stores - Lấy cửa hàng của user hiện tại
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
@@ -35,6 +35,32 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Get stores error:', error);
     res.status(500).json({ error: 'Failed to get stores' });
+  }
+});
+
+// GET /api/stores/all - Lấy tất cả cửa hàng (cho admin khi thêm user)
+router.get('/all', async (req: AuthRequest, res: Response) => {
+  try {
+    const stores = await query(
+      `SELECT * FROM Stores ORDER BY name`
+    );
+
+    res.json(stores.map((s: Record<string, unknown>) => ({
+      id: s.id,
+      ownerId: s.owner_id,
+      name: s.name,
+      slug: s.slug,
+      description: s.description,
+      logoUrl: s.logo_url,
+      domain: s.domain,
+      status: s.status,
+      settings: s.settings,
+      createdAt: s.created_at,
+      updatedAt: s.updated_at,
+    })));
+  } catch (error) {
+    console.error('Get all stores error:', error);
+    res.status(500).json({ error: 'Failed to get all stores' });
   }
 });
 
