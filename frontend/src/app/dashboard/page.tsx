@@ -101,106 +101,50 @@ export default function Dashboard() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [allSalesItems, setAllSalesItems] = useState<SalesItem[]>([]);
   
-  const [customersLoading, setCustomersLoading] = useState(true);
-  const [salesLoading, setSalesLoading] = useState(true);
-  const [paymentsLoading, setPaymentsLoading] = useState(true);
-  const [productsLoading, setProductsLoading] = useState(true);
-  const [unitsLoading, setUnitsLoading] = useState(true);
-  const [categoriesLoading, setCategoriesLoading] = useState(true);
-  const [salesItemsLoading, setSalesItemsLoading] = useState(true);
+  const [isDataLoading, setIsDataLoading] = useState(true);
 
-  // Fetch data from SQL Server API using apiClient
+  // Fetch data from SQL Server API using apiClient - PARALLEL
   useEffect(() => {
     if (!currentStore) return;
 
     const fetchData = async () => {
+      setIsDataLoading(true);
+      
       try {
-        // Fetch customers
-        setCustomersLoading(true);
-        try {
-          const customersData = await apiClient.getCustomers();
-          setCustomers(customersData as Customer[]);
-        } catch (e) {
-          console.error('Error fetching customers:', e);
-        }
-        setCustomersLoading(false);
+        // Fetch all data in parallel for faster loading
+        const [
+          customersData,
+          salesData,
+          paymentsData,
+          productsData,
+          unitsData,
+          categoriesData
+        ] = await Promise.all([
+          apiClient.getCustomers().catch(e => { console.error('Error fetching customers:', e); return []; }),
+          apiClient.getSales().catch(e => { console.error('Error fetching sales:', e); return []; }),
+          apiClient.getPayments().catch(e => { console.error('Error fetching payments:', e); return []; }),
+          apiClient.getProducts().catch(e => { console.error('Error fetching products:', e); return []; }),
+          apiClient.getUnits().catch(e => { console.error('Error fetching units:', e); return []; }),
+          apiClient.getCategories().catch(e => { console.error('Error fetching categories:', e); return []; }),
+        ]);
 
-        // Fetch sales
-        setSalesLoading(true);
-        try {
-          const salesData = await apiClient.getSales();
-          setSales(salesData as Sale[]);
-        } catch (e) {
-          console.error('Error fetching sales:', e);
-        }
-        setSalesLoading(false);
-
-        // Fetch payments
-        setPaymentsLoading(true);
-        try {
-          const paymentsData = await apiClient.getPayments();
-          setPayments(paymentsData as Payment[]);
-        } catch (e) {
-          console.error('Error fetching payments:', e);
-        }
-        setPaymentsLoading(false);
-
-        // Fetch products
-        setProductsLoading(true);
-        try {
-          const productsData = await apiClient.getProducts();
-          setProducts(productsData as Product[]);
-        } catch (e) {
-          console.error('Error fetching products:', e);
-        }
-        setProductsLoading(false);
-
-        // Fetch units
-        setUnitsLoading(true);
-        try {
-          const unitsData = await apiClient.getUnits();
-          setUnits(unitsData as Unit[]);
-        } catch (e) {
-          console.error('Error fetching units:', e);
-        }
-        setUnitsLoading(false);
-
-        // Fetch categories
-        setCategoriesLoading(true);
-        try {
-          const categoriesData = await apiClient.getCategories();
-          setCategories(categoriesData as Category[]);
-        } catch (e) {
-          console.error('Error fetching categories:', e);
-        }
-        setCategoriesLoading(false);
-
+        setCustomers(customersData as Customer[]);
+        setSales(salesData as Sale[]);
+        setPayments(paymentsData as Payment[]);
+        setProducts(productsData as Product[]);
+        setUnits(unitsData as Unit[]);
+        setCategories(categoriesData as Category[]);
+        setAllSalesItems([]); // Sales items not needed for now
+        
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
-        setCustomersLoading(false);
-        setSalesLoading(false);
-        setPaymentsLoading(false);
-        setProductsLoading(false);
-        setUnitsLoading(false);
-        setCategoriesLoading(false);
+      } finally {
+        setIsDataLoading(false);
       }
     };
 
     fetchData();
   }, [currentStore]);
-
-  // Fetch sales items after sales are loaded
-  useEffect(() => {
-    if (salesLoading || sales.length === 0) {
-      setSalesItemsLoading(false);
-      return;
-    }
-
-    // For now, skip fetching sales items as the endpoint may not exist
-    // TODO: Implement getSaleItems in apiClient when backend supports it
-    setSalesItemsLoading(false);
-    setAllSalesItems([]);
-  }, [sales, salesLoading]);
   
   const productsMap = useMemo(() => new Map(products?.map(p => [p.id, p])), [products]);
   const unitsMap = useMemo(() => new Map(units?.map(u => [u.id, u])), [units]);
@@ -229,7 +173,7 @@ export default function Dashboard() {
     );
   }, [filteredSales, salesSearchTerm, customersMap]);
   
-  const isLoading = customersLoading || salesLoading || paymentsLoading || productsLoading || unitsLoading || salesItemsLoading || categoriesLoading || isRoleLoading;
+  const isLoading = isDataLoading || isRoleLoading;
 
   const getUnitInfo = useCallback((unitId: string) => {
     const unit = unitsMap.get(unitId);
