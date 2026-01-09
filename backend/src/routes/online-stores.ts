@@ -5,6 +5,34 @@ import { authenticate, storeContext, AuthRequest } from '../middleware/auth';
 const router = Router();
 
 router.use(authenticate);
+
+// GET /api/online-stores/all - Lấy tất cả online stores (cho admin)
+router.get('/all', async (req: AuthRequest, res: Response) => {
+  try {
+    const stores = await query(
+      'SELECT * FROM OnlineStores ORDER BY store_name'
+    );
+
+    res.json(
+      stores.map((s: Record<string, unknown>) => ({
+        id: s.id,
+        storeId: s.store_id,
+        slug: s.slug,
+        customDomain: s.custom_domain,
+        isActive: s.is_active,
+        storeName: s.store_name,
+        logo: s.logo,
+        contactEmail: s.contact_email,
+        createdAt: s.created_at,
+      }))
+    );
+  } catch (error) {
+    console.error('Get all online stores error:', error);
+    res.status(500).json({ error: 'Failed to get all online stores' });
+  }
+});
+
+// Các route còn lại cần storeContext
 router.use(storeContext);
 
 // GET /api/online-stores

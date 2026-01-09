@@ -236,21 +236,21 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers }: UserFormProps
 
   const isEditMode = !!user;
 
-  // Fetch all stores when dialog opens
+  // Fetch all online stores when dialog opens
   useEffect(() => {
     if (isOpen) {
       const fetchAllStores = async () => {
         setStoresLoading(true);
         try {
-          const stores = await apiClient.getAllStores();
+          const stores = await apiClient.getAllOnlineStores();
           setAllStores(stores.map((s: Record<string, unknown>) => ({
             id: s.id as string,
-            name: s.name as string,
+            name: s.storeName as string || s.slug as string,
             code: s.slug as string || s.id as string,
           })));
         } catch (error) {
-          console.error('Error fetching all stores:', error);
-          // Fallback to user's stores if getAllStores fails
+          console.error('Error fetching all online stores:', error);
+          // Fallback to user's stores if getAllOnlineStores fails
           setAllStores(userStores?.map(s => ({
             id: s.storeId,
             name: s.storeName,

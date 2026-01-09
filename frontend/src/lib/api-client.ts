@@ -421,6 +421,10 @@ class ApiClient {
     return this.request<Array<Record<string, unknown>>>('/online-stores');
   }
 
+  async getAllOnlineStores() {
+    return this.request<Array<Record<string, unknown>>>('/online-stores/all');
+  }
+
   async getOnlineStore(id: string) {
     return this.request<Record<string, unknown>>(`/online-stores/${id}`);
   }
