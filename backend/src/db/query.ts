@@ -1,7 +1,7 @@
 import { getConnection, sql } from './connection';
 
 export type SqlValue = string | number | boolean | Date | Buffer | null | undefined;
-export type QueryParams = Record<string, SqlValue>;
+export type QueryParams = Record<string, SqlValue | unknown>;
 
 /**
  * Execute a parameterized query and return results

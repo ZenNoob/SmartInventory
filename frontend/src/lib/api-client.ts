@@ -131,9 +131,23 @@ class ApiClient {
   // ==================== Auth ====================
   async login(email: string, password: string) {
     const result = await this.request<{
-      user: { id: string; email: string; displayName?: string; role: string; permissions?: Record<string, string[]> };
-      stores: string[];
+      user: { 
+        id: string; 
+        email: string; 
+        displayName?: string; 
+        role: string; 
+        permissions?: Record<string, string[]>;
+        tenantId?: string;
+        tenantUserId?: string;
+      };
+      tenant?: {
+        id: string;
+        name: string;
+        slug: string;
+      };
+      stores: Array<string | { storeId: string; storeName: string; storeCode: string; roleOverride?: string }>;
       token: string;
+      expiresAt?: string;
     }>('/auth/login', {
       method: 'POST',
       body: { email, password },
@@ -155,8 +169,21 @@ class ApiClient {
 
   async getMe() {
     return this.request<{
-      user: { id: string; email: string; displayName?: string; role: string; permissions?: Record<string, string[]> };
-      stores: string[];
+      user: { 
+        id: string; 
+        email: string; 
+        displayName?: string; 
+        role: string; 
+        permissions?: Record<string, string[]>;
+        tenantId?: string;
+        tenantUserId?: string;
+      };
+      tenant?: {
+        id: string;
+        name: string;
+        slug: string;
+      };
+      stores: Array<string | { storeId: string; storeName: string; storeCode: string; roleOverride?: string }>;
     }>('/auth/me');
   }
 
@@ -462,6 +489,13 @@ class ApiClient {
     return this.request<{ success: boolean }>(`/users/${id}`, { method: 'DELETE' });
   }
 
+  async assignUserStores(userId: string, storeIds: string[]) {
+    return this.request<{ success: boolean; assignedStores: string[] }>(`/users/${userId}/stores`, {
+      method: 'POST',
+      body: { storeIds },
+    });
+  }
+
   // ==================== Reports ====================
   async getRevenueReport(from: string, to: string) {
     return this.request(`/reports/revenue?from=${from}&to=${to}`);
@@ -564,6 +598,63 @@ class ApiClient {
   // ==================== Storefront (Public) ====================
   async getStorefrontConfig(slug: string) {
     return this.request<{ store: Record<string, unknown> }>(`/storefront/${slug}/config`);
+  }
+
+  // ==================== Tenant Registration ====================
+  async registerTenant(data: {
+    businessName: string;
+    businessEmail: string;
+    businessPhone?: string;
+    ownerName: string;
+    ownerEmail: string;
+    ownerPassword: string;
+    subscriptionPlan?: 'basic' | 'standard' | 'premium';
+    defaultStoreName?: string;
+  }) {
+    return this.request<{
+      success: boolean;
+      message: string;
+      tenantId: string;
+      tenantSlug: string;
+    }>('/tenants/register', {
+      method: 'POST',
+      body: data,
+    });
+  }
+
+  async getRegistrationStatus(tenantId: string) {
+    return this.request<{
+      status: 'pending' | 'creating_database' | 'running_migrations' | 'creating_owner' | 'creating_default_store' | 'completed' | 'failed';
+      progress: number;
+      message: string;
+      error?: string;
+      tenant?: {
+        id: string;
+        name: string;
+        slug: string;
+      };
+    }>(`/tenants/register/status/${tenantId}`);
+  }
+
+  async checkBusinessEmail(email: string) {
+    return this.request<{ available: boolean }>('/tenants/check-email', {
+      method: 'POST',
+      body: { email, type: 'business' },
+    });
+  }
+
+  async checkOwnerEmail(email: string) {
+    return this.request<{ available: boolean }>('/tenants/check-email', {
+      method: 'POST',
+      body: { email, type: 'owner' },
+    });
+  }
+
+  async checkBusinessSlug(businessName: string) {
+    return this.request<{ available: boolean; suggestedSlug: string }>('/tenants/check-slug', {
+      method: 'POST',
+      body: { businessName },
+    });
   }
 
   async getStorefrontProducts(slug: string, params?: { category?: string; search?: string; page?: number; limit?: number }) {

@@ -3,7 +3,6 @@ import { PT_Sans } from 'next/font/google';
 import './globals.css';
 import { cn } from '@/lib/utils';
 import { Toaster } from '@/components/ui/toaster';
-import GlobalError from './global-error';
 import { Providers } from './providers';
 import { MainNav } from '@/components/main-nav';
 import { Header } from '@/components/header';
@@ -34,19 +33,17 @@ export default function RootLayout({
           ptSans.variable
         )}
       >
-        <GlobalError>
-          <Providers>
-            <div className="flex min-h-screen">
-              <MainNav />
-              <div className="flex-1 flex flex-col p-6 gap-6 min-w-0">
-                <Header />
-                <main className="flex-1 overflow-y-auto">
-                  <NoStorePrompt>{children}</NoStorePrompt>
-                </main>
-              </div>
+        <Providers>
+          <div className="flex min-h-screen">
+            <MainNav />
+            <div className="flex-1 flex flex-col p-6 gap-6 min-w-0">
+              <Header />
+              <main className="flex-1 overflow-y-auto">
+                <NoStorePrompt>{children}</NoStorePrompt>
+              </main>
             </div>
-          </Providers>
-        </GlobalError>
+          </div>
+        </Providers>
         <Toaster />
       </body>
     </html>

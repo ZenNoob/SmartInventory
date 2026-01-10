@@ -86,12 +86,13 @@ export async function getPOSActiveShift(): Promise<{
 /**
  * Get products for POS (alias)
  */
-export async function getProducts(): Promise<{
+export async function getProducts(params?: { pageSize?: number }): Promise<{
   success: boolean;
-  products?: Array<Record<string, unknown>>;
+  data?: Array<Record<string, unknown>>;
   error?: string;
 }> {
-  return getPOSProducts();
+  const result = await getPOSProducts();
+  return { success: result.success, data: result.products, error: result.error };
 }
 
 /**
@@ -121,12 +122,13 @@ export async function getProductByBarcode(barcode: string): Promise<{
 /**
  * Get customers for POS (alias)
  */
-export async function getCustomers(): Promise<{
+export async function getCustomers(params?: { pageSize?: number }): Promise<{
   success: boolean;
-  customers?: Array<Record<string, unknown>>;
+  data?: Array<Record<string, unknown>>;
   error?: string;
 }> {
-  return getPOSCustomers();
+  const result = await getPOSCustomers();
+  return { success: result.success, data: result.customers, error: result.error };
 }
 
 /**
@@ -134,12 +136,12 @@ export async function getCustomers(): Promise<{
  */
 export async function getUnits(): Promise<{
   success: boolean;
-  units?: Array<Record<string, unknown>>;
+  data?: Array<Record<string, unknown>>;
   error?: string;
 }> {
   try {
     const units = await apiClient.getUnits();
-    return { success: true, units };
+    return { success: true, data: units };
   } catch (error: unknown) {
     console.error('Error fetching units:', error);
     return { 

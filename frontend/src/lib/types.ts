@@ -152,11 +152,52 @@ export type SupplierPayment = {
 }
 
 
+// Role hierarchy for Multi-tenant RBAC
+// owner > company_manager > store_manager > salesperson
+export type UserRole = 'owner' | 'company_manager' | 'store_manager' | 'salesperson';
+
+// Role hierarchy levels (higher number = more permissions)
+export const ROLE_HIERARCHY: Record<UserRole, number> = {
+  owner: 4,
+  company_manager: 3,
+  store_manager: 2,
+  salesperson: 1,
+};
+
+// Get roles that a user can manage (roles below their own)
+export function getManageableRoles(userRole: UserRole): UserRole[] {
+  const userLevel = ROLE_HIERARCHY[userRole];
+  return (Object.keys(ROLE_HIERARCHY) as UserRole[]).filter(
+    role => ROLE_HIERARCHY[role] < userLevel
+  );
+}
+
+// Check if current user can manage target role
+export function canManageRole(currentUserRole: UserRole, targetRole: UserRole): boolean {
+  return ROLE_HIERARCHY[currentUserRole] > ROLE_HIERARCHY[targetRole];
+}
+
+// Get Vietnamese name for role
+export function getRoleVietnamese(role: UserRole | string): string {
+  switch (role) {
+    case 'owner': return 'Chủ sở hữu';
+    case 'company_manager': return 'Quản lý công ty';
+    case 'store_manager': return 'Quản lý cửa hàng';
+    case 'salesperson': return 'Nhân viên bán hàng';
+    // Legacy roles for backward compatibility
+    case 'admin': return 'Quản trị viên';
+    case 'accountant': return 'Kế toán';
+    case 'inventory_manager': return 'Quản lý kho';
+    case 'custom': return 'Tùy chỉnh';
+    default: return role;
+  }
+}
+
 export type AppUser = {
   id?: string;
   email: string;
   displayName?: string;
-  role: 'admin' | 'accountant' | 'inventory_manager' | 'salesperson' | 'custom';
+  role: UserRole;
   permissions?: Permissions;
 }
 

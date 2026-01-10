@@ -59,6 +59,8 @@ export function MainNav() {
   const { permissions, isLoading: isRoleLoading } = useUserRole();
   const { state } = useSidebar();
 
+  const isLoading = isUserLoading || isRoleLoading;
+
   const isActive = (path: string) => {
     if (path === '/dashboard') return pathname === path;
     if (path.endsWith('/')) path = path.slice(0, -1);
@@ -70,9 +72,8 @@ export function MainNav() {
     return permissions?.[module]?.includes(permission);
   }
 
-  const isLoading = isUserLoading || isRoleLoading;
-
-  if (pathname.startsWith('/login')) {
+  // Early returns after all hooks are called
+  if (pathname.startsWith('/login') || pathname.startsWith('/register')) {
     return null;
   }
   
@@ -94,8 +95,8 @@ export function MainNav() {
   const showReportsMenu = hasPermission('reports_shifts', 'view') || hasPermission('reports_income_statement', 'view') || hasPermission('reports_profit', 'view') || hasPermission('reports_debt', 'view') || hasPermission('reports_supplier_debt', 'view') || hasPermission('reports_transactions', 'view') || hasPermission('reports_supplier_debt_tracking', 'view') || hasPermission('reports_revenue', 'view') || hasPermission('reports_sold_products', 'view') || hasPermission('reports_inventory', 'view') || hasPermission('reports_ai_segmentation', 'view') || hasPermission('reports_ai_basket_analysis', 'view');
   const showSystemMenu = hasPermission('users', 'view') || hasPermission('settings', 'view');
   
-  // Check if user is owner (admin role) to show store management
-  const isOwner = user?.role === 'admin';
+  // Check if user is owner (supports both legacy 'admin' role and new 'owner' role)
+  const isOwner = user?.role === 'admin' || user?.role === 'owner';
 
   return (
     <Sidebar>

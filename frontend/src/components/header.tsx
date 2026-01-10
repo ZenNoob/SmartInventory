@@ -15,7 +15,8 @@ export function Header() {
   const pathname = usePathname()
   const { user, isLoading: isUserLoading } = useStore()
 
-  if (pathname.startsWith('/login')) {
+  // Early returns after all hooks are called
+  if (pathname.startsWith('/login') || pathname.startsWith('/register')) {
     return null;
   }
   

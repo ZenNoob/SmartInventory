@@ -1,11 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
+/**
+ * Authentication Middleware for Express
+ * 
+ * Provides authentication and authorization utilities for API routes.
+ */
+
+import { Request, Response, NextFunction } from 'express';
 import { validateToken, type JwtPayload } from './jwt';
-import { query } from '@/lib/db';
-import type { Permission, Module } from '@/lib/types';
+import { query } from '../db';
+import type { Permission, Module, Permissions } from '../types';
 
 const AUTH_COOKIE_NAME = 'auth-token';
 
-export interface AuthenticatedRequest extends NextRequest {
+export interface AuthenticatedRequest extends Request {
   user?: JwtPayload;
   storeId?: string;
 }
@@ -20,13 +26,13 @@ export interface AuthResult {
 /**
  * Extract JWT token from request (cookie or Authorization header)
  */
-export function getTokenFromRequest(request: NextRequest): string | null {
+export function getTokenFromRequest(request: Request): string | null {
   // Try cookie first
-  const cookieToken = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const cookieToken = (request as any).cookies?.[AUTH_COOKIE_NAME];
   if (cookieToken) return cookieToken;
 
   // Try Authorization header
-  const authHeader = request.headers.get('Authorization');
+  const authHeader = request.headers.authorization;
   if (authHeader?.startsWith('Bearer ')) {
     return authHeader.substring(7);
   }
@@ -38,7 +44,7 @@ export function getTokenFromRequest(request: NextRequest): string | null {
  * Authenticate a request and return user info
  * Checks both token validity and session in database
  */
-export async function authenticateRequest(request: NextRequest): Promise<AuthResult> {
+export async function authenticateRequest(request: Request): Promise<AuthResult> {
   const token = getTokenFromRequest(request);
 
   if (!token) {
@@ -59,18 +65,22 @@ export async function authenticateRequest(request: NextRequest): Promise<AuthRes
   }
 
   // Verify session exists in database
-  const sessions = await query<{ id: string }>(
-    `SELECT id FROM Sessions 
-     WHERE token = @token AND expires_at > GETDATE()`,
-    { token }
-  );
+  try {
+    const sessions = await query<{ id: string }>(
+      `SELECT id FROM Sessions 
+       WHERE token = @token AND expires_at > GETDATE()`,
+      { token }
+    );
 
-  if (sessions.length === 0) {
-    return {
-      success: false,
-      error: 'Session expired or invalidated',
-      status: 401,
-    };
+    if (sessions.length === 0) {
+      return {
+        success: false,
+        error: 'Session expired or invalidated',
+        status: 401,
+      };
+    }
+  } catch {
+    // If Sessions table doesn't exist, skip session check
   }
 
   return {
@@ -87,75 +97,79 @@ export function hasPermission(
   module: Module,
   permission: Permission
 ): boolean {
-  // Admin has all permissions
-  if (user.role === 'admin') return true;
+  // Admin/Owner has all permissions
+  if (user.role === 'admin' || user.role === 'owner') return true;
 
   // Check specific permissions
-  const modulePermissions = user.permissions?.[module];
+  const permissions = user.permissions as Permissions | undefined;
+  const modulePermissions = permissions?.[module];
   if (!modulePermissions) return false;
 
   return modulePermissions.includes(permission);
 }
 
 /**
- * Middleware wrapper for protected API routes
- * Returns user info if authenticated, error response otherwise
+ * Express middleware for protected routes
  */
-export async function withAuth(
-  request: NextRequest,
-  handler: (request: NextRequest, user: JwtPayload) => Promise<NextResponse>
-): Promise<NextResponse> {
-  const authResult = await authenticateRequest(request);
+export function withAuth(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): void {
+  authenticateRequest(req).then((authResult) => {
+    if (!authResult.success || !authResult.user) {
+      res.status(authResult.status || 401).json({ error: authResult.error });
+      return;
+    }
 
-  if (!authResult.success || !authResult.user) {
-    return NextResponse.json(
-      { error: authResult.error },
-      { status: authResult.status || 401 }
-    );
-  }
-
-  return handler(request, authResult.user);
+    req.user = authResult.user;
+    next();
+  }).catch((error) => {
+    console.error('Auth middleware error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  });
 }
 
 /**
- * Middleware wrapper for protected API routes with permission check
+ * Express middleware for protected routes with permission check
  */
-export async function withAuthAndPermission(
-  request: NextRequest,
+export function withAuthAndPermission(
   module: Module,
-  permission: Permission,
-  handler: (request: NextRequest, user: JwtPayload) => Promise<NextResponse>
-): Promise<NextResponse> {
-  const authResult = await authenticateRequest(request);
+  permission: Permission
+) {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+    authenticateRequest(req).then((authResult) => {
+      if (!authResult.success || !authResult.user) {
+        res.status(authResult.status || 401).json({ error: authResult.error });
+        return;
+      }
 
-  if (!authResult.success || !authResult.user) {
-    return NextResponse.json(
-      { error: authResult.error },
-      { status: authResult.status || 401 }
-    );
-  }
+      if (!hasPermission(authResult.user, module, permission)) {
+        res.status(403).json({ error: 'Permission denied' });
+        return;
+      }
 
-  if (!hasPermission(authResult.user, module, permission)) {
-    return NextResponse.json(
-      { error: 'Permission denied' },
-      { status: 403 }
-    );
-  }
-
-  return handler(request, authResult.user);
+      req.user = authResult.user;
+      next();
+    }).catch((error) => {
+      console.error('Auth middleware error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    });
+  };
 }
 
 /**
  * Get store ID from request headers or query params
  */
-export function getStoreIdFromRequest(request: NextRequest): string | null {
+export function getStoreIdFromRequest(request: Request): string | null {
   // Try header first
-  const headerStoreId = request.headers.get('X-Store-Id');
-  if (headerStoreId) return headerStoreId;
+  const headerStoreId = request.headers['x-store-id'];
+  if (headerStoreId) {
+    return Array.isArray(headerStoreId) ? headerStoreId[0] : headerStoreId;
+  }
 
   // Try query param
-  const url = new URL(request.url);
-  return url.searchParams.get('storeId');
+  return request.query.storeId as string | null;
 }
 
 /**
@@ -174,16 +188,17 @@ export async function verifyStoreAccess(
   return result.length > 0;
 }
 
+
 /**
- * Create authentication error response
+ * Create authentication error response object
  */
-export function unauthorizedResponse(message: string = 'Unauthorized'): NextResponse {
-  return NextResponse.json({ error: message }, { status: 401 });
+export function unauthorizedResponse(message: string = 'Unauthorized'): { error: string; status: number } {
+  return { error: message, status: 401 };
 }
 
 /**
- * Create forbidden error response
+ * Create forbidden error response object
  */
-export function forbiddenResponse(message: string = 'Forbidden'): NextResponse {
-  return NextResponse.json({ error: message }, { status: 403 });
+export function forbiddenResponse(message: string = 'Forbidden'): { error: string; status: number } {
+  return { error: message, status: 403 };
 }

@@ -94,6 +94,22 @@ export async function deleteUser(userId: string): Promise<{ success: boolean; er
   }
 }
 
+/**
+ * Update user status (activate/deactivate)
+ */
+export async function updateUserStatus(userId: string, status: 'active' | 'inactive'): Promise<{ success: boolean; error?: string }> {
+  try {
+    await apiClient.updateUser(userId, { status });
+    return { success: true };
+  } catch (error: unknown) {
+    console.error('Error updating user status:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Không thể cập nhật trạng thái người dùng' 
+    };
+  }
+}
+
 
 /**
  * Upsert user (create or update)

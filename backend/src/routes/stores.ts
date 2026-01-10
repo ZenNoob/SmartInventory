@@ -45,14 +45,26 @@ function mapStoreToResponse(s: Record<string, unknown>) {
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
+    const userRole = req.user!.role;
 
-    const stores = await query(
-      `SELECT s.* FROM Stores s
-       INNER JOIN UserStores us ON s.id = us.store_id
-       WHERE us.user_id = @userId AND s.status = 'active'
-       ORDER BY s.name`,
-      { userId }
-    );
+    let stores;
+    
+    // Owner and company_manager can see all stores
+    if (userRole === 'owner' || userRole === 'company_manager' || userRole === 'admin') {
+      stores = await query(
+        `SELECT * FROM Stores WHERE status = 'active' ORDER BY name`,
+        {}
+      );
+    } else {
+      // Other roles only see assigned stores
+      stores = await query(
+        `SELECT s.* FROM Stores s
+         INNER JOIN UserStores us ON s.id = us.store_id
+         WHERE us.user_id = @userId AND s.status = 'active'
+         ORDER BY s.name`,
+        { userId }
+      );
+    }
 
     res.json(stores.map(mapStoreToResponse));
   } catch (error) {

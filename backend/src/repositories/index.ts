@@ -14,6 +14,26 @@ export {
   type PaginatedResult,
 } from './base-repository';
 
+// Export Tenant repository (Master DB)
+export {
+  TenantRepository,
+  tenantRepository,
+  type Tenant,
+  type CreateTenantInput,
+  type UpdateTenantInput,
+} from './tenant-repository';
+
+// Export TenantUser repository (Master DB)
+export {
+  TenantUserRepository,
+  tenantUserRepository,
+  type TenantUser,
+  type TenantUserWithTenant,
+  type CreateTenantUserInput,
+  type UpdateTenantUserInput,
+  type LoginResult,
+} from './tenant-user-repository';
+
 // Export Category repository
 export {
   CategoryRepository,
@@ -35,7 +55,6 @@ export {
   productRepository,
   type Product,
   type ProductWithStock,
-  type PurchaseLot,
 } from './product-repository';
 
 // Export Supplier repository
@@ -52,8 +71,6 @@ export {
   customerRepository,
   type Customer,
   type CustomerWithDebt,
-  type DebtHistoryItem,
-  type LoyaltyTier,
 } from './customer-repository';
 
 // Export PurchaseOrder repository
@@ -75,10 +92,6 @@ export {
   salesRepository,
   type Sale,
   type SalesItem,
-  type SaleWithDetails,
-  type SalesItemWithProduct,
-  type CreateSaleInput,
-  type CreateSalesItemInput,
 } from './sales-repository';
 
 // Export Payment repository (customer payments)
@@ -86,7 +99,6 @@ export {
   PaymentRepository,
   paymentRepository,
   type Payment,
-  type PaymentWithCustomer,
 } from './payment-repository';
 
 // Export SupplierPayment repository
@@ -122,9 +134,18 @@ export {
   type User,
   type UserWithStores,
   type UserStoreAssignment,
+  type AssignStoreInput,
   type CreateUserInput,
   type UpdateUserInput,
 } from './user-repository';
+
+// Export Permission repository
+export {
+  PermissionRepository,
+  permissionRepository,
+  type PermissionRecord,
+  type SetPermissionInput,
+} from './permission-repository';
 
 // Export AuditLog repository
 export {
@@ -296,6 +317,10 @@ export function registerRepository<T>(name: string, repository: T): void {
 
 // Repository names constants for type safety
 export const REPOSITORY_NAMES = {
+  // Master DB repositories
+  TENANT: 'tenant',
+  TENANT_USER: 'tenantUser',
+  // Tenant DB repositories
   CATEGORY: 'category',
   UNIT: 'unit',
   PRODUCT: 'product',
@@ -308,6 +333,7 @@ export const REPOSITORY_NAMES = {
   CASH_TRANSACTION: 'cashTransaction',
   SHIFT: 'shift',
   USER: 'user',
+  PERMISSION: 'permission',
   AUDIT_LOG: 'auditLog',
   STORE: 'store',
   ONLINE_STORE: 'onlineStore',

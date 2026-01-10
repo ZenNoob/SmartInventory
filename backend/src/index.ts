@@ -24,6 +24,7 @@ import paymentsRoutes from './routes/payments';
 import supplierPaymentsRoutes from './routes/supplier-payments';
 import onlineStoresRoutes from './routes/online-stores';
 import storefrontRoutes from './routes/storefront';
+import tenantsRoutes from './routes/tenants';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -79,6 +80,7 @@ app.use('/api/payments', paymentsRoutes);
 app.use('/api/supplier-payments', supplierPaymentsRoutes);
 app.use('/api/online-stores', onlineStoresRoutes);
 app.use('/api/storefront', storefrontRoutes);
+app.use('/api/tenants', tenantsRoutes);
 
 // Error handling middleware
 app.use(

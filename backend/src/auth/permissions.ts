@@ -1,30 +1,185 @@
-import type { Module, Permission, Permissions } from '@/lib/types';
+import type { Module, Permission, Permissions, UserRole } from '../types.js';
+import { ROLE_HIERARCHY } from '../types.js';
+
+/**
+ * Default permissions per role based on RBAC hierarchy
+ */
+export const DEFAULT_PERMISSIONS: Record<UserRole, Permissions> = {
+  owner: {
+    // Full access to everything
+    dashboard: ['view'],
+    stores: ['view', 'add', 'edit', 'delete'],
+    users: ['view', 'add', 'edit', 'delete'],
+    products: ['view', 'add', 'edit', 'delete'],
+    categories: ['view', 'add', 'edit', 'delete'],
+    units: ['view', 'add', 'edit', 'delete'],
+    sales: ['view', 'add', 'edit', 'delete'],
+    purchases: ['view', 'add', 'edit', 'delete'],
+    customers: ['view', 'add', 'edit', 'delete'],
+    suppliers: ['view', 'add', 'edit', 'delete'],
+    'cash-flow': ['view', 'add', 'edit', 'delete'],
+    reports_shifts: ['view'],
+    reports_income_statement: ['view'],
+    reports_profit: ['view'],
+    reports_debt: ['view'],
+    reports_supplier_debt: ['view'],
+    reports_transactions: ['view'],
+    reports_supplier_debt_tracking: ['view'],
+    reports_revenue: ['view'],
+    reports_sold_products: ['view'],
+    reports_inventory: ['view'],
+    reports_ai_segmentation: ['view'],
+    reports_ai_basket_analysis: ['view'],
+    settings: ['view', 'edit'],
+    pos: ['view', 'add'],
+    ai_forecast: ['view'],
+  },
+
+  // Admin has same permissions as owner (legacy role support)
+  admin: {
+    dashboard: ['view'],
+    stores: ['view', 'add', 'edit', 'delete'],
+    users: ['view', 'add', 'edit', 'delete'],
+    products: ['view', 'add', 'edit', 'delete'],
+    categories: ['view', 'add', 'edit', 'delete'],
+    units: ['view', 'add', 'edit', 'delete'],
+    sales: ['view', 'add', 'edit', 'delete'],
+    purchases: ['view', 'add', 'edit', 'delete'],
+    customers: ['view', 'add', 'edit', 'delete'],
+    suppliers: ['view', 'add', 'edit', 'delete'],
+    'cash-flow': ['view', 'add', 'edit', 'delete'],
+    reports_shifts: ['view'],
+    reports_income_statement: ['view'],
+    reports_profit: ['view'],
+    reports_debt: ['view'],
+    reports_supplier_debt: ['view'],
+    reports_transactions: ['view'],
+    reports_supplier_debt_tracking: ['view'],
+    reports_revenue: ['view'],
+    reports_sold_products: ['view'],
+    reports_inventory: ['view'],
+    reports_ai_segmentation: ['view'],
+    reports_ai_basket_analysis: ['view'],
+    settings: ['view', 'edit'],
+    pos: ['view', 'add'],
+    ai_forecast: ['view'],
+  },
+
+  company_manager: {
+    // All stores, no user management
+    dashboard: ['view'],
+    stores: ['view', 'edit'],
+    users: ['view'], // read-only
+    products: ['view', 'add', 'edit', 'delete'],
+    categories: ['view', 'add', 'edit', 'delete'],
+    units: ['view', 'add', 'edit', 'delete'],
+    sales: ['view', 'add', 'edit'],
+    purchases: ['view', 'add', 'edit'],
+    customers: ['view', 'add', 'edit'],
+    suppliers: ['view', 'add', 'edit'],
+    'cash-flow': ['view', 'add', 'edit'],
+    reports_shifts: ['view'],
+    reports_income_statement: ['view'],
+    reports_profit: ['view'],
+    reports_debt: ['view'],
+    reports_supplier_debt: ['view'],
+    reports_transactions: ['view'],
+    reports_supplier_debt_tracking: ['view'],
+    reports_revenue: ['view'],
+    reports_sold_products: ['view'],
+    reports_inventory: ['view'],
+    reports_ai_segmentation: ['view'],
+    reports_ai_basket_analysis: ['view'],
+    settings: ['view'],
+    pos: ['view', 'add'],
+    ai_forecast: ['view'],
+  },
+
+  store_manager: {
+    // Assigned stores only
+    dashboard: ['view'],
+    products: ['view', 'add', 'edit'],
+    categories: ['view', 'add', 'edit'],
+    units: ['view', 'add', 'edit'],
+    sales: ['view', 'add', 'edit'],
+    purchases: ['view', 'add', 'edit'],
+    customers: ['view', 'add', 'edit'],
+    suppliers: ['view', 'add'],
+    'cash-flow': ['view', 'add'],
+    reports_shifts: ['view'],
+    reports_profit: ['view'],
+    reports_debt: ['view'],
+    reports_transactions: ['view'],
+    reports_revenue: ['view'],
+    reports_sold_products: ['view'],
+    reports_inventory: ['view'],
+    pos: ['view', 'add'],
+  },
+
+  salesperson: {
+    // POS and basic sales only
+    dashboard: ['view'],
+    products: ['view'],
+    sales: ['view', 'add'],
+    customers: ['view', 'add'],
+    pos: ['view', 'add'],
+  },
+};
+
+/**
+ * Get effective permissions for a user (default + custom overrides)
+ */
+export function getEffectivePermissions(
+  userRole: UserRole,
+  customPermissions?: Permissions
+): Permissions {
+  const defaultPerms = DEFAULT_PERMISSIONS[userRole] || {};
+  
+  if (!customPermissions) {
+    return { ...defaultPerms };
+  }
+
+  // Merge custom permissions with defaults (custom overrides default)
+  const merged: Permissions = { ...defaultPerms };
+  for (const [module, perms] of Object.entries(customPermissions)) {
+    if (perms && perms.length > 0) {
+      merged[module as Module] = perms;
+    }
+  }
+  
+  return merged;
+}
 
 /**
  * Check if user has a specific permission for a module
  */
 export function hasPermission(
   userPermissions: Permissions | undefined,
-  userRole: string | undefined,
+  userRole: UserRole | undefined,
   module: Module,
   permission: Permission
 ): boolean {
-  // Admin has all permissions
-  if (userRole === 'admin') return true;
+  // Owner has all permissions
+  if (userRole === 'owner') return true;
 
-  // Check specific permissions
-  const modulePermissions = userPermissions?.[module];
+  // Get effective permissions
+  const effectivePerms = userRole 
+    ? getEffectivePermissions(userRole, userPermissions)
+    : userPermissions;
+
+  const modulePermissions = effectivePerms?.[module];
   if (!modulePermissions) return false;
 
   return modulePermissions.includes(permission);
 }
+
 
 /**
  * Check if user can view a module
  */
 export function canView(
   userPermissions: Permissions | undefined,
-  userRole: string | undefined,
+  userRole: UserRole | undefined,
   module: Module
 ): boolean {
   return hasPermission(userPermissions, userRole, module, 'view');
@@ -35,7 +190,7 @@ export function canView(
  */
 export function canAdd(
   userPermissions: Permissions | undefined,
-  userRole: string | undefined,
+  userRole: UserRole | undefined,
   module: Module
 ): boolean {
   return hasPermission(userPermissions, userRole, module, 'add');
@@ -46,7 +201,7 @@ export function canAdd(
  */
 export function canEdit(
   userPermissions: Permissions | undefined,
-  userRole: string | undefined,
+  userRole: UserRole | undefined,
   module: Module
 ): boolean {
   return hasPermission(userPermissions, userRole, module, 'edit');
@@ -57,7 +212,7 @@ export function canEdit(
  */
 export function canDelete(
   userPermissions: Permissions | undefined,
-  userRole: string | undefined,
+  userRole: UserRole | undefined,
   module: Module
 ): boolean {
   return hasPermission(userPermissions, userRole, module, 'delete');
@@ -68,15 +223,19 @@ export function canDelete(
  */
 export function getModulePermissions(
   userPermissions: Permissions | undefined,
-  userRole: string | undefined,
+  userRole: UserRole | undefined,
   module: Module
 ): Permission[] {
-  // Admin has all permissions
-  if (userRole === 'admin') {
+  // Owner has all permissions
+  if (userRole === 'owner') {
     return ['view', 'add', 'edit', 'delete'];
   }
 
-  return userPermissions?.[module] || [];
+  const effectivePerms = userRole 
+    ? getEffectivePermissions(userRole, userPermissions)
+    : userPermissions;
+
+  return effectivePerms?.[module] || [];
 }
 
 /**
@@ -84,13 +243,17 @@ export function getModulePermissions(
  */
 export function hasAnyPermission(
   userPermissions: Permissions | undefined,
-  userRole: string | undefined,
+  userRole: UserRole | undefined,
   module: Module
 ): boolean {
-  // Admin has all permissions
-  if (userRole === 'admin') return true;
+  // Owner has all permissions
+  if (userRole === 'owner') return true;
 
-  const modulePermissions = userPermissions?.[module];
+  const effectivePerms = userRole 
+    ? getEffectivePermissions(userRole, userPermissions)
+    : userPermissions;
+
+  const modulePermissions = effectivePerms?.[module];
   return modulePermissions !== undefined && modulePermissions.length > 0;
 }
 
@@ -99,12 +262,12 @@ export function hasAnyPermission(
  */
 export function hasAllPermissions(
   userPermissions: Permissions | undefined,
-  userRole: string | undefined,
+  userRole: UserRole | undefined,
   module: Module,
   requiredPermissions: Permission[]
 ): boolean {
-  // Admin has all permissions
-  if (userRole === 'admin') return true;
+  // Owner has all permissions
+  if (userRole === 'owner') return true;
 
   return requiredPermissions.every(permission =>
     hasPermission(userPermissions, userRole, module, permission)
@@ -116,25 +279,21 @@ export function hasAllPermissions(
  */
 export function getAccessibleModules(
   userPermissions: Permissions | undefined,
-  userRole: string | undefined
+  userRole: UserRole | undefined
 ): Module[] {
-  // Admin has access to all modules
-  if (userRole === 'admin') {
-    return [
-      'dashboard', 'categories', 'units', 'products', 'purchases',
-      'suppliers', 'sales', 'customers', 'cash-flow', 'reports_shifts',
-      'reports_income_statement', 'reports_profit', 'reports_debt',
-      'reports_supplier_debt', 'reports_transactions', 'reports_supplier_debt_tracking',
-      'reports_revenue', 'reports_sold_products', 'reports_inventory',
-      'reports_ai_segmentation', 'reports_ai_basket_analysis', 'users',
-      'settings', 'pos', 'ai_forecast'
-    ];
+  // Owner has access to all modules
+  if (userRole === 'owner') {
+    return Object.keys(DEFAULT_PERMISSIONS.owner) as Module[];
   }
 
-  if (!userPermissions) return [];
+  const effectivePerms = userRole 
+    ? getEffectivePermissions(userRole, userPermissions)
+    : userPermissions;
 
-  return Object.keys(userPermissions).filter(
-    module => userPermissions[module as Module]?.length > 0
+  if (!effectivePerms) return [];
+
+  return Object.keys(effectivePerms).filter(
+    module => effectivePerms[module as Module]?.length ?? 0 > 0
   ) as Module[];
 }
 
@@ -151,17 +310,21 @@ export interface PermissionCheckResult {
  */
 export function checkPermission(
   userPermissions: Permissions | undefined,
-  userRole: string | undefined,
+  userRole: UserRole | undefined,
   module: Module,
   permission: Permission
 ): PermissionCheckResult {
-  // Admin has all permissions
-  if (userRole === 'admin') {
+  // Owner has all permissions
+  if (userRole === 'owner') {
     return { allowed: true };
   }
 
+  const effectivePerms = userRole 
+    ? getEffectivePermissions(userRole, userPermissions)
+    : userPermissions;
+
   // Check if user has any permissions defined
-  if (!userPermissions) {
+  if (!effectivePerms) {
     return {
       allowed: false,
       reason: 'Người dùng chưa được phân quyền',
@@ -169,7 +332,7 @@ export function checkPermission(
   }
 
   // Check module permissions
-  const modulePermissions = userPermissions[module];
+  const modulePermissions = effectivePerms[module];
   if (!modulePermissions || modulePermissions.length === 0) {
     return {
       allowed: false,
@@ -199,7 +362,7 @@ export function checkPermission(
  */
 export function createPermissionChecker(
   userPermissions: Permissions | undefined,
-  userRole: string | undefined
+  userRole: UserRole | undefined
 ) {
   return {
     hasPermission: (module: Module, permission: Permission) =>
@@ -218,4 +381,21 @@ export function createPermissionChecker(
     checkPermission: (module: Module, permission: Permission) =>
       checkPermission(userPermissions, userRole, module, permission),
   };
+}
+
+/**
+ * Check if a user can manage another user based on role hierarchy
+ */
+export function canManageUser(managerRole: UserRole, targetRole: UserRole): boolean {
+  return ROLE_HIERARCHY[managerRole] > ROLE_HIERARCHY[targetRole];
+}
+
+/**
+ * Get roles that a user can assign to others
+ */
+export function getAssignableRoles(userRole: UserRole): UserRole[] {
+  const userLevel = ROLE_HIERARCHY[userRole];
+  return (Object.keys(ROLE_HIERARCHY) as UserRole[]).filter(
+    role => ROLE_HIERARCHY[role] < userLevel
+  );
 }

@@ -6,7 +6,7 @@ import type { Permissions, SoftwarePackage } from "@/lib/types";
 
 // Define default permissions for each role
 const defaultPermissions: Record<string, Permissions> = {
-  admin: {
+  owner: {
     dashboard: ['view'],
     pos: ['view', 'add', 'edit', 'delete'],
     categories: ['view', 'add', 'edit', 'delete'],
@@ -33,24 +33,39 @@ const defaultPermissions: Record<string, Permissions> = {
     users: ['view', 'add', 'edit', 'delete'],
     settings: ['view', 'edit'],
   },
-  accountant: {
+  company_manager: {
     dashboard: ['view'],
+    pos: ['view', 'add', 'edit'],
+    categories: ['view', 'add', 'edit', 'delete'],
+    units: ['view', 'add', 'edit', 'delete'],
+    suppliers: ['view', 'add', 'edit'],
+    products: ['view', 'add', 'edit', 'delete'],
+    purchases: ['view', 'add', 'edit'],
     sales: ['view', 'add', 'edit'],
     customers: ['view', 'add', 'edit'],
     'cash-flow': ['view', 'add', 'edit', 'delete'],
+    reports_shifts: ['view'],
     reports_income_statement: ['view'],
     reports_profit: ['view'],
     reports_debt: ['view'],
+    reports_supplier_debt: ['view'],
     reports_transactions: ['view'],
+    reports_supplier_debt_tracking: ['view'],
     reports_revenue: ['view'],
     reports_sold_products: ['view'],
+    reports_inventory: ['view'],
+    reports_ai_segmentation: ['view'],
+    reports_ai_basket_analysis: ['view'],
+    ai_forecast: ['view'],
+    users: ['view'],
+    settings: ['view'],
   },
-  inventory_manager: {
+  store_manager: {
     dashboard: ['view'],
     pos: ['view', 'add', 'edit'],
     categories: ['view', 'add', 'edit'],
     units: ['view', 'add', 'edit'],
-    suppliers: ['view'],
+    suppliers: ['view', 'add'],
     products: ['view', 'add', 'edit'],
     purchases: ['view', 'add', 'edit'],
     sales: ['view', 'add', 'edit'],
@@ -71,10 +86,12 @@ const defaultPermissions: Record<string, Permissions> = {
     ai_forecast: ['view'],
   },
   salesperson: {
+    dashboard: ['view'],
     pos: ['view', 'add'],
+    products: ['view'],
+    sales: ['view', 'add'],
     customers: ['view', 'add'],
   },
-  custom: {},
 };
 
 // Define permissions for each software package
@@ -125,10 +142,10 @@ export function useUserRole() {
     let basePermissions: Permissions = 
       (userPermissions && Object.keys(userPermissions).length > 0)
         ? userPermissions
-        : (role ? defaultPermissions[role] : {});
+        : (role && defaultPermissions[role] ? defaultPermissions[role] : {});
 
     // If a software package is set, filter the base permissions
-    if (softwarePackage) {
+    if (softwarePackage && basePermissions && Object.keys(basePermissions).length > 0) {
       const allowedModules = packagePermissions[softwarePackage];
       const filteredPermissions: Permissions = {};
 
@@ -140,7 +157,7 @@ export function useUserRole() {
       return filteredPermissions;
     }
 
-    return basePermissions;
+    return basePermissions || {};
   }, [user, currentStore]);
 
   // Map stores to UserStoreAssignment format

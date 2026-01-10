@@ -27,3 +27,35 @@ export {
   EmailNotificationService,
   emailNotificationService,
 } from './email-notification-service';
+
+export {
+  AuthService,
+  authService,
+  type MultiTenantJwtPayload,
+  type AuthenticationResult,
+  type TenantDbUser,
+  type UserStoreInfo,
+} from './auth-service';
+
+export {
+  PermissionService,
+  permissionService,
+  invalidateUserPermissionCache,
+  invalidateTenantPermissionCache,
+  invalidateRolePermissionCache,
+  invalidateStorePermissionCache,
+  type PermissionCheckResult,
+  type UserPermissionContext,
+  type PermissionServiceConfig,
+  type CacheStats,
+} from './permission-service';
+
+// Cache module exports
+export {
+  MemoryCache,
+  PermissionCache,
+  permissionCache,
+  type ICache,
+  type CacheConfig,
+  type CacheEntry,
+} from './cache';

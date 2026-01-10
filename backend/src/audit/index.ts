@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { Request } from 'express';
 import {
   auditLogRepository,
   AuditAction,
@@ -8,17 +8,23 @@ import {
 /**
  * Extract IP address from request
  */
-export function getIpAddress(request: NextRequest): string {
+export function getIpAddress(request: Request): string {
   // Try X-Forwarded-For header first (for proxied requests)
-  const forwardedFor = request.headers.get('x-forwarded-for');
+  const forwardedFor = request.headers['x-forwarded-for'];
   if (forwardedFor) {
-    return forwardedFor.split(',')[0].trim();
+    const ip = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
+    return ip.split(',')[0].trim();
   }
 
   // Try X-Real-IP header
-  const realIp = request.headers.get('x-real-ip');
+  const realIp = request.headers['x-real-ip'];
   if (realIp) {
-    return realIp;
+    return Array.isArray(realIp) ? realIp[0] : realIp;
+  }
+
+  // Try socket remote address
+  if (request.socket?.remoteAddress) {
+    return request.socket.remoteAddress;
   }
 
   // Default to unknown
@@ -28,8 +34,9 @@ export function getIpAddress(request: NextRequest): string {
 /**
  * Extract User-Agent from request
  */
-export function getUserAgent(request: NextRequest): string {
-  return request.headers.get('user-agent') || 'unknown';
+export function getUserAgent(request: Request): string {
+  const userAgent = request.headers['user-agent'];
+  return userAgent || 'unknown';
 }
 
 /**

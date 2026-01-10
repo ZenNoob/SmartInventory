@@ -1,35 +1,41 @@
-'use client'
+'use client';
 
-import React from 'react';
-
-type GlobalErrorState = {
-  hasError: boolean;
-};
-
-class GlobalError extends React.Component<React.PropsWithChildren<{}>, GlobalErrorState> {
-  constructor(props: React.PropsWithChildren<{}>) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError(error: Error): GlobalErrorState {
-    // Update state so the next render will show the fallback UI.
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // You can also log the error to an error reporting service
-    console.error("Uncaught error:", error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      // You can render any custom fallback UI
-      return <h1>Something went wrong.</h1>;
-    }
-
-    return this.props.children; 
-  }
+export default function GlobalError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  return (
+    <html>
+      <body>
+        <div style={{ padding: '20px', textAlign: 'center' }}>
+          <h2>Đã xảy ra lỗi!</h2>
+          <p style={{ color: '#666', marginBottom: '16px' }}>
+            {error?.message || 'Có lỗi không xác định xảy ra'}
+          </p>
+          <button
+            onClick={() => {
+              if (typeof reset === 'function') {
+                reset();
+              } else {
+                window.location.reload();
+              }
+            }}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: '#0070f3',
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: 'pointer',
+            }}
+          >
+            Thử lại
+          </button>
+        </div>
+      </body>
+    </html>
+  );
 }
-
-export default GlobalError;

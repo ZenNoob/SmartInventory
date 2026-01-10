@@ -1,8 +1,8 @@
-import { NextRequest } from 'next/server';
-import { jwtVerify } from 'jose';
+import { Request } from 'express';
+import jwt from 'jsonwebtoken';
 
 const CUSTOMER_AUTH_COOKIE = 'customer_token';
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key');
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 export interface CustomerAuthPayload {
   customerId: string;
@@ -20,9 +20,10 @@ export interface CustomerAuthResult {
 /**
  * Authenticate customer request from storefront
  */
-export async function authenticateCustomer(request: NextRequest): Promise<CustomerAuthResult> {
-  // Get token from cookie
-  const token = request.cookies.get(CUSTOMER_AUTH_COOKIE)?.value;
+export async function authenticateCustomer(request: Request): Promise<CustomerAuthResult> {
+  // Get token from cookie or Authorization header
+  const token = request.cookies?.[CUSTOMER_AUTH_COOKIE] || 
+    request.headers.authorization?.replace('Bearer ', '');
 
   if (!token) {
     return {
@@ -33,7 +34,7 @@ export async function authenticateCustomer(request: NextRequest): Promise<Custom
   }
 
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET) as jwt.JwtPayload;
     
     return {
       success: true,

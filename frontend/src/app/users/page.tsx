@@ -6,6 +6,12 @@ import {
   Search,
   ListFilter,
   Store,
+  ChevronDown,
+  Pencil,
+  Trash2,
+  Key,
+  UserCog,
+  Building2,
 } from "lucide-react"
 
 import {
@@ -49,13 +55,13 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { UserForm } from "./components/user-form"
+import { AssignStoresDialog } from "./components/assign-stores-dialog"
 import { useState, useMemo, useEffect, useCallback } from "react"
 import { useUserRole } from "@/hooks/use-user-role"
-import Link from "next/link"
-import { deleteUser, getUsers } from "./actions"
+import { deleteUser, getUsers, updateUserStatus } from "./actions"
 import { useToast } from "@/hooks/use-toast"
-import { useRouter } from "next/navigation"
-import type { Permissions } from "@/lib/types"
+import type { Permissions, UserRole } from "@/lib/types"
+import { getRoleVietnamese, getManageableRoles, canManageRole } from "@/lib/types"
 import {
   Tooltip,
   TooltipContent,
@@ -67,38 +73,23 @@ interface UserStoreAssignment {
   storeId: string;
   storeName: string;
   storeCode: string;
-  role?: string;
-  permissions?: Permissions;
+  roleOverride?: string;
+  permissionsOverride?: Permissions;
 }
 
 interface UserWithStores {
   id: string;
   email: string;
   displayName?: string;
-  role: 'admin' | 'accountant' | 'inventory_manager' | 'salesperson' | 'custom';
+  role: UserRole;
   permissions?: Permissions;
   status: 'active' | 'inactive';
   stores: UserStoreAssignment[];
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
-function getRoleVietnamese(role: string) {
-  switch (role) {
-    case 'admin':
-      return 'Quản trị viên';
-    case 'accountant':
-      return 'Kế toán';
-    case 'inventory_manager':
-      return 'Quản lý kho';
-    case 'salesperson':
-      return 'Nhân viên bán hàng';
-    case 'custom':
-      return 'Tùy chỉnh';
-    default:
-      return role;
-  }
-}
+type StatusFilter = 'all' | 'active' | 'inactive';
 
 function getStatusBadge(status: string) {
   switch (status) {
@@ -111,10 +102,19 @@ function getStatusBadge(status: string) {
   }
 }
 
+function getRoleBadgeVariant(role: UserRole): "default" | "secondary" | "outline" | "destructive" {
+  switch (role) {
+    case 'owner': return 'default';
+    case 'company_manager': return 'secondary';
+    case 'store_manager': return 'outline';
+    case 'salesperson': return 'outline';
+    default: return 'outline';
+  }
+}
+
 export default function UsersPage() {
-  const { permissions, role: currentUserRole, isLoading: isRoleLoading, userId: currentUserId } = useUserRole();
+  const { permissions, role: currentUserRole, isLoading: isRoleLoading, userId: currentUserId, userStores } = useUserRole();
   const { toast } = useToast();
-  const router = useRouter();
 
   const [users, setUsers] = useState<UserWithStores[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -123,13 +123,23 @@ export default function UsersPage() {
   const [userToDelete, setUserToDelete] = useState<UserWithStores | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [roleFilter, setRoleFilter] = useState<UserWithStores['role'] | 'all'>('all');
+  const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [userToAssignStores, setUserToAssignStores] = useState<UserWithStores | null>(null);
+  const [userToResetPassword, setUserToResetPassword] = useState<UserWithStores | null>(null);
+
+  // Get manageable roles for current user
+  const manageableRoles = useMemo(() => {
+    if (!currentUserRole) return [];
+    return getManageableRoles(currentUserRole as UserRole);
+  }, [currentUserRole]);
 
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
     const result = await getUsers();
     if (result.success && result.users) {
-      setUsers(result.users);
+      setUsers(result.users as UserWithStores[]);
     } else {
       toast({
         variant: "destructive",
@@ -146,21 +156,50 @@ export default function UsersPage() {
     }
   }, [isRoleLoading, fetchUsers]);
 
+  // Filter users based on role hierarchy and search/filter criteria
   const filteredUsers = useMemo(() => {
     return users?.filter(user => {
-      // Hide other admin accounts if the current user is not an admin
-      if (user.role === 'admin' && currentUserRole !== 'admin') {
+      // Role hierarchy filter - only show users that current user can manage
+      // Owner can see all users, others can only see users with lower roles
+      if (currentUserRole !== 'owner') {
+        // Can't see users with same or higher role (except themselves)
+        if (user.id !== currentUserId && !canManageRole(currentUserRole as UserRole, user.role)) {
+          return false;
+        }
+      }
+
+      // Store Manager can only see users assigned to their stores
+      if (currentUserRole === 'store_manager' && user.id !== currentUserId) {
+        const currentUserStoreIds = userStores?.map(s => s.storeId) || [];
+        const userStoreIds = user.stores?.map(s => s.storeId) || [];
+        const hasCommonStore = userStoreIds.some(id => currentUserStoreIds.includes(id));
+        if (!hasCommonStore && user.role !== 'owner' && user.role !== 'company_manager') {
+          return false;
+        }
+      }
+
+      // Role filter
+      if (roleFilter !== 'all' && user.role !== roleFilter) {
         return false;
       }
 
+      // Status filter
+      if (statusFilter !== 'all' && user.status !== statusFilter) {
+        return false;
+      }
+
+      // Search filter
       const term = searchTerm.toLowerCase();
-      const roleMatch = roleFilter === 'all' || user.role === roleFilter;
-      const searchMatch = term === '' ||
-        user.email.toLowerCase().includes(term) ||
-        (user.displayName && user.displayName.toLowerCase().includes(term));
-      return roleMatch && searchMatch;
+      if (term) {
+        return (
+          user.email.toLowerCase().includes(term) ||
+          (user.displayName && user.displayName.toLowerCase().includes(term))
+        );
+      }
+
+      return true;
     });
-  }, [users, searchTerm, roleFilter, currentUserRole]);
+  }, [users, searchTerm, roleFilter, statusFilter, currentUserRole, currentUserId, userStores]);
 
   const canAccess = permissions?.users?.includes('view');
   const canAdd = permissions?.users?.includes('add');
@@ -177,6 +216,25 @@ export default function UsersPage() {
     setIsFormOpen(true);
   }
 
+  const handleStatusChange = async (userId: string, newStatus: 'active' | 'inactive') => {
+    setIsUpdatingStatus(true);
+    const result = await updateUserStatus(userId, newStatus);
+    if (result.success) {
+      toast({
+        title: "Thành công!",
+        description: `Đã ${newStatus === 'active' ? 'kích hoạt' : 'vô hiệu hóa'} người dùng.`,
+      });
+      fetchUsers();
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: result.error,
+      });
+    }
+    setIsUpdatingStatus(false);
+  };
+
   const handleDeleteUser = async () => {
     if (!userToDelete) return;
     setIsDeleting(true);
@@ -190,7 +248,7 @@ export default function UsersPage() {
     } else {
       toast({
         variant: "destructive",
-        title: "Ôi! Đã có lỗi xảy ra.",
+        title: "Lỗi",
         description: result.error,
       });
     }
@@ -205,9 +263,43 @@ export default function UsersPage() {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!userToResetPassword) return;
+    try {
+      const response = await fetch(`/api/users/${userToResetPassword.id}/reset-password`, {
+        method: 'POST',
+      });
+      if (response.ok) {
+        toast({
+          title: "Thành công!",
+          description: `Đã gửi email đặt lại mật khẩu cho ${userToResetPassword.email}`,
+        });
+      } else {
+        const error = await response.json();
+        toast({
+          variant: "destructive",
+          title: "Lỗi",
+          description: error.error || "Không thể đặt lại mật khẩu",
+        });
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: "Không thể đặt lại mật khẩu",
+      });
+    }
+    setUserToResetPassword(null);
+  };
+
+  // Check if user role requires store assignment
+  const needsStoreAssignment = (role: UserRole) => {
+    return role === 'store_manager' || role === 'salesperson';
+  };
+
   if (isLoading || isRoleLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-64">
         <div>Đang tải...</div>
       </div>
     );
@@ -223,10 +315,7 @@ export default function UsersPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p>Chỉ những người dùng có quyền 'Xem người dùng' mới có thể truy cập trang này.</p>
-          <Button asChild className="mt-4">
-            <Link href="/dashboard">Quay lại Bảng điều khiển</Link>
-          </Button>
+          <p>Chỉ những người dùng có quyền &apos;Xem người dùng&apos; mới có thể truy cập trang này.</p>
         </CardContent>
       </Card>
     );
@@ -241,13 +330,47 @@ export default function UsersPage() {
         allUsers={users}
         onUserUpdated={fetchUsers}
       />
+      
+      {/* Assign Stores Dialog */}
+      {userToAssignStores && (
+        <AssignStoresDialog
+          isOpen={!!userToAssignStores}
+          onOpenChange={(open) => !open && setUserToAssignStores(null)}
+          userId={userToAssignStores.id}
+          userName={userToAssignStores.displayName || userToAssignStores.email}
+          currentStores={userToAssignStores.stores}
+          onSuccess={fetchUsers}
+        />
+      )}
+
+      {/* Reset Password Confirmation Dialog */}
+      <AlertDialog open={!!userToResetPassword} onOpenChange={(open) => !open && setUserToResetPassword(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Đặt lại mật khẩu</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc muốn đặt lại mật khẩu cho{' '}
+              <strong>{userToResetPassword?.displayName || userToResetPassword?.email}</strong>?
+              Một email hướng dẫn đặt lại mật khẩu sẽ được gửi đến địa chỉ email của họ.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResetPassword}>
+              Đặt lại mật khẩu
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete User Confirmation Dialog */}
       <AlertDialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Bạn có chắc chắn không?</AlertDialogTitle>
             <AlertDialogDescription>
-              Hành động này không thể được hoàn tác. Thao tác này sẽ xóa vĩnh viễn tài khoản của{' '}
-              <strong>{userToDelete?.displayName || userToDelete?.email}</strong> và xóa dữ liệu của họ khỏi máy chủ của chúng tôi.
+              Hành động này sẽ vô hiệu hóa tài khoản của{' '}
+              <strong>{userToDelete?.displayName || userToDelete?.email}</strong> và thu hồi quyền truy cập của họ ngay lập tức.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -261,17 +384,17 @@ export default function UsersPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Người dùng</CardTitle>
+          <CardTitle>Quản lý người dùng</CardTitle>
           <CardDescription>
-            Quản lý người dùng trong hệ thống của bạn.
+            Quản lý tài khoản và phân quyền người dùng trong hệ thống.
           </CardDescription>
-          <div className="flex items-center gap-4 pt-4">
-            <div className="relative">
+          <div className="flex flex-wrap items-center gap-4 pt-4">
+            <div className="relative flex-1 min-w-[200px] max-w-sm">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
                 placeholder="Tìm theo tên, email..."
-                className="w-full rounded-lg bg-background pl-8 md:w-80"
+                className="w-full rounded-lg bg-background pl-8"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -281,25 +404,49 @@ export default function UsersPage() {
                 <Button variant="outline" size="sm" className="h-10 gap-1">
                   <ListFilter className="h-3.5 w-3.5" />
                   <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                    Lọc vai trò
+                    Vai trò
                   </span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Lọc theo vai trò</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuRadioGroup value={roleFilter} onValueChange={(value) => setRoleFilter(value as UserWithStores['role'] | 'all')}>
+                <DropdownMenuRadioGroup value={roleFilter} onValueChange={(value) => setRoleFilter(value as UserRole | 'all')}>
                   <DropdownMenuRadioItem value="all">Tất cả</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="admin">Quản trị viên</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="accountant">Kế toán</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="inventory_manager">Quản lý kho</DropdownMenuRadioItem>
+                  {currentUserRole === 'owner' && (
+                    <>
+                      <DropdownMenuRadioItem value="owner">Chủ sở hữu</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="company_manager">Quản lý công ty</DropdownMenuRadioItem>
+                    </>
+                  )}
+                  {(currentUserRole === 'owner' || currentUserRole === 'company_manager') && (
+                    <DropdownMenuRadioItem value="store_manager">Quản lý cửa hàng</DropdownMenuRadioItem>
+                  )}
                   <DropdownMenuRadioItem value="salesperson">Nhân viên bán hàng</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="custom">Tùy chỉnh</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-10 gap-1">
+                  <ListFilter className="h-3.5 w-3.5" />
+                  <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                    Trạng thái
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Lọc theo trạng thái</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuRadioGroup value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
+                  <DropdownMenuRadioItem value="all">Tất cả</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="active">Hoạt động</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="inactive">Ngừng hoạt động</DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
             </DropdownMenu>
             <div className="ml-auto flex items-center gap-2">
-              {canAdd && (
+              {canAdd && manageableRoles.length > 0 && (
                 <Button size="sm" className="h-10 gap-1" onClick={handleAddUser}>
                   <PlusCircle className="h-3.5 w-3.5" />
                   <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
@@ -333,18 +480,24 @@ export default function UsersPage() {
               )}
               {!isLoading && filteredUsers?.map((user, index) => {
                 const isCurrentUser = user.id === currentUserId;
+                const canManage = canManageRole(currentUserRole as UserRole, user.role);
                 return (
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">{index + 1}</TableCell>
                     <TableCell className="font-medium">
                       {user.displayName || 'N/A'}
+                      {isCurrentUser && <Badge variant="outline" className="ml-2">Bạn</Badge>}
                     </TableCell>
                     <TableCell>{user.email}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">{getRoleVietnamese(user.role)}</Badge>
+                      <Badge variant={getRoleBadgeVariant(user.role)}>
+                        {getRoleVietnamese(user.role)}
+                      </Badge>
                     </TableCell>
                     <TableCell>
-                      {user.stores && user.stores.length > 0 ? (
+                      {user.role === 'owner' || user.role === 'company_manager' ? (
+                        <span className="text-muted-foreground text-sm">Tất cả cửa hàng</span>
+                      ) : user.stores && user.stores.length > 0 ? (
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -369,7 +522,32 @@ export default function UsersPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      {getStatusBadge(user.status)}
+                      {canEdit && canManage && !isCurrentUser ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="p-1 h-auto" disabled={isUpdatingStatus}>
+                              {getStatusBadge(user.status)}
+                              <ChevronDown className="h-3 w-3 ml-1" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            <DropdownMenuItem 
+                              onClick={() => handleStatusChange(user.id, 'active')}
+                              disabled={user.status === 'active'}
+                            >
+                              Hoạt động
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleStatusChange(user.id, 'inactive')}
+                              disabled={user.status === 'inactive'}
+                            >
+                              Ngừng hoạt động
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        getStatusBadge(user.status)
+                      )}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -385,16 +563,39 @@ export default function UsersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Hành động</DropdownMenuLabel>
-                          {canEdit && <DropdownMenuItem onClick={() => handleEditUser(user)}>Sửa</DropdownMenuItem>}
-                          {canDelete && (
+                          <DropdownMenuSeparator />
+                          {canEdit && (canManage || isCurrentUser) && (
+                            <DropdownMenuItem onClick={() => handleEditUser(user)}>
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Chỉnh sửa thông tin
+                            </DropdownMenuItem>
+                          )}
+                          {canEdit && canManage && !isCurrentUser && (
+                            <DropdownMenuItem onClick={() => setUserToResetPassword(user)}>
+                              <Key className="mr-2 h-4 w-4" />
+                              Đặt lại mật khẩu
+                            </DropdownMenuItem>
+                          )}
+                          {canEdit && canManage && !isCurrentUser && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => handleStatusChange(user.id, user.status === 'active' ? 'inactive' : 'active')}
+                              >
+                                <UserCog className="mr-2 h-4 w-4" />
+                                {user.status === 'active' ? 'Vô hiệu hóa' : 'Kích hoạt'}
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {canDelete && canManage && !isCurrentUser && (
                             <>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-destructive"
                                 onClick={() => setUserToDelete(user)}
-                                disabled={isCurrentUser}
                               >
-                                Xóa
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Xóa người dùng
                               </DropdownMenuItem>
                             </>
                           )}

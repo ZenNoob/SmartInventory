@@ -10,7 +10,8 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest --run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "setup:master-db": "tsx scripts/setup-master-database.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

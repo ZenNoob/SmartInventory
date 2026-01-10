@@ -31,7 +31,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from "@/components/ui/input"
-import type { Module, Permission, Permissions } from '@/lib/types'
+import type { Module, Permission, Permissions, UserRole } from '@/lib/types'
+import { getRoleVietnamese, getManageableRoles, ROLE_HIERARCHY } from '@/lib/types'
 import { upsertUser } from '../actions'
 import { useToast } from '@/hooks/use-toast'
 import { RefreshCw, Copy, Store, X } from 'lucide-react'
@@ -57,7 +58,7 @@ interface UserWithStores {
   id: string;
   email: string;
   displayName?: string;
-  role: 'admin' | 'accountant' | 'inventory_manager' | 'salesperson' | 'custom';
+  role: UserRole;
   permissions?: Permissions;
   status: 'active' | 'inactive';
   stores: UserStoreAssignment[];
@@ -74,7 +75,7 @@ const permissionsSchema = z.record(z.array(z.enum(['view', 'add', 'edit', 'delet
 const userInfoSchemaBase = z.object({
   email: z.string().email({ message: "Email không hợp lệ." }),
   displayName: z.string().optional(),
-  role: z.enum(['admin', 'accountant', 'inventory_manager', 'salesperson', 'custom']),
+  role: z.enum(['owner', 'company_manager', 'store_manager', 'salesperson']),
   storeIds: z.array(z.string()).optional(),
 });
 
@@ -147,8 +148,8 @@ const permissions: { id: Permission; name: string }[] = [
   { id: 'delete', name: 'Xóa' },
 ]
 
-const defaultPermissions: Record<string, Permissions> = {
-  admin: {
+const defaultPermissions: Record<UserRole, Permissions> = {
+  owner: {
     dashboard: ['view'],
     pos: ['view', 'add', 'edit', 'delete'],
     categories: ['view', 'add', 'edit', 'delete'],
@@ -175,24 +176,39 @@ const defaultPermissions: Record<string, Permissions> = {
     users: ['view', 'add', 'edit', 'delete'],
     settings: ['view', 'edit'],
   },
-  accountant: {
+  company_manager: {
     dashboard: ['view'],
+    pos: ['view', 'add', 'edit'],
+    categories: ['view', 'add', 'edit', 'delete'],
+    units: ['view', 'add', 'edit', 'delete'],
+    suppliers: ['view', 'add', 'edit'],
+    products: ['view', 'add', 'edit', 'delete'],
+    purchases: ['view', 'add', 'edit'],
     sales: ['view', 'add', 'edit'],
     customers: ['view', 'add', 'edit'],
     'cash-flow': ['view', 'add', 'edit', 'delete'],
+    reports_shifts: ['view'],
     reports_income_statement: ['view'],
     reports_profit: ['view'],
     reports_debt: ['view'],
+    reports_supplier_debt: ['view'],
     reports_transactions: ['view'],
+    reports_supplier_debt_tracking: ['view'],
     reports_revenue: ['view'],
     reports_sold_products: ['view'],
+    reports_inventory: ['view'],
+    reports_ai_segmentation: ['view'],
+    reports_ai_basket_analysis: ['view'],
+    ai_forecast: ['view'],
+    users: ['view'],
+    settings: ['view'],
   },
-  inventory_manager: {
+  store_manager: {
     dashboard: ['view'],
     pos: ['view', 'add', 'edit'],
     categories: ['view', 'add', 'edit'],
     units: ['view', 'add', 'edit'],
-    suppliers: ['view'],
+    suppliers: ['view', 'add'],
     products: ['view', 'add', 'edit'],
     purchases: ['view', 'add', 'edit'],
     sales: ['view', 'add', 'edit'],
@@ -213,10 +229,12 @@ const defaultPermissions: Record<string, Permissions> = {
     ai_forecast: ['view'],
   },
   salesperson: {
+    dashboard: ['view'],
     pos: ['view', 'add'],
+    products: ['view'],
+    sales: ['view', 'add'],
     customers: ['view', 'add'],
   },
-  custom: {},
 };
 
 interface UserFormProps {
@@ -248,7 +266,7 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers, onUserUpdated }
     defaultValues: {
       email: '',
       displayName: '',
-      role: 'custom',
+      role: 'salesperson',
       password: '',
       storeIds: [],
     }
@@ -281,31 +299,26 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers, onUserUpdated }
         infoForm.reset({
           email: '',
           displayName: '',
-          role: 'custom',
+          role: 'salesperson',
           password: '',
           storeIds: [],
         });
         permissionsForm.reset({
-          permissions: {}
+          permissions: defaultPermissions.salesperson
         });
       }
     }
   }, [user, isOpen, infoForm, permissionsForm]);
 
-  const getRoleVietnamese = (role: string) => {
-    switch (role) {
-      case 'admin': return 'Quản trị viên';
-      case 'accountant': return 'Kế toán';
-      case 'inventory_manager': return 'Quản lý kho';
-      case 'salesperson': return 'Nhân viên bán hàng';
-      case 'custom': return 'Tùy chỉnh';
-      default: return role;
-    }
-  }
+  // Get manageable roles for current user
+  const manageableRoles = useMemo(() => {
+    if (!currentUserRole) return [];
+    return getManageableRoles(currentUserRole as UserRole);
+  }, [currentUserRole]);
 
   const handleApplyDefaultPermissions = () => {
-    if (role && role !== 'custom') {
-      permissionsForm.setValue('permissions', defaultPermissions[role], { shouldValidate: true, shouldDirty: true });
+    if (role) {
+      permissionsForm.setValue('permissions', defaultPermissions[role as UserRole], { shouldValidate: true, shouldDirty: true });
       toast({
         title: "Đã áp dụng",
         description: `Đã áp dụng bộ quyền mặc định cho vai trò "${getRoleVietnamese(role)}".`,
@@ -451,11 +464,17 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers, onUserUpdated }
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="admin" disabled={currentUserRole !== 'admin'}>Quản trị viên</SelectItem>
-                            <SelectItem value="accountant">Kế toán</SelectItem>
-                            <SelectItem value="inventory_manager">Quản lý kho</SelectItem>
-                            <SelectItem value="salesperson">Nhân viên bán hàng</SelectItem>
-                            <SelectItem value="custom">Tùy chỉnh</SelectItem>
+                            {/* Only show roles that current user can manage (lower than their own) */}
+                            {manageableRoles.map((roleOption) => (
+                              <SelectItem key={roleOption} value={roleOption}>
+                                {getRoleVietnamese(roleOption)}
+                              </SelectItem>
+                            ))}
+                            {manageableRoles.length === 0 && (
+                              <SelectItem value="none" disabled>
+                                Bạn không có quyền tạo người dùng
+                              </SelectItem>
+                            )}
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -463,60 +482,68 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers, onUserUpdated }
                     )}
                   />
 
-                  {/* Store Assignment Section */}
-                  <FormField
-                    control={infoForm.control}
-                    name="storeIds"
-                    render={() => (
-                      <FormItem>
-                        <FormLabel className="flex items-center gap-2">
-                          <Store className="h-4 w-4" />
-                          Cửa hàng được gán
-                        </FormLabel>
-                        <div className="space-y-2">
-                          {/* Selected stores */}
-                          <div className="flex flex-wrap gap-2">
-                            {selectedStoreIds.map(storeId => {
-                              const store = availableStores.find(s => s.id === storeId);
-                              return store ? (
-                                <Badge key={storeId} variant="secondary" className="flex items-center gap-1">
-                                  {store.name} ({store.code})
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveStore(storeId)}
-                                    className="ml-1 hover:text-destructive"
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </button>
-                                </Badge>
-                              ) : null;
-                            })}
-                          </div>
-                          {/* Store selector */}
-                          <Select onValueChange={handleAddStore}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Chọn cửa hàng để gán..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {availableStores
-                                .filter(s => !selectedStoreIds.includes(s.id))
-                                .map(store => (
-                                  <SelectItem key={store.id} value={store.id}>
+                  {/* Store Assignment Section - Only for store_manager and salesperson */}
+                  {(role === 'store_manager' || role === 'salesperson') && (
+                    <FormField
+                      control={infoForm.control}
+                      name="storeIds"
+                      render={() => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-2">
+                            <Store className="h-4 w-4" />
+                            Cửa hàng được gán
+                          </FormLabel>
+                          <div className="space-y-2">
+                            {/* Selected stores */}
+                            <div className="flex flex-wrap gap-2">
+                              {selectedStoreIds.map(storeId => {
+                                const store = availableStores.find(s => s.id === storeId);
+                                return store ? (
+                                  <Badge key={storeId} variant="secondary" className="flex items-center gap-1">
                                     {store.name} ({store.code})
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveStore(storeId)}
+                                      className="ml-1 hover:text-destructive"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </Badge>
+                                ) : null;
+                              })}
+                            </div>
+                            {/* Store selector */}
+                            <Select onValueChange={handleAddStore}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Chọn cửa hàng để gán..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableStores
+                                  .filter(s => !selectedStoreIds.includes(s.id))
+                                  .map(store => (
+                                    <SelectItem key={store.id} value={store.id}>
+                                      {store.name} ({store.code})
+                                    </SelectItem>
+                                  ))}
+                                {availableStores.filter(s => !selectedStoreIds.includes(s.id)).length === 0 && (
+                                  <SelectItem value="none" disabled>
+                                    Không còn cửa hàng nào
                                   </SelectItem>
-                                ))}
-                              {availableStores.filter(s => !selectedStoreIds.includes(s.id)).length === 0 && (
-                                <SelectItem value="none" disabled>
-                                  Không còn cửa hàng nào
-                                </SelectItem>
-                              )}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                  {(role === 'owner' || role === 'company_manager' || role === 'admin') && (
+                    <div className="text-sm text-muted-foreground flex items-center gap-2 p-3 bg-muted rounded-md">
+                      <Store className="h-4 w-4" />
+                      <span>Vai trò này có quyền truy cập tất cả cửa hàng</span>
+                    </div>
+                  )}
                 </CardContent>
                 <div className="p-6 pt-0">
                   <Button type="submit" className="w-full" disabled={infoForm.formState.isSubmitting}>
@@ -555,7 +582,7 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers, onUserUpdated }
                             </Command>
                           </PopoverContent>
                         </Popover>
-                        {role !== 'custom' && (
+                        {role && (
                           <Button size="sm" variant="outline" type="button" onClick={handleApplyDefaultPermissions}>
                             <RefreshCw className="h-4 w-4 mr-2" />
                             Mặc định
@@ -567,7 +594,8 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers, onUserUpdated }
                   <CardContent className="space-y-2 flex-grow overflow-y-auto">
                     <Accordion type="multiple" className="w-full" defaultValue={permissionGroups.map(g => g.groupName)}>
                       {permissionGroups.map(group => {
-                        if (group.groupName === 'Quản trị hệ thống' && currentUserRole !== 'admin') {
+                        // Only owner and admin can see/edit system administration permissions
+                        if (group.groupName === 'Quản trị hệ thống' && currentUserRole !== 'owner' && currentUserRole !== 'admin') {
                           return null;
                         }
                         return (

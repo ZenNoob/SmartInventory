@@ -1,6 +1,7 @@
-import { query, queryOne } from '../db';
-import { hashPassword } from '../auth/password';
-import type { Permissions } from '../types';
+import { query, queryOne } from '../db/index.js';
+import { hashPassword } from '../auth/password.js';
+import { invalidateUserPermissionCache } from '../services/permission-service.js';
+import type { Permissions, UserRole } from '../types.js';
 
 /**
  * User entity interface
@@ -9,7 +10,7 @@ export interface User {
   id: string;
   email: string;
   displayName?: string;
-  role: 'admin' | 'accountant' | 'inventory_manager' | 'salesperson' | 'custom';
+  role: UserRole;
   permissions?: Permissions;
   status: 'active' | 'inactive';
   failedLoginAttempts: number;
@@ -26,14 +27,23 @@ export interface UserWithStores extends User {
 }
 
 /**
- * User-Store assignment
+ * User-Store assignment with RBAC support
  */
 export interface UserStoreAssignment {
   storeId: string;
   storeName: string;
   storeCode: string;
-  role?: string;
-  permissions?: Permissions;
+  roleOverride?: UserRole;  // Custom role for this specific store
+  permissionsOverride?: Permissions;  // Custom permissions for this specific store
+}
+
+/**
+ * Input for assigning a store to a user with optional role override
+ */
+export interface AssignStoreInput {
+  storeId: string;
+  roleOverride?: UserRole;
+  permissionsOverride?: Permissions;
 }
 
 /**
@@ -43,7 +53,7 @@ export interface CreateUserInput {
   email: string;
   password: string;
   displayName?: string;
-  role: 'admin' | 'accountant' | 'inventory_manager' | 'salesperson' | 'custom';
+  role: UserRole;
   permissions?: Permissions;
   storeIds?: string[];
 }
@@ -55,7 +65,7 @@ export interface UpdateUserInput {
   email?: string;
   password?: string;
   displayName?: string;
-  role?: 'admin' | 'accountant' | 'inventory_manager' | 'salesperson' | 'custom';
+  role?: UserRole;
   permissions?: Permissions;
   status?: 'active' | 'inactive';
   storeIds?: string[];
@@ -242,7 +252,7 @@ export class UserRepository {
   }
 
   /**
-   * Get stores assigned to a user
+   * Get stores assigned to a user with role/permission overrides
    */
   async getUserStores(userId: string): Promise<UserStoreAssignment[]> {
     const results = await query<{
@@ -250,18 +260,24 @@ export class UserRepository {
       store_id: string;
       store_name: string;
       store_slug: string;
+      role_override: string | null;
+      permissions_override: string | null;
     }>(
-      `SELECT us.user_id, us.store_id, s.name as store_name, s.slug as store_slug
+      `SELECT us.UserId as user_id, us.StoreId as store_id, 
+              s.Name as store_name, s.Slug as store_slug,
+              us.RoleOverride as role_override, us.PermissionsOverride as permissions_override
        FROM UserStores us
-       INNER JOIN Stores s ON us.store_id = s.id
-       WHERE us.user_id = @userId AND s.status = 'active'
-       ORDER BY s.name`,
+       INNER JOIN Stores s ON us.StoreId = s.Id
+       WHERE us.UserId = @userId AND s.Status = 'active'
+       ORDER BY s.Name`,
       { userId }
     );
     return results.map(r => ({
       storeId: r.store_id,
       storeName: r.store_name,
       storeCode: r.store_slug,
+      roleOverride: r.role_override as UserRole | undefined,
+      permissionsOverride: r.permissions_override ? JSON.parse(r.permissions_override) : undefined,
     }));
   }
 
@@ -322,6 +338,10 @@ export class UserRepository {
       passwordHash = await hashPassword(input.password);
     }
 
+    // Check if role or permissions changed - need to invalidate cache
+    const roleChanged = input.role && input.role !== existing.role;
+    const permissionsChanged = input.permissions !== undefined;
+
     await query(
       `UPDATE Users SET 
         email = @email,
@@ -347,6 +367,12 @@ export class UserRepository {
       await this.updateStoreAssignments(id, input.storeIds);
     }
 
+    // Invalidate permission cache if role or permissions changed
+    // Requirements: 6.5
+    if (roleChanged || permissionsChanged) {
+      invalidateUserPermissionCache(id);
+    }
+
     const updated = await this.findById(id);
     if (!updated) {
       throw new Error('Không thể cập nhật người dùng');
@@ -363,47 +389,126 @@ export class UserRepository {
       throw new Error('Không tìm thấy người dùng');
     }
 
-    await query(`DELETE FROM UserStores WHERE user_id = @userId`, { userId: id });
-    await query(`DELETE FROM Sessions WHERE user_id = @userId`, { userId: id });
-    await query(`DELETE FROM Users WHERE id = @id`, { id });
+    await query(`DELETE FROM UserStores WHERE UserId = @userId`, { userId: id });
+    await query(`DELETE FROM Sessions WHERE UserId = @userId`, { userId: id });
+    await query(`DELETE FROM Users WHERE Id = @id`, { id });
     return true;
   }
 
   /**
-   * Assign stores to a user
+   * Assign stores to a user with optional role/permission overrides
    */
   async assignStores(userId: string, storeIds: string[]): Promise<void> {
     for (const storeId of storeIds) {
-      const existing = await queryOne<{ user_id: string }>(
-        `SELECT user_id FROM UserStores WHERE user_id = @userId AND store_id = @storeId`,
+      const existing = await queryOne<{ UserId: string }>(
+        `SELECT UserId FROM UserStores WHERE UserId = @userId AND StoreId = @storeId`,
         { userId, storeId }
       );
 
       if (!existing) {
+        const id = crypto.randomUUID();
         await query(
-          `INSERT INTO UserStores (user_id, store_id, created_at) VALUES (@userId, @storeId, GETDATE())`,
-          { userId, storeId }
+          `INSERT INTO UserStores (Id, UserId, StoreId, CreatedAt, UpdatedAt) 
+           VALUES (@id, @userId, @storeId, GETDATE(), GETDATE())`,
+          { id, userId, storeId }
         );
       }
     }
   }
 
   /**
+   * Assign a store to a user with role/permission overrides
+   */
+  async assignStoreWithOverrides(
+    userId: string, 
+    input: AssignStoreInput
+  ): Promise<void> {
+    const existing = await queryOne<{ UserId: string }>(
+      `SELECT UserId FROM UserStores WHERE UserId = @userId AND StoreId = @storeId`,
+      { userId, storeId: input.storeId }
+    );
+
+    if (existing) {
+      // Update existing assignment
+      await query(
+        `UPDATE UserStores SET 
+          RoleOverride = @roleOverride,
+          PermissionsOverride = @permissionsOverride,
+          UpdatedAt = GETDATE()
+         WHERE UserId = @userId AND StoreId = @storeId`,
+        {
+          userId,
+          storeId: input.storeId,
+          roleOverride: input.roleOverride || null,
+          permissionsOverride: input.permissionsOverride 
+            ? JSON.stringify(input.permissionsOverride) 
+            : null,
+        }
+      );
+    } else {
+      // Create new assignment
+      const id = crypto.randomUUID();
+      await query(
+        `INSERT INTO UserStores (Id, UserId, StoreId, RoleOverride, PermissionsOverride, CreatedAt, UpdatedAt) 
+         VALUES (@id, @userId, @storeId, @roleOverride, @permissionsOverride, GETDATE(), GETDATE())`,
+        {
+          id,
+          userId,
+          storeId: input.storeId,
+          roleOverride: input.roleOverride || null,
+          permissionsOverride: input.permissionsOverride 
+            ? JSON.stringify(input.permissionsOverride) 
+            : null,
+        }
+      );
+    }
+
+    // Invalidate permission cache when store assignments change
+    // Requirements: 6.5
+    invalidateUserPermissionCache(userId);
+  }
+
+  /**
+   * Get user's effective role for a specific store
+   * Returns roleOverride if set, otherwise returns user's base role
+   */
+  async getEffectiveRoleForStore(userId: string, storeId: string): Promise<UserRole | null> {
+    const result = await queryOne<{ 
+      base_role: string; 
+      role_override: string | null;
+    }>(
+      `SELECT u.Role as base_role, us.RoleOverride as role_override
+       FROM Users u
+       LEFT JOIN UserStores us ON u.Id = us.UserId AND us.StoreId = @storeId
+       WHERE u.Id = @userId`,
+      { userId, storeId }
+    );
+
+    if (!result) return null;
+    
+    return (result.role_override || result.base_role) as UserRole;
+  }
+
+  /**
    * Update store assignments (replace all)
    */
   async updateStoreAssignments(userId: string, storeIds: string[]): Promise<void> {
-    await query(`DELETE FROM UserStores WHERE user_id = @userId`, { userId });
+    await query(`DELETE FROM UserStores WHERE UserId = @userId`, { userId });
     if (storeIds.length > 0) {
       await this.assignStores(userId, storeIds);
     }
+    
+    // Invalidate permission cache when store assignments change
+    // Requirements: 6.5
+    invalidateUserPermissionCache(userId);
   }
 
   /**
    * Check if user has access to a store
    */
   async hasStoreAccess(userId: string, storeId: string): Promise<boolean> {
-    const result = await queryOne<{ user_id: string }>(
-      `SELECT user_id FROM UserStores WHERE user_id = @userId AND store_id = @storeId`,
+    const result = await queryOne<{ UserId: string }>(
+      `SELECT UserId FROM UserStores WHERE UserId = @userId AND StoreId = @storeId`,
       { userId, storeId }
     );
     return result !== null;
@@ -414,10 +519,21 @@ export class UserRepository {
    */
   async countByStore(storeId: string): Promise<number> {
     const result = await queryOne<{ total: number }>(
-      `SELECT COUNT(*) as total FROM UserStores WHERE store_id = @storeId`,
+      `SELECT COUNT(*) as total FROM UserStores WHERE StoreId = @storeId`,
       { storeId }
     );
     return result?.total ?? 0;
+  }
+
+  /**
+   * Remove a user's access to a specific store
+   */
+  async removeStoreAccess(userId: string, storeId: string): Promise<boolean> {
+    await query(
+      `DELETE FROM UserStores WHERE UserId = @userId AND StoreId = @storeId`,
+      { userId, storeId }
+    );
+    return true;
   }
 }
 

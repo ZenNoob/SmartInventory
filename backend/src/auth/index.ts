@@ -1,10 +1,18 @@
 export { hashPassword, verifyPassword } from './password';
 export {
   generateToken,
+  generateMultiTenantToken,
   validateToken,
+  validateMultiTenantToken,
   decodeToken,
   isTokenExpired,
+  isMultiTenantToken,
+  getTenantIdFromToken,
+  getUserIdFromToken,
+  getStoresFromToken,
+  getRoleFromToken,
   type JwtPayload,
+  type MultiTenantJwtPayload,
   type Store,
   type UserWithStores,
 } from './jwt';
@@ -33,5 +41,7 @@ export {
   getAccessibleModules,
   checkPermission,
   createPermissionChecker,
+  getEffectivePermissions,
+  DEFAULT_PERMISSIONS,
   type PermissionCheckResult,
 } from './permissions';
