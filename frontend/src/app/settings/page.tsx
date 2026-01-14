@@ -59,10 +59,11 @@ import { useToast } from '@/hooks/use-toast'
 import { useRouter } from 'next/navigation'
 import { useStore } from '@/contexts/store-context'
 import { upsertThemeSettings, recalculateAllLoyaltyPoints, deleteAllTransactionalData, backupAllTransactionalData } from './actions'
+import { SyncDataButton } from '@/components/sync-data-button'
 import type { ThemeSettings, LoyaltySettings, SoftwarePackage } from '@/lib/types'
 import { hexToHsl, hslToHex } from '@/lib/utils'
 import { Separator } from '@/components/ui/separator'
-import { AlertCircle, FileDown, Loader2, Trash2, Lock } from 'lucide-react'
+import { AlertCircle, FileDown, Loader2, Trash2, Lock, RefreshCw } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Switch } from '@/components/ui/switch'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
@@ -369,7 +370,7 @@ export default function SettingsPage() {
       }
     });
   };
-  
+
   const handleReauthentication = async () => {
     if (!user || !user.email) {
       setAuthError("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.");
@@ -830,6 +831,26 @@ export default function SettingsPage() {
           </Card>
         </form>
       </Form>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Đồng bộ dữ liệu mẫu</CardTitle>
+          <CardDescription>
+            Tự động tạo dữ liệu mẫu cho Đơn vị tính, Nhà cung cấp, Khách hàng và các giao dịch.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <SyncDataButton 
+              onSyncComplete={() => router.refresh()}
+            />
+            <p className="text-sm text-muted-foreground mt-2">
+              Tự động thêm đơn vị tính, nhà cung cấp, khách hàng phù hợp với loại cửa hàng. 
+              Đồng thời tạo đơn nhập hàng và đơn bán mẫu để hiển thị Tổng nhập, Đã trả, Công nợ.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="border-destructive">
           <CardHeader>

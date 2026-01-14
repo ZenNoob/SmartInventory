@@ -166,9 +166,12 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     const storeId = req.storeId!;
     const { 
       customerId, shiftId, items, totalAmount, vatAmount, finalAmount,
-      discount, discountType, discountValue, paymentMethod, customerPayment,
-      previousDebt, remainingDebt
+      discount, discountType, discountValue, customerPayment,
+      previousDebt, remainingDebt, tierDiscountPercentage, tierDiscountAmount,
+      pointsUsed, pointsDiscount, status
     } = req.body;
+
+    console.log('[POST /api/sales] Creating sale:', { storeId, customerId, shiftId, itemsCount: items?.length, totalAmount, finalAmount });
 
     // Generate invoice number
     const invoiceNumber = `INV-${Date.now()}`;
@@ -177,30 +180,38 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       `INSERT INTO Sales (
         id, store_id, invoice_number, customer_id, shift_id, transaction_date,
         status, total_amount, vat_amount, final_amount, discount, discount_type,
-        discount_value, payment_method, customer_payment, previous_debt, remaining_debt,
-        created_at, updated_at
+        discount_value, tier_discount_percentage, tier_discount_amount,
+        points_used, points_discount, customer_payment, 
+        previous_debt, remaining_debt, created_at, updated_at
       )
       OUTPUT INSERTED.*
       VALUES (
         NEWID(), @storeId, @invoiceNumber, @customerId, @shiftId, GETDATE(),
-        'completed', @totalAmount, @vatAmount, @finalAmount, @discount, @discountType,
-        @discountValue, @paymentMethod, @customerPayment, @previousDebt, @remainingDebt,
-        GETDATE(), GETDATE()
+        @status, @totalAmount, @vatAmount, @finalAmount, @discount, @discountType,
+        @discountValue, @tierDiscountPercentage, @tierDiscountAmount,
+        @pointsUsed, @pointsDiscount, @customerPayment, 
+        @previousDebt, @remainingDebt, GETDATE(), GETDATE()
       )`,
       { 
         storeId, invoiceNumber, customerId: customerId || null, shiftId: shiftId || null,
-        totalAmount, vatAmount: vatAmount || 0, finalAmount, discount: discount || 0,
-        discountType: discountType || null, discountValue: discountValue || 0,
-        paymentMethod: paymentMethod || 'cash', customerPayment: customerPayment || finalAmount,
+        status: status || 'completed',
+        totalAmount: totalAmount || 0, vatAmount: vatAmount || 0, finalAmount: finalAmount || 0, 
+        discount: discount || 0, discountType: discountType || null, discountValue: discountValue || 0,
+        tierDiscountPercentage: tierDiscountPercentage || 0, tierDiscountAmount: tierDiscountAmount || 0,
+        pointsUsed: pointsUsed || 0, pointsDiscount: pointsDiscount || 0,
+        customerPayment: customerPayment || finalAmount || 0,
         previousDebt: previousDebt || 0, remainingDebt: remainingDebt || 0
       }
     );
 
     const sale = result[0];
+    console.log('[POST /api/sales] Sale created:', sale.id, sale.invoice_number);
 
     // Insert sale items
     if (items && items.length > 0) {
       for (const item of items) {
+        // Accept both 'price' and 'unitPrice' for compatibility
+        const itemPrice = item.price ?? item.unitPrice;
         await query(
           `INSERT INTO SalesItems (id, sales_transaction_id, product_id, quantity, price, created_at)
            VALUES (NEWID(), @saleId, @productId, @quantity, @price, GETDATE())`,
@@ -208,7 +219,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
             saleId: sale.id, 
             productId: item.productId, 
             quantity: item.quantity,
-            price: item.unitPrice,
+            price: itemPrice,
           }
         );
 
@@ -229,7 +240,8 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     console.error('Create sale error:', error);
-    res.status(500).json({ error: 'Failed to create sale' });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: `Failed to create sale: ${errorMessage}` });
   }
 });
 

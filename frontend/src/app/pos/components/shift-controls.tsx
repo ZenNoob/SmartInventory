@@ -83,7 +83,7 @@ export function ShiftControls({ activeShift, onShiftClosed }: ShiftControlsProps
 
   const handleCloseShift = async () => {
     setIsClosing(true)
-    const result = await closeShift(activeShift.id, endingCash)
+    const result = await closeShift(activeShift.id, { endingCash })
     if (result.success) {
       toast({
         title: 'Đã đóng ca',

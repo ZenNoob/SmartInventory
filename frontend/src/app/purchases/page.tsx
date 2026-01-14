@@ -9,7 +9,11 @@ import {
   ArrowUp,
   ArrowDown,
   File,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react"
 import { DateRange } from "react-day-picker"
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns"
@@ -53,6 +57,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { formatCurrency, cn } from "@/lib/utils"
@@ -70,6 +81,13 @@ interface PurchaseOrderWithSupplier extends PurchaseOrder {
   itemCount?: number;
 }
 
+interface Pagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
 export default function PurchasesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>('importDate');
@@ -85,19 +103,29 @@ export default function PurchasesPage() {
   const [purchases, setPurchases] = useState<PurchaseOrderWithSupplier[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [pagination, setPagination] = useState<Pagination>({
+    page: 1,
+    pageSize: 20,
+    total: 0,
+    totalPages: 0,
+  });
   
   const { currentStore } = useStore();
   const { toast } = useToast();
   const router = useRouter();
 
-  // Fetch purchase orders
-  const fetchPurchases = useCallback(async () => {
+  // Fetch purchase orders with server-side pagination
+  const fetchPurchases = useCallback(async (page = 1, pageSize = 20) => {
     if (!currentStore?.id) return;
     
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
-      params.set('pageSize', '1000'); // Get all for client-side filtering
+      params.set('page', page.toString());
+      params.set('pageSize', pageSize.toString());
+      if (searchTerm) {
+        params.set('search', searchTerm);
+      }
       if (dateRange?.from) {
         params.set('dateFrom', dateRange.from.toISOString());
       }
@@ -114,6 +142,9 @@ export default function PurchasesPage() {
       if (response.ok) {
         const result = await response.json();
         setPurchases(result.data || []);
+        if (result.pagination) {
+          setPagination(result.pagination);
+        }
       }
     } catch (error) {
       console.error('Error fetching purchases:', error);
@@ -125,7 +156,7 @@ export default function PurchasesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [currentStore?.id, dateRange, toast]);
+  }, [currentStore?.id, dateRange, searchTerm, toast]);
 
   // Fetch suppliers
   const fetchSuppliers = useCallback(async () => {
@@ -148,22 +179,27 @@ export default function PurchasesPage() {
   }, [currentStore?.id]);
 
   useEffect(() => {
-    fetchPurchases();
+    fetchPurchases(pagination.page, pagination.pageSize);
     fetchSuppliers();
-  }, [fetchPurchases, fetchSuppliers]);
+  }, [fetchPurchases, fetchSuppliers, pagination.page, pagination.pageSize]);
+
+  // Debounced search effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchPurchases(1, pagination.pageSize);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Reset to page 1 when date range changes
+  useEffect(() => {
+    fetchPurchases(1, pagination.pageSize);
+  }, [dateRange]);
 
   const suppliersMap = useMemo(() => new Map(suppliers?.map(s => [s.id, s.name])), [suppliers]);
 
-  const filteredPurchases = purchases?.filter(order => {
-    const term = searchTerm.toLowerCase();
-    const supplierName = order.supplierName?.toLowerCase() || suppliersMap.get(order.supplierId || '')?.toLowerCase() || '';
-    if (!term) return true;
-    return (
-      order.orderNumber.toLowerCase().includes(term) ||
-      (order.notes && order.notes.toLowerCase().includes(term)) ||
-      supplierName.includes(term)
-    );
-  });
+  // Client-side filtering is now minimal since server handles search
+  const filteredPurchases = purchases;
   
   const setDatePreset = (preset: 'this_week' | 'this_month' | 'this_quarter' | 'this_year' | 'all') => {
     const now = new Date();
@@ -245,7 +281,7 @@ export default function PurchasesPage() {
         title: "Thành công!",
         description: `Đã xóa đơn nhập hàng "${orderToDelete.orderNumber}".`,
       });
-      fetchPurchases();
+      fetchPurchases(pagination.page, pagination.pageSize);
     } else {
       toast({
         variant: "destructive",
@@ -255,6 +291,18 @@ export default function PurchasesPage() {
     }
     setIsDeleting(false);
     setOrderToDelete(null);
+  };
+
+  // Pagination handlers
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= pagination.totalPages) {
+      setPagination(prev => ({ ...prev, page }));
+    }
+  };
+
+  const handlePageSizeChange = (newPageSize: string) => {
+    const size = parseInt(newPageSize);
+    setPagination(prev => ({ ...prev, pageSize: size, page: 1 }));
   };
   
   const handleExport = () => {
@@ -459,9 +507,65 @@ export default function PurchasesPage() {
             </TableBody>
           </Table>
         </CardContent>
-        <CardFooter>
-          <div className="text-xs text-muted-foreground">
-            Hiển thị <strong>{sortedPurchases?.length || 0}</strong> trên <strong>{purchases?.length || 0}</strong> đơn nhập hàng
+        <CardFooter className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>Hiển thị</span>
+            <Select value={pagination.pageSize.toString()} onValueChange={handlePageSizeChange}>
+              <SelectTrigger className="h-8 w-[70px]">
+                <SelectValue placeholder={pagination.pageSize.toString()} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="20">20</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+              </SelectContent>
+            </Select>
+            <span>trên <strong>{pagination.total}</strong> đơn nhập hàng</span>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              Trang {pagination.page} / {pagination.totalPages || 1}
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => goToPage(1)}
+                disabled={pagination.page <= 1}
+              >
+                <ChevronsLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => goToPage(pagination.page - 1)}
+                disabled={pagination.page <= 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => goToPage(pagination.page + 1)}
+                disabled={pagination.page >= pagination.totalPages}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => goToPage(pagination.totalPages)}
+                disabled={pagination.page >= pagination.totalPages}
+              >
+                <ChevronsRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </CardFooter>
       </Card>

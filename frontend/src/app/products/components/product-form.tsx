@@ -160,10 +160,10 @@ export function ProductForm({ isOpen, onOpenChange, product, categories, units }
         sellingPrice: product.sellingPrice,
         status: product.status,
         lowStockThreshold: product.lowStockThreshold,
-        purchaseLots: product.purchaseLots.map(lot => ({
+        purchaseLots: ((product as Record<string, unknown>).purchaseLots as Array<{ importDate: string; [key: string]: unknown }> || []).map((lot: { importDate: string; [key: string]: unknown }) => ({
           ...lot,
           importDate: lot.importDate.split('T')[0], // Format date for input
-        })) || []
+        }))
       }
     : { 
         name: '', 

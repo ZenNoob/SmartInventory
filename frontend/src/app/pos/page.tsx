@@ -180,7 +180,7 @@ export default function POSPage() {
     try {
       const result = await getProducts({ pageSize: 1000 }); // Get all active products
       if (result.success && result.data) {
-        setProducts(result.data as ProductWithStock[]);
+        setProducts(result.data as unknown as ProductWithStock[]);
       } else {
         toast({
           variant: 'destructive',
@@ -201,7 +201,7 @@ export default function POSPage() {
     try {
       const result = await getCustomers({ pageSize: 1000 });
       if (result.success && result.data) {
-        setCustomers(result.data as CustomerWithDebt[]);
+        setCustomers(result.data as unknown as CustomerWithDebt[]);
       } else {
         toast({
           variant: 'destructive',
@@ -251,7 +251,7 @@ export default function POSPage() {
     if (!user?.id) return;
     setShiftsLoading(true);
     try {
-      const result = await getActiveShift(user.id);
+      const result = await getActiveShift();
       if (result.success && result.shift) {
         setActiveShift(result.shift as Shift);
       } else {
@@ -334,13 +334,15 @@ export default function POSPage() {
       setCart(newCart)
     } else {
       const stockInBaseUnit = getStockInBaseUnit(product.id)
+      // Use 'price' from API (not 'sellingPrice' from old type)
+      const productPrice = (product as unknown as { price?: number }).price || product.sellingPrice || 0;
       setCart([
         ...cart,
         {
           productId: product.id,
           productName: product.name,
           quantity: 1,
-          price: product.sellingPrice || 0,
+          price: productPrice,
           saleUnitName: saleUnitName,
           stockInfo: {
             stockInBaseUnit: stockInBaseUnit,
@@ -376,7 +378,7 @@ export default function POSPage() {
       // If not found locally, try SQL Server API
       const result = await getProductByBarcode(barcode)
       if (result.success && result.product) {
-        const product = result.product as ProductWithStock
+        const product = result.product as unknown as ProductWithStock
         // Add to local products cache
         setProducts(prev => {
           const exists = prev.some(p => p.id === product.id)
@@ -469,7 +471,7 @@ export default function POSPage() {
       price: item.price,
     }))
 
-    const saleData: Partial<Sale> & { isChangeReturned?: boolean } = {
+    const saleData: Partial<Sale> & { isChangeReturned?: boolean; items?: typeof itemsData } = {
       customerId: selectedCustomerId === WALK_IN_CUSTOMER_ID ? undefined : selectedCustomerId,
       shiftId: activeShift?.id,
       transactionDate: new Date().toISOString(),
@@ -488,9 +490,10 @@ export default function POSPage() {
       remainingDebt: remainingDebt,
       status: settings?.invoiceFormat === 'none' ? 'printed' : 'unprinted',
       isChangeReturned: isChangeReturned,
+      items: itemsData,
     }
 
-    const result = await upsertSaleTransaction(saleData, itemsData)
+    const result = await upsertSaleTransaction(saleData as Record<string, unknown>)
 
     if (result.success && result.saleData) {
       toast({
@@ -569,11 +572,13 @@ export default function POSPage() {
     }
   };
   
-  const handleNewCustomerCreated = (newCustomerId?: string) => {
-    setIsCustomerFormOpen(false);
-    fetchCustomers(); // Refresh customers list
-    if(newCustomerId){
-      setSelectedCustomerId(newCustomerId);
+  const handleNewCustomerCreated = (isOpen: boolean, newCustomerId?: string) => {
+    setIsCustomerFormOpen(isOpen);
+    if (!isOpen) {
+      fetchCustomers(); // Refresh customers list
+      if(newCustomerId){
+        setSelectedCustomerId(newCustomerId);
+      }
     }
   }
 
@@ -789,8 +794,7 @@ export default function POSPage() {
                           {item.productName}
                         </TableCell>
                         <TableCell className="text-right">
-                          {formatCurrency(item.price)} /{' '}
-                          {item.stockInfo.baseUnitName}
+                          {formatCurrency(item.price)}
                         </TableCell>
                         <TableCell className="text-center">
                            <div className="flex items-center justify-center gap-1">

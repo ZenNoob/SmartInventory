@@ -146,8 +146,8 @@ router.post('/login', async (req: Request, res: Response) => {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7);
 
-      const token = jwt.sign({ userId: user.id, sessionId }, JWT_SECRET, {
-        expiresIn: JWT_EXPIRES_IN as string,
+      const token = (jwt.sign as Function)({ userId: user.id, sessionId }, JWT_SECRET, {
+        expiresIn: JWT_EXPIRES_IN,
       });
 
       await insert('Sessions', {
@@ -244,8 +244,8 @@ router.post('/login-legacy', async (req: Request, res: Response) => {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
-    const token = jwt.sign({ userId: user.id, sessionId }, JWT_SECRET, {
-      expiresIn: JWT_EXPIRES_IN as string,
+    const token = (jwt.sign as Function)({ userId: user.id, sessionId }, JWT_SECRET, {
+      expiresIn: JWT_EXPIRES_IN,
     });
 
     await insert('Sessions', {

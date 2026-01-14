@@ -397,7 +397,7 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
         };
     });
 
-    const saleData: Partial<Sale> & { isChangeReturned?: boolean } = {
+    const saleData: Partial<Sale> & { isChangeReturned?: boolean; items?: typeof itemsData } = {
         id: sale?.id, // Important for updates
         customerId: data.customerId,
         transactionDate: new Date(data.transactionDate).toISOString(),
@@ -416,9 +416,10 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
         remainingDebt: remainingDebt,
         status: data.status,
         isChangeReturned: data.isChangeReturned,
+        items: itemsData,
     };
 
-    const result = await upsertSaleTransaction(saleData, itemsData);
+    const result = await upsertSaleTransaction(saleData as Record<string, unknown>);
 
     if (result.success) {
       toast({
@@ -428,8 +429,8 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
       onOpenChange(false);
       form.reset();
       router.refresh();
-      if (result.saleData && !sale) {
-        router.push(`/sales/${result.saleData.id}`);
+      if (result.sale && !sale) {
+        router.push(`/sales/${result.sale.id}`);
       }
     } else {
       toast({
@@ -509,14 +510,14 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
       allProducts: JSON.stringify(Array.from(productsMap.entries()).map(([id, product]) => ({ id, name: product.name }))),
     });
 
-    if (result.success && result.data) {
-      if (result.data.suggestions.length === 0) {
+    if (result.success && result.suggestions) {
+      if (result.suggestions.length === 0) {
         toast({
           title: "Không tìm thấy gợi ý",
           description: "AI không tìm thấy sản phẩm nào thường được mua kèm.",
         });
       }
-      setSuggestions(result.data.suggestions);
+      setSuggestions(result.suggestions);
     } else {
       toast({
         variant: "destructive",
@@ -527,9 +528,9 @@ export function SaleForm({ isOpen, onOpenChange, customers, products, units, all
     setIsSuggesting(false);
   };
   
-  const handleNewCustomerCreated = (newCustomerId?: string) => {
-    setIsCustomerFormOpen(false);
-    if(newCustomerId){
+  const handleNewCustomerCreated = (isOpen: boolean, newCustomerId?: string) => {
+    setIsCustomerFormOpen(isOpen);
+    if(!isOpen && newCustomerId){
         form.setValue("customerId", newCustomerId);
     }
   }

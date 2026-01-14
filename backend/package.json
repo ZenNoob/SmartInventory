@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest --run",
     "test:watch": "vitest",
-    "setup:master-db": "tsx scripts/setup-master-database.ts"
+    "setup:master-db": "tsx scripts/setup-master-database.ts",
+    "migrate:inventory-transfer": "tsx scripts/migrate-inventory-transfer.ts",
+    "seed:sample-data": "tsx scripts/seed-sample-data.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

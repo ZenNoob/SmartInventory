@@ -1,191 +1,224 @@
 import { Router, Response } from 'express';
-import { query, queryOne } from '../db';
 import { authenticate, storeContext, AuthRequest } from '../middleware/auth';
+import { purchaseOrderRepository, CreatePurchaseOrderInput } from '../repositories/purchase-order-repository';
 
 const router = Router();
 
 router.use(authenticate);
 router.use(storeContext);
 
-// GET /api/purchases
+/**
+ * GET /api/purchases
+ * Lấy danh sách đơn nhập hàng với pagination và filter
+ * Query params: page, pageSize, search, supplierId, dateFrom, dateTo
+ * Requirements: 2.1, 2.2, 2.3
+ */
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const storeId = req.storeId!;
     
-    const purchases = await query(
-      `SELECT p.*, s.name as supplier_name
-       FROM Purchases p
-       LEFT JOIN Suppliers s ON p.supplier_id = s.id
-       WHERE p.store_id = @storeId
-       ORDER BY p.purchase_date DESC`,
-      { storeId }
-    );
+    // Parse query params
+    const page = parseInt(req.query.page as string) || 1;
+    const pageSize = parseInt(req.query.pageSize as string) || 20;
+    const search = req.query.search as string | undefined;
+    const supplierId = req.query.supplierId as string | undefined;
+    const dateFrom = req.query.dateFrom as string | undefined;
+    const dateTo = req.query.dateTo as string | undefined;
 
-    res.json(purchases.map((p: Record<string, unknown>) => ({
-      id: p.id,
-      storeId: p.store_id,
-      supplierId: p.supplier_id,
-      supplierName: p.supplier_name,
-      purchaseDate: p.purchase_date,
-      status: p.status,
-      totalAmount: p.total_amount,
-      paidAmount: p.paid_amount,
-      remainingDebt: p.remaining_debt,
-      notes: p.notes,
-      createdAt: p.created_at,
-      updatedAt: p.updated_at,
-    })));
+    const result = await purchaseOrderRepository.findAllWithSupplier(storeId, {
+      page,
+      pageSize,
+      search,
+      supplierId,
+      dateFrom,
+      dateTo,
+    });
+
+    res.json({
+      data: result.data,
+      pagination: {
+        page: result.page,
+        pageSize: result.pageSize,
+        total: result.total,
+        totalPages: result.totalPages,
+      },
+    });
   } catch (error) {
     console.error('Get purchases error:', error);
-    res.status(500).json({ error: 'Failed to get purchases' });
+    res.status(500).json({ error: 'Failed to get purchases', code: 'INTERNAL_ERROR' });
   }
 });
 
-// GET /api/purchases/:id
+/**
+ * GET /api/purchases/:id
+ * Lấy chi tiết đơn nhập hàng với items
+ * Requirements: 2.4
+ */
 router.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const storeId = req.storeId!;
 
-    const purchase = await queryOne(
-      `SELECT p.*, s.name as supplier_name
-       FROM Purchases p
-       LEFT JOIN Suppliers s ON p.supplier_id = s.id
-       WHERE p.id = @id AND p.store_id = @storeId`,
-      { id, storeId }
-    );
+    const purchase = await purchaseOrderRepository.findByIdWithDetails(id, storeId);
 
     if (!purchase) {
-      res.status(404).json({ error: 'Purchase not found' });
+      res.status(404).json({ error: 'Purchase order not found', code: 'PURCHASE_NOT_FOUND' });
       return;
     }
 
-    res.json({
-      id: purchase.id,
-      storeId: purchase.store_id,
-      supplierId: purchase.supplier_id,
-      supplierName: purchase.supplier_name,
-      purchaseDate: purchase.purchase_date,
-      status: purchase.status,
-      totalAmount: purchase.total_amount,
-      paidAmount: purchase.paid_amount,
-      remainingDebt: purchase.remaining_debt,
-      notes: purchase.notes,
-    });
+    res.json(purchase);
   } catch (error) {
     console.error('Get purchase error:', error);
-    res.status(500).json({ error: 'Failed to get purchase' });
+    res.status(500).json({ error: 'Failed to get purchase', code: 'INTERNAL_ERROR' });
   }
 });
 
-// POST /api/purchases
+
+/**
+ * POST /api/purchases
+ * Tạo đơn nhập hàng mới
+ * Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6
+ */
 router.post('/', async (req: AuthRequest, res: Response) => {
   try {
     const storeId = req.storeId!;
-    const { supplierId, items, totalAmount, paidAmount, notes } = req.body;
+    const userId = req.user?.id;
+    const { supplierId, importDate, notes, items } = req.body;
 
-    const remainingDebt = totalAmount - (paidAmount || 0);
-
-    const result = await query(
-      `INSERT INTO Purchases (
-        id, store_id, supplier_id, purchase_date, status, total_amount, 
-        paid_amount, remaining_debt, notes, created_at, updated_at
-      )
-      OUTPUT INSERTED.*
-      VALUES (
-        NEWID(), @storeId, @supplierId, GETDATE(), 'completed', @totalAmount,
-        @paidAmount, @remainingDebt, @notes, GETDATE(), GETDATE()
-      )`,
-      { storeId, supplierId, totalAmount, paidAmount: paidAmount || 0, remainingDebt, notes }
-    );
-
-    const purchase = result[0];
-
-    // Insert purchase items and update inventory
-    if (items && items.length > 0) {
-      for (const item of items) {
-        await query(
-          `INSERT INTO PurchaseItems (id, purchase_id, product_id, quantity, unit_price, total_price, created_at)
-           VALUES (NEWID(), @purchaseId, @productId, @quantity, @unitPrice, @totalPrice, GETDATE())`,
-          { 
-            purchaseId: purchase.id, 
-            productId: item.productId, 
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            totalPrice: item.totalPrice || item.quantity * item.unitPrice
-          }
-        );
-
-        // Update inventory - add stock
-        await query(
-          `MERGE Inventory AS target
-           USING (SELECT @storeId as store_id, @productId as product_id) AS source
-           ON target.store_id = source.store_id AND target.product_id = source.product_id
-           WHEN MATCHED THEN
-             UPDATE SET 
-               current_stock = current_stock + @quantity,
-               average_cost = ((current_stock * average_cost) + (@quantity * @unitPrice)) / (current_stock + @quantity),
-               updated_at = GETDATE()
-           WHEN NOT MATCHED THEN
-             INSERT (id, store_id, product_id, current_stock, average_cost, created_at, updated_at)
-             VALUES (NEWID(), @storeId, @productId, @quantity, @unitPrice, GETDATE(), GETDATE());`,
-          { storeId, productId: item.productId, quantity: item.quantity, unitPrice: item.unitPrice }
-        );
-      }
+    // Validate required fields
+    if (!importDate) {
+      res.status(400).json({ error: 'Import date is required', code: 'VALIDATION_ERROR' });
+      return;
     }
 
-    res.status(201).json({
-      id: purchase.id,
-      status: purchase.status,
-      totalAmount: purchase.total_amount,
-    });
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      res.status(400).json({ error: 'At least one item is required', code: 'VALIDATION_ERROR' });
+      return;
+    }
+
+    // Calculate total amount
+    const totalAmount = items.reduce((sum: number, item: { quantity: number; cost: number }) => {
+      return sum + (item.quantity * item.cost);
+    }, 0);
+
+    const input: CreatePurchaseOrderInput = {
+      supplierId,
+      importDate,
+      notes,
+      totalAmount,
+      createdBy: userId,
+      items: items.map((item: { productId: string; quantity: number; cost: number; unitId: string }) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        cost: item.cost,
+        unitId: item.unitId,
+      })),
+    };
+
+    const purchase = await purchaseOrderRepository.createWithItems(input, storeId);
+
+    res.status(201).json(purchase);
   } catch (error) {
     console.error('Create purchase error:', error);
-    res.status(500).json({ error: 'Failed to create purchase' });
+    res.status(500).json({ error: 'Failed to create purchase', code: 'INTERNAL_ERROR' });
   }
 });
 
-// PUT /api/purchases/:id
+/**
+ * PUT /api/purchases/:id
+ * Cập nhật đơn nhập hàng với validation
+ * Requirements: 3.1
+ */
 router.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const storeId = req.storeId!;
-    const { status, paidAmount, remainingDebt, notes } = req.body;
+    const { supplierId, importDate, notes, items } = req.body;
 
-    await query(
-      `UPDATE Purchases SET 
-        status = COALESCE(@status, status),
-        paid_amount = COALESCE(@paidAmount, paid_amount),
-        remaining_debt = COALESCE(@remainingDebt, remaining_debt),
-        notes = COALESCE(@notes, notes),
-        updated_at = GETDATE()
-       WHERE id = @id AND store_id = @storeId`,
-      { id, storeId, status, paidAmount, remainingDebt, notes }
-    );
+    // Validate required fields
+    if (!importDate) {
+      res.status(400).json({ error: 'Import date is required', code: 'VALIDATION_ERROR' });
+      return;
+    }
 
-    res.json({ success: true });
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      res.status(400).json({ error: 'At least one item is required', code: 'VALIDATION_ERROR' });
+      return;
+    }
+
+    // Calculate total amount
+    const totalAmount = items.reduce((sum: number, item: { quantity: number; cost: number }) => {
+      return sum + (item.quantity * item.cost);
+    }, 0);
+
+    const input = {
+      supplierId,
+      importDate,
+      notes,
+      totalAmount,
+      items: items.map((item: { productId: string; quantity: number; cost: number; unitId: string }) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        cost: item.cost,
+        unitId: item.unitId,
+      })),
+    };
+
+    const purchase = await purchaseOrderRepository.updateWithItems(id, input, storeId);
+
+    res.json(purchase);
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    if (errorMessage.includes('not found') || errorMessage.includes('access denied')) {
+      res.status(404).json({ error: 'Purchase order not found or access denied', code: 'PURCHASE_NOT_FOUND' });
+      return;
+    }
+
     console.error('Update purchase error:', error);
-    res.status(500).json({ error: 'Failed to update purchase' });
+    res.status(500).json({ error: 'Failed to update purchase', code: 'INTERNAL_ERROR' });
   }
 });
 
-// DELETE /api/purchases/:id
+/**
+ * DELETE /api/purchases/:id
+ * Xóa đơn nhập hàng với kiểm tra ràng buộc
+ * Requirements: 3.2, 3.3, 3.4
+ */
 router.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const storeId = req.storeId!;
 
-    // Delete purchase items first
-    await query('DELETE FROM PurchaseItems WHERE purchase_id = @id', { id });
+    // Check if purchase order can be deleted (no used lots)
+    const canDelete = await purchaseOrderRepository.canDelete(id, storeId);
     
-    // Delete purchase
-    await query('DELETE FROM Purchases WHERE id = @id AND store_id = @storeId', { id, storeId });
+    if (!canDelete) {
+      res.status(400).json({ 
+        error: 'Cannot delete purchase order with used inventory. Some items have been sold or transferred.',
+        code: 'PURCHASE_DELETE_FORBIDDEN',
+      });
+      return;
+    }
 
-    res.json({ success: true });
+    await purchaseOrderRepository.deleteWithItems(id, storeId);
+
+    res.json({ success: true, message: 'Purchase order deleted successfully' });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    if (errorMessage.includes('not found') || errorMessage.includes('access denied')) {
+      res.status(404).json({ error: 'Purchase order not found or access denied', code: 'PURCHASE_NOT_FOUND' });
+      return;
+    }
+
+    if (errorMessage.includes('Cannot delete')) {
+      res.status(400).json({ error: errorMessage, code: 'PURCHASE_DELETE_FORBIDDEN' });
+      return;
+    }
+
     console.error('Delete purchase error:', error);
-    res.status(500).json({ error: 'Failed to delete purchase' });
+    res.status(500).json({ error: 'Failed to delete purchase', code: 'INTERNAL_ERROR' });
   }
 });
 

@@ -41,7 +41,7 @@ export async function getOnlineStores(): Promise<{
 }> {
   try {
     const stores = await apiClient.getOnlineStores();
-    return { success: true, data: stores as OnlineStore[] };
+    return { success: true, data: stores as unknown as OnlineStore[] };
   } catch (error: unknown) {
     console.error('Error fetching online stores:', error);
     return { 
@@ -61,7 +61,7 @@ export async function getOnlineStore(storeId: string): Promise<{
 }> {
   try {
     const store = await apiClient.getOnlineStore(storeId);
-    return { success: true, data: store as OnlineStore };
+    return { success: true, data: store as unknown as OnlineStore };
   } catch (error: unknown) {
     console.error('Error fetching online store:', error);
     return { 
@@ -145,7 +145,8 @@ export async function permanentDeleteOnlineStore(storeId: string): Promise<{ suc
  */
 export async function syncOnlineStoreProducts(
   onlineStoreId: string,
-  categoryId?: string
+  categoryId?: string,
+  physicalStoreId?: string
 ): Promise<{
   success: boolean;
   message?: string;
@@ -155,24 +156,37 @@ export async function syncOnlineStoreProducts(
   error?: string;
 }> {
   try {
-    const result = await apiClient.request<{
-      success: boolean;
-      message: string;
-      synced: number;
-      skipped: number;
-      total: number;
-    }>(`/online-stores/${onlineStoreId}/sync`, { 
-      method: 'POST',
-      body: categoryId && categoryId !== 'all' ? { categoryId } : undefined,
-    });
+    // Temporarily set the physical store ID if provided
+    const originalStoreId = apiClient.getStoreId();
+    if (physicalStoreId) {
+      apiClient.setStoreId(physicalStoreId);
+    }
     
-    return {
-      success: true,
-      message: result.message,
-      synced: result.synced,
-      skipped: result.skipped,
-      total: result.total,
-    };
+    try {
+      const result = await apiClient.request<{
+        success: boolean;
+        message: string;
+        synced: number;
+        skipped: number;
+        total: number;
+      }>(`/online-stores/${onlineStoreId}/sync`, { 
+        method: 'POST',
+        body: categoryId && categoryId !== 'all' ? { categoryId } : undefined,
+      });
+      
+      return {
+        success: true,
+        message: result.message,
+        synced: result.synced,
+        skipped: result.skipped,
+        total: result.total,
+      };
+    } finally {
+      // Restore original store ID
+      if (physicalStoreId && originalStoreId) {
+        apiClient.setStoreId(originalStoreId);
+      }
+    }
   } catch (error: unknown) {
     console.error('Error syncing products:', error);
     return {
@@ -285,6 +299,8 @@ export async function addOnlineProduct(
     onlinePrice?: number;
     onlineDescription?: string;
     seoSlug?: string;
+    seoTitle?: string;
+    seoDescription?: string;
   }
 ): Promise<{ success: boolean; data?: OnlineProduct; error?: string }> {
   try {
@@ -301,6 +317,229 @@ export async function addOnlineProduct(
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Không thể thêm sản phẩm',
+    };
+  }
+}
+
+
+// Order types
+export type OrderStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'processing'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled'
+  | 'refunded';
+
+export interface OnlineOrderItem {
+  id: string;
+  productId: string;
+  productName: string;
+  productSku?: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+}
+
+export interface OnlineOrder {
+  id: string;
+  orderNumber: string;
+  onlineStoreId: string;
+  customerId?: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  shippingAddress: string;
+  status: OrderStatus;
+  paymentMethod: string;
+  paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
+  subtotal: number;
+  shippingFee: number;
+  discount: number;
+  discountAmount?: number;
+  total: number;
+  note?: string;
+  internalNote?: string;
+  items: OnlineOrderItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Get all orders for an online store
+ */
+export async function getOnlineOrders(onlineStoreId: string): Promise<{
+  success: boolean;
+  data?: OnlineOrder[];
+  error?: string;
+}> {
+  try {
+    const orders = await apiClient.request<OnlineOrder[]>(
+      `/online-stores/${onlineStoreId}/orders`
+    );
+    return { success: true, data: orders };
+  } catch (error: unknown) {
+    console.error('Error fetching online orders:', error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Không thể tải danh sách đơn hàng',
+    };
+  }
+}
+
+/**
+ * Update order status
+ */
+export async function updateOnlineOrderStatus(
+  onlineStoreId: string,
+  orderId: string,
+  status: OrderStatus
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await apiClient.request(
+      `/online-stores/${onlineStoreId}/orders/${orderId}/status`,
+      {
+        method: 'PUT',
+        body: { status },
+      }
+    );
+    return { success: true };
+  } catch (error: unknown) {
+    console.error('Error updating order status:', error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Không thể cập nhật trạng thái đơn hàng',
+    };
+  }
+}
+
+// Shipping zone types
+export interface ShippingZone {
+  id: string;
+  onlineStoreId: string;
+  name: string;
+  provinces: string[];
+  shippingFee: number;
+  flatRate?: number;
+  freeShippingThreshold?: number;
+  estimatedDays: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Get shipping zones for an online store
+ */
+export async function getShippingZones(onlineStoreId: string): Promise<{
+  success: boolean;
+  data?: ShippingZone[];
+  error?: string;
+}> {
+  try {
+    const zones = await apiClient.request<ShippingZone[]>(
+      `/online-stores/${onlineStoreId}/shipping-zones`
+    );
+    return { success: true, data: zones };
+  } catch (error: unknown) {
+    console.error('Error fetching shipping zones:', error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Không thể tải danh sách vùng vận chuyển',
+    };
+  }
+}
+
+/**
+ * Create a shipping zone
+ */
+export async function createShippingZone(
+  onlineStoreId: string,
+  data: Omit<ShippingZone, 'id' | 'onlineStoreId' | 'createdAt' | 'updatedAt'>
+): Promise<{ success: boolean; data?: ShippingZone; error?: string }> {
+  try {
+    const zone = await apiClient.request<ShippingZone>(
+      `/online-stores/${onlineStoreId}/shipping-zones`,
+      {
+        method: 'POST',
+        body: data,
+      }
+    );
+    return { success: true, data: zone };
+  } catch (error: unknown) {
+    console.error('Error creating shipping zone:', error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Không thể tạo vùng vận chuyển',
+    };
+  }
+}
+
+/**
+ * Update a shipping zone
+ */
+export async function updateShippingZone(
+  onlineStoreId: string,
+  zoneId: string,
+  data: Partial<ShippingZone>
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await apiClient.request(
+      `/online-stores/${onlineStoreId}/shipping-zones/${zoneId}`,
+      {
+        method: 'PUT',
+        body: data,
+      }
+    );
+    return { success: true };
+  } catch (error: unknown) {
+    console.error('Error updating shipping zone:', error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Không thể cập nhật vùng vận chuyển',
+    };
+  }
+}
+
+/**
+ * Delete a shipping zone
+ */
+export async function deleteShippingZone(
+  onlineStoreId: string,
+  zoneId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await apiClient.request(
+      `/online-stores/${onlineStoreId}/shipping-zones/${zoneId}`,
+      {
+        method: 'DELETE',
+      }
+    );
+    return { success: true };
+  } catch (error: unknown) {
+    console.error('Error deleting shipping zone:', error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Không thể xóa vùng vận chuyển',
     };
   }
 }

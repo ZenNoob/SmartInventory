@@ -178,7 +178,7 @@ export class PurchaseOrderRepository extends BaseRepository<PurchaseOrder> {
       const orderRecord = await transactionInsert<PurchaseOrderRecord>(transaction, 'PurchaseOrders', {
         id: purchaseOrderId, store_id: storeId, order_number: orderNumber, supplier_id: input.supplierId || null,
         import_date: new Date(input.importDate), total_amount: input.totalAmount, notes: input.notes || null,
-        created_by: input.createdBy || null, created_at: now,
+        created_at: now, updated_at: now,
       });
       if (!orderRecord) throw new Error('Failed to create purchase order');
       const items: PurchaseOrderItemWithProduct[] = [];

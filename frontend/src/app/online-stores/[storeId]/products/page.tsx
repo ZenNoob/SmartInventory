@@ -11,6 +11,7 @@ import {
   Eye,
   EyeOff,
   Package,
+  RefreshCw,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -57,6 +58,7 @@ import {
   getOnlineProducts,
   updateOnlineProduct,
   deleteOnlineProduct,
+  syncOnlineStoreProducts,
   OnlineStore,
   OnlineProduct,
 } from "../../actions"
@@ -74,6 +76,7 @@ export default function OnlineProductsPage() {
   const [editingProduct, setEditingProduct] = useState<OnlineProduct | null>(null);
   const [productToDelete, setProductToDelete] = useState<OnlineProduct | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [isUpdating, startTransition] = useTransition();
   const { toast } = useToast();
 
@@ -171,6 +174,35 @@ export default function OnlineProductsPage() {
     setProductToDelete(null);
   };
 
+  const handleSyncProducts = async () => {
+    if (!store) return;
+    setIsSyncing(true);
+    try {
+      const result = await syncOnlineStoreProducts(storeId, undefined, store.storeId);
+      if (result.success) {
+        toast({
+          title: "Đồng bộ thành công!",
+          description: result.message || `Đã đồng bộ ${result.synced} sản phẩm`,
+        });
+        fetchData();
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Lỗi",
+          description: result.error,
+        });
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Lỗi",
+        description: "Đã xảy ra lỗi khi đồng bộ sản phẩm",
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const filteredProducts = products.filter(product =>
     (product.productName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
     (product.productBarcode?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
@@ -235,6 +267,10 @@ export default function OnlineProductsPage() {
             <h1 className="text-2xl font-bold">{store?.storeName || 'Cửa hàng'}</h1>
             <p className="text-muted-foreground">Quản lý sản phẩm online</p>
           </div>
+          <Button variant="outline" onClick={handleSyncProducts} disabled={isSyncing}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+            {isSyncing ? "Đang đồng bộ..." : "Đồng bộ từ kho"}
+          </Button>
           <Button onClick={() => setIsAddDialogOpen(true)}>
             <PlusCircle className="h-4 w-4 mr-2" />
             Thêm sản phẩm

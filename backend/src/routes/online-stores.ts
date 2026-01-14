@@ -360,9 +360,9 @@ router.post('/:id/sync', async (req: AuthRequest, res: Response) => {
     const storeId = req.storeId!;
     const { categoryId } = req.body; // Optional: filter by category
 
-    // Verify online store belongs to this store
-    const onlineStore = await queryOne(
-      'SELECT id FROM OnlineStores WHERE id = @id AND store_id = @storeId',
+    // Verify online store belongs to this store and get its store_id
+    const onlineStore = await queryOne<{ id: string; store_id: string }>(
+      'SELECT id, store_id FROM OnlineStores WHERE id = @id AND store_id = @storeId',
       { id, storeId }
     );
 
@@ -371,13 +371,16 @@ router.post('/:id/sync', async (req: AuthRequest, res: Response) => {
       return;
     }
 
+    // Use the online store's store_id to get products
+    const physicalStoreId = onlineStore.store_id;
+
     // Build query - optionally filter by category
     let productQuery = `
       SELECT id, name, description, price, images, category_id 
       FROM Products 
-      WHERE store_id = @storeId
+      WHERE store_id = @physicalStoreId
     `;
-    const params: Record<string, unknown> = { storeId };
+    const params: Record<string, unknown> = { physicalStoreId };
 
     if (categoryId) {
       productQuery += ` AND category_id = @categoryId`;

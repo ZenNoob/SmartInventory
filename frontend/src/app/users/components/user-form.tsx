@@ -70,7 +70,8 @@ interface StoreOption {
   code: string;
 }
 
-const permissionsSchema = z.record(z.array(z.enum(['view', 'add', 'edit', 'delete'])))
+// Allow empty permissions - user will use default role permissions
+const permissionsSchema = z.record(z.array(z.enum(['view', 'add', 'edit', 'delete'])).optional()).optional().default({})
 
 const userInfoSchemaBase = z.object({
   email: z.string().email({ message: "Email không hợp lệ." }),
@@ -292,8 +293,12 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers, onUserUpdated }
           password: '',
           storeIds: user.stores?.map(s => s.storeId) || [],
         });
+        // If user has custom permissions (including empty object), use them
+        // If permissions is null/undefined, show default permissions for the role
+        const userPerms = user.permissions;
+        const hasCustomPermissions = userPerms !== null && userPerms !== undefined;
         permissionsForm.reset({
-          permissions: user.permissions !== undefined ? user.permissions : (defaultPermissions[user.role] || {})
+          permissions: hasCustomPermissions ? userPerms : (defaultPermissions[user.role] || {})
         });
       } else {
         infoForm.reset({
@@ -324,6 +329,14 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers, onUserUpdated }
         description: `Đã áp dụng bộ quyền mặc định cho vai trò "${getRoleVietnamese(role)}".`,
       });
     }
+  };
+
+  const handleClearAllPermissions = () => {
+    permissionsForm.setValue('permissions', {}, { shouldValidate: true, shouldDirty: true });
+    toast({
+      title: "Đã xóa",
+      description: "Đã bỏ chọn tất cả các quyền.",
+    });
   };
 
   const handleAddStore = useCallback((storeId: string) => {
@@ -365,11 +378,26 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers, onUserUpdated }
   };
 
   const onPermissionsSubmit = async (data: z.infer<typeof permissionsFormSchema>) => {
-    const result = await upsertUser({ id: user?.id, permissions: data.permissions });
+    // Filter out empty permission arrays to clean up the data
+    const cleanedPermissions: Record<string, string[]> = {};
+    if (data.permissions) {
+      for (const [module, perms] of Object.entries(data.permissions)) {
+        if (perms && Array.isArray(perms) && perms.length > 0) {
+          cleanedPermissions[module] = perms;
+        }
+      }
+    }
+    
+    console.log('[UserForm] Submitting permissions:', JSON.stringify(cleanedPermissions));
+    // Send empty object if no permissions selected - backend will set to null (use default role permissions)
+    const result = await upsertUser({ id: user?.id, permissions: cleanedPermissions });
+    console.log('[UserForm] Result:', result);
     if (result.success) {
       toast({
         title: "Thành công!",
-        description: `Đã cập nhật phân quyền.`,
+        description: Object.keys(cleanedPermissions).length > 0 
+          ? `Đã cập nhật phân quyền.`
+          : `Đã xóa phân quyền tùy chỉnh. Người dùng sẽ sử dụng quyền mặc định theo vai trò.`,
       });
       permissionsForm.reset(data, { keepValues: true });
       // Refresh danh sách người dùng
@@ -582,6 +610,10 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers, onUserUpdated }
                             </Command>
                           </PopoverContent>
                         </Popover>
+                        <Button size="sm" variant="outline" type="button" onClick={handleClearAllPermissions}>
+                          <X className="h-4 w-4 mr-2" />
+                          Bỏ chọn tất cả
+                        </Button>
                         {role && (
                           <Button size="sm" variant="outline" type="button" onClick={handleApplyDefaultPermissions}>
                             <RefreshCw className="h-4 w-4 mr-2" />
@@ -607,45 +639,42 @@ export function UserForm({ isOpen, onOpenChange, user, allUsers, onUserUpdated }
                                   key={module.id}
                                   control={permissionsForm.control}
                                   name={`permissions.${module.id}`}
-                                  render={() => (
+                                  render={({ field }) => (
                                     <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                                       <div className="space-y-0.5">
-                                        <FormLabel>{module.name}</FormLabel>
+                                        <FormLabel className="cursor-pointer">{module.name}</FormLabel>
                                       </div>
                                       <div className="flex items-center space-x-4">
-                                        {permissions.map((permission) => (
-                                          <FormField
-                                            key={permission.id}
-                                            control={permissionsForm.control}
-                                            name={`permissions.${module.id}`}
-                                            render={({ field }) => {
-                                              return (
-                                                <FormItem
-                                                  key={permission.id}
-                                                  className="flex flex-row items-center space-x-2 space-y-0"
-                                                >
-                                                  <FormControl>
-                                                    <Checkbox
-                                                      checked={field.value?.includes(permission.id)}
-                                                      onCheckedChange={(checked) => {
-                                                        return checked
-                                                          ? field.onChange([...(field.value || []), permission.id])
-                                                          : field.onChange(
-                                                            field.value?.filter(
-                                                              (value) => value !== permission.id
-                                                            )
-                                                          )
-                                                      }}
-                                                    />
-                                                  </FormControl>
-                                                  <FormLabel className="text-sm font-normal">
-                                                    {permission.name}
-                                                  </FormLabel>
-                                                </FormItem>
-                                              )
-                                            }}
-                                          />
-                                        ))}
+                                        {permissions.map((permission) => {
+                                          const currentValue = field.value || [];
+                                          const isChecked = currentValue.includes(permission.id);
+                                          return (
+                                            <div
+                                              key={permission.id}
+                                              className="flex flex-row items-center space-x-2"
+                                            >
+                                              <Checkbox
+                                                id={`${module.id}-${permission.id}`}
+                                                checked={isChecked}
+                                                onCheckedChange={(checked) => {
+                                                  if (checked) {
+                                                    field.onChange([...currentValue, permission.id]);
+                                                  } else {
+                                                    const newValue = currentValue.filter((v: string) => v !== permission.id);
+                                                    // Set to empty array instead of undefined
+                                                    field.onChange(newValue);
+                                                  }
+                                                }}
+                                              />
+                                              <label 
+                                                htmlFor={`${module.id}-${permission.id}`}
+                                                className="text-sm font-normal cursor-pointer"
+                                              >
+                                                {permission.name}
+                                              </label>
+                                            </div>
+                                          );
+                                        })}
                                       </div>
                                     </FormItem>
                                   )}

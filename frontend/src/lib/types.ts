@@ -167,13 +167,33 @@ export const ROLE_HIERARCHY: Record<UserRole, number> = {
 // Get roles that a user can manage (roles below their own)
 export function getManageableRoles(userRole: UserRole): UserRole[] {
   const userLevel = ROLE_HIERARCHY[userRole];
+  // Owner can manage all roles including other owners
+  if (userRole === 'owner') {
+    return ['owner', 'company_manager', 'store_manager', 'salesperson'];
+  }
+  // Company Manager can manage same level and below
+  if (userRole === 'company_manager') {
+    return ['company_manager', 'store_manager', 'salesperson'];
+  }
   return (Object.keys(ROLE_HIERARCHY) as UserRole[]).filter(
     role => ROLE_HIERARCHY[role] < userLevel
   );
 }
 
 // Check if current user can manage target role
+// - Owner can manage all roles including other owners
+// - Company Manager can manage other company managers and below
+// - Store Manager can only manage salesperson
 export function canManageRole(currentUserRole: UserRole, targetRole: UserRole): boolean {
+  // Owner can manage everyone
+  if (currentUserRole === 'owner') {
+    return true;
+  }
+  // Company Manager can manage same level (other company managers) and below
+  if (currentUserRole === 'company_manager') {
+    return ROLE_HIERARCHY[currentUserRole] >= ROLE_HIERARCHY[targetRole];
+  }
+  // Other roles can only manage roles below them
   return ROLE_HIERARCHY[currentUserRole] > ROLE_HIERARCHY[targetRole];
 }
 

@@ -8,6 +8,7 @@ import { Search, ArrowUp, ArrowDown, File, Calendar as CalendarIcon, ChevronDown
 import * as xlsx from 'xlsx';
 import { DateRange } from "react-day-picker"
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfYear, endOfYear, startOfQuarter, endOfQuarter } from "date-fns"
+import { apiClient } from "@/lib/api-client"
 
 import {
   Card,
@@ -72,27 +73,18 @@ export default function SupplierDebtTrackingPage() {
     const fetchData = async () => {
       try {
         setSuppliersLoading(true);
-        const suppliersRes = await fetch('/api/suppliers');
-        if (suppliersRes.ok) {
-          const data = await suppliersRes.json();
-          setSuppliers(data.data || []);
-        }
+        const suppliersData = await apiClient.getSuppliers();
+        setSuppliers(Array.isArray(suppliersData) ? suppliersData : (suppliersData as any).data || []);
         setSuppliersLoading(false);
 
         setPurchasesLoading(true);
-        const purchasesRes = await fetch('/api/purchases');
-        if (purchasesRes.ok) {
-          const data = await purchasesRes.json();
-          setPurchases(data.data || []);
-        }
+        const purchasesData = await apiClient.getPurchases();
+        setPurchases(Array.isArray(purchasesData) ? purchasesData : (purchasesData as any).data || []);
         setPurchasesLoading(false);
 
         setPaymentsLoading(true);
-        const paymentsRes = await fetch('/api/supplier-payments');
-        if (paymentsRes.ok) {
-          const data = await paymentsRes.json();
-          setPayments(data.data || []);
-        }
+        const paymentsData = await apiClient.getSupplierPayments();
+        setPayments(Array.isArray(paymentsData) ? paymentsData : (paymentsData as any).data || []);
         setPaymentsLoading(false);
       } catch (error) {
         console.error('Error fetching supplier debt tracking data:', error);

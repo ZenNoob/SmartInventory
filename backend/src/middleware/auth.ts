@@ -322,7 +322,7 @@ export function storeContext(
   // For multi-tenant users, verify store access
   // Owner and company_manager have access to all stores
   const role = req.user?.role;
-  if (role === 'owner' || role === 'company_manager' || role === 'admin') {
+  if (role === 'owner' || role === 'company_manager') {
     req.storeId = storeId;
     next();
     return;

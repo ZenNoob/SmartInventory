@@ -26,16 +26,43 @@ router.use(authenticate);
 
 /**
  * Check if current user can manage target role based on role hierarchy
+ * - Owner can manage all roles including other owners
+ * - Company Manager can manage other company managers and below
+ * - Store Manager can only manage salesperson
  */
 function canManageRole(currentUserRole: UserRole, targetRole: UserRole): boolean {
+  // Owner can manage everyone
+  if (currentUserRole === 'owner') {
+    return true;
+  }
+  // Company Manager can manage same level (other company managers) and below
+  if (currentUserRole === 'company_manager') {
+    return ROLE_HIERARCHY[currentUserRole] >= ROLE_HIERARCHY[targetRole];
+  }
+  // Other roles can only manage roles below them
   return ROLE_HIERARCHY[currentUserRole] > ROLE_HIERARCHY[targetRole];
 }
 
 /**
  * Get users that current user can see based on role hierarchy
+ * - Owner can see all users
+ * - Company Manager can see other company managers and below
+ * - Store Manager can see store managers and salesperson
  */
 function buildUserVisibilityFilter(currentUserRole: UserRole): string {
+  if (currentUserRole === 'owner') {
+    return "1=1"; // Owner sees all
+  }
+  
+  if (currentUserRole === 'company_manager') {
+    // Company Manager can see other company managers and below
+    return "role IN ('company_manager', 'store_manager', 'salesperson')";
+  }
+  
   const manageableRoles = getManageableRoles(currentUserRole);
+  // Include same role level for visibility
+  manageableRoles.push(currentUserRole);
+  
   if (manageableRoles.length === 0) {
     return "1=0";
   }
@@ -177,7 +204,7 @@ router.post('/', requireModulePermission('users', 'add'), storeContext, async (r
   try {
     const { email, password, displayName, role, status, storeIds } = req.body;
     const currentUser = req.user!;
-    const currentStoreId = req.storeId;
+    const currentStoreId: string | undefined = req.storeId;
 
     if (!email || !password) {
       res.status(400).json({ error: 'Email và mật khẩu là bắt buộc' });
@@ -251,9 +278,9 @@ router.post('/', requireModulePermission('users', 'add'), storeContext, async (r
         userId: currentUser.id,
         action: 'CREATE',
         entityType: 'User',
-        entityId: newUser.id,
+        entityId: newUser.id as string,
         newValues: { email: newUser.email, displayName: newUser.display_name, role: newUser.role, status: newUser.status, assignedStores: assignedStoreIds },
-        ipAddress: req.ip,
+        ipAddress: (req.ip as string) || undefined,
         userAgent: req.headers['user-agent'],
       });
     } catch (auditError) {
@@ -299,7 +326,7 @@ router.get('/', requireModulePermission('users', 'view'), async (req: AuthReques
     }
 
     const users = await query(
-      `SELECT id, email, display_name, role, status, created_at FROM Users WHERE ${whereClause} ORDER BY created_at DESC`
+      `SELECT id, email, display_name, role, permissions, status, created_at FROM Users WHERE ${whereClause} ORDER BY created_at DESC`
     );
 
     const usersWithStores = await Promise.all(
@@ -311,7 +338,9 @@ router.get('/', requireModulePermission('users', 'view'), async (req: AuthReques
           { userId: u.id }
         );
         return {
-          id: u.id, email: u.email, displayName: u.display_name, role: u.role, status: u.status, createdAt: u.created_at,
+          id: u.id, email: u.email, displayName: u.display_name, role: u.role, 
+          permissions: u.permissions ? JSON.parse(u.permissions as string) : undefined,
+          status: u.status, createdAt: u.created_at,
           stores: stores.map((s: Record<string, unknown>) => ({
             storeId: s.storeId, storeName: s.storeName, storeCode: s.storeCode,
           })),
@@ -383,6 +412,9 @@ router.put('/:id', requireModulePermission('users', 'edit'), async (req: AuthReq
     const currentUserRole = currentUser.role as UserRole;
     const currentStoreId = req.headers['x-store-id'] as string;
 
+    console.log('[PUT /api/users/:id] Request body:', JSON.stringify({ displayName, role, status, storeIds, permissions: permissions ? 'provided' : 'undefined', password: password ? 'provided' : 'undefined' }));
+    console.log('[PUT /api/users/:id] Current user:', currentUser.email, 'Role:', currentUserRole);
+
     const user = await queryOne<{ 
       id: string; email: string; display_name: string | null; role: string; permissions: string | null; status: string;
     }>('SELECT id, email, display_name, role, permissions, status FROM Users WHERE id = @id', { id });
@@ -434,8 +466,11 @@ router.put('/:id', requireModulePermission('users', 'edit'), async (req: AuthReq
     const params: Record<string, unknown> = { id, displayName, role, status };
 
     if (permissions !== undefined) {
+      // Save permissions as-is (empty object {} means user explicitly cleared all permissions)
+      // null means never set (use default role permissions)
       updateFields += `, permissions = @permissions`;
-      params.permissions = permissions ? JSON.stringify(permissions) : null;
+      params.permissions = JSON.stringify(permissions);
+      console.log('[PUT /api/users/:id] Updating permissions:', JSON.stringify(permissions));
     }
 
     if (password) {
@@ -485,7 +520,7 @@ router.put('/:id', requireModulePermission('users', 'edit'), async (req: AuthReq
         entityId: id,
         oldValues,
         newValues,
-        ipAddress: req.ip,
+        ipAddress: (req.ip as string) || undefined,
         userAgent: req.headers['user-agent'],
       });
     } catch (auditError) {
@@ -547,7 +582,7 @@ router.delete('/:id', requireModulePermission('users', 'delete'), async (req: Au
         entityId: id,
         oldValues: { email: user.email, displayName: user.display_name, role: user.role, status: user.status },
         newValues: { status: 'inactive' },
-        ipAddress: req.ip,
+        ipAddress: (req.ip as string) || undefined,
         userAgent: req.headers['user-agent'],
       });
     } catch (auditError) {
@@ -609,7 +644,7 @@ router.post('/:id/stores', requireModulePermission('users', 'edit'), async (req:
     }
 
     // Get old stores for audit log
-    const oldStores = await query(
+    const oldStores = await query<{ store_id: string }>(
       'SELECT store_id FROM UserStores WHERE user_id = @userId',
       { userId: id }
     );
@@ -643,9 +678,9 @@ router.post('/:id/stores', requireModulePermission('users', 'edit'), async (req:
         action: 'UPDATE',
         entityType: 'UserStores',
         entityId: id,
-        oldValues: { stores: oldStores.map((s: { store_id: string }) => s.store_id) },
+        oldValues: { stores: oldStores.map((s) => s.store_id) },
         newValues: { assignedStores, roleOverride, permissionsOverride },
-        ipAddress: req.ip,
+        ipAddress: (req.ip as string) || undefined,
         userAgent: req.headers['user-agent'],
       });
     } catch (auditError) {
@@ -773,8 +808,8 @@ router.delete('/:id/stores/:storeId', requireModulePermission('users', 'edit'), 
         entityType: 'UserStores',
         entityId: id,
         oldValues: { storeId },
-        newValues: null,
-        ipAddress: req.ip,
+        newValues: undefined,
+        ipAddress: (req.ip as string) || undefined,
         userAgent: req.headers['user-agent'],
       });
     } catch (auditError) {
@@ -789,3 +824,5 @@ router.delete('/:id/stores/:storeId', requireModulePermission('users', 'edit'), 
 });
 
 export default router;
+
+

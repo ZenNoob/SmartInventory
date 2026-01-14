@@ -6,6 +6,7 @@ import * as xlsx from 'xlsx';
 import { exportToPDF, formatCurrencyForExport } from "@/lib/export-utils"
 import { DateRange } from "react-day-picker"
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns"
+import { apiClient } from "@/lib/api-client"
 
 import {
   Card,
@@ -96,18 +97,7 @@ export default function InventoryReportPage() {
         params.set('search', searchTerm);
       }
 
-      const response = await fetch(`/api/reports/inventory?${params.toString()}`, {
-        headers: {
-          'x-store-id': currentStore.id,
-        },
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch report');
-      }
-
-      const data = await response.json();
+      const data = await apiClient.getInventoryReport(Object.fromEntries(params));
       setReportData(data);
     } catch (err) {
       console.error('Error fetching inventory report:', err);

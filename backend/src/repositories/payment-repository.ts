@@ -44,7 +44,7 @@ export class PaymentRepository extends BaseRepository<Payment> {
    * Map database record to Payment entity
    */
   protected mapToEntity(record: Record<string, unknown>): Payment {
-    const r = record as PaymentRecord;
+    const r = record as unknown as PaymentRecord;
     return {
       id: r.id,
       storeId: r.store_id,
@@ -78,7 +78,7 @@ export class PaymentRepository extends BaseRepository<Payment> {
     }
 
     const results = await query<PaymentRecord>(queryString, { storeId });
-    return results.map((r) => this.mapToEntity(r as Record<string, unknown>));
+    return results.map((r) => this.mapToEntity(r as unknown as Record<string, unknown>));
   }
 
   /**
@@ -89,7 +89,7 @@ export class PaymentRepository extends BaseRepository<Payment> {
       `SELECT * FROM Payments WHERE id = @id AND store_id = @storeId`,
       { id, storeId }
     );
-    return result ? this.mapToEntity(result as Record<string, unknown>) : null;
+    return result ? this.mapToEntity(result as unknown as Record<string, unknown>) : null;
   }
 
   /**
@@ -102,7 +102,7 @@ export class PaymentRepository extends BaseRepository<Payment> {
        ORDER BY payment_date DESC`,
       { storeId, customerId }
     );
-    return results.map((r) => this.mapToEntity(r as Record<string, unknown>));
+    return results.map((r) => this.mapToEntity(r as unknown as Record<string, unknown>));
   }
 
   /**
@@ -121,7 +121,7 @@ export class PaymentRepository extends BaseRepository<Payment> {
        ORDER BY payment_date DESC`,
       { storeId, dateFrom, dateTo }
     );
-    return results.map((r) => this.mapToEntity(r as Record<string, unknown>));
+    return results.map((r) => this.mapToEntity(r as unknown as Record<string, unknown>));
   }
 
   /**

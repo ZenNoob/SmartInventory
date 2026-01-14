@@ -46,7 +46,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Supplier } from "@/lib/types"
 import { SupplierForm } from "./components/supplier-form"
-import { deleteSupplier, getSuppliers } from "./actions"
+import { deleteSupplier, getSuppliers, SupplierWithDebt } from "./actions"
 import { useToast } from "@/hooks/use-toast"
 import { Input } from "@/components/ui/input"
 import { formatCurrency } from "@/lib/utils"
@@ -55,12 +55,6 @@ import { useUserRole } from "@/hooks/use-user-role"
 import Link from "next/link"
 
 type SortKey = 'name' | 'contactPerson' | 'email' | 'phone' | 'debt';
-
-interface SupplierWithDebt extends Supplier {
-  totalPurchases: number;
-  totalPayments: number;
-  debt: number;
-}
 
 export default function SuppliersPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -131,8 +125,8 @@ export default function SuppliersPage() {
           valA = a.debt || 0;
           valB = b.debt || 0;
         } else {
-          valA = ((a as Record<string, unknown>)[sortKey] as string || '').toLowerCase();
-          valB = ((b as Record<string, unknown>)[sortKey] as string || '').toLowerCase();
+          valA = (a[sortKey] as string || '').toLowerCase();
+          valB = (b[sortKey] as string || '').toLowerCase();
         }
         if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
         if (valA > valB) return sortDirection === 'asc' ? 1 : -1;

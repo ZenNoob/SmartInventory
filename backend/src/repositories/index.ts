@@ -224,6 +224,18 @@ export {
   type ShippingFeeResult,
 } from './shipping-zone-repository';
 
+// Export InventoryTransfer repository
+export {
+  InventoryTransferRepository,
+  inventoryTransferRepository,
+  type InventoryTransfer,
+  type InventoryTransferItem,
+  type InventoryTransferWithDetails,
+  type InventoryTransferItemWithProduct,
+  type CreateInventoryTransferInput,
+  type CreateInventoryTransferItemInput,
+} from './inventory-transfer-repository';
+
 /**
  * Repository container interface for dependency injection
  */
@@ -342,6 +354,7 @@ export const REPOSITORY_NAMES = {
   ONLINE_ORDER: 'onlineOrder',
   ONLINE_CUSTOMER: 'onlineCustomer',
   SHIPPING_ZONE: 'shippingZone',
+  INVENTORY_TRANSFER: 'inventoryTransfer',
 } as const;
 
 export type RepositoryName = typeof REPOSITORY_NAMES[keyof typeof REPOSITORY_NAMES];

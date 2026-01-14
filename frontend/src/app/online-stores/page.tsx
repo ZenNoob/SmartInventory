@@ -170,7 +170,8 @@ export default function OnlineStoresPage() {
     setIsSyncing(true);
     const result = await syncOnlineStoreProducts(
       storeToSync.id, 
-      selectedCategoryId || undefined
+      selectedCategoryId || undefined,
+      storeToSync.storeId // Pass the physical store ID
     );
     if (result.success) {
       toast({

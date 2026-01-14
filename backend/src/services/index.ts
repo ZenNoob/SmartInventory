@@ -59,3 +59,25 @@ export {
   type CacheConfig,
   type CacheEntry,
 } from './cache';
+
+// Inventory Transfer service
+export {
+  InventoryTransferService,
+  inventoryTransferService,
+  InsufficientStockException,
+  type TransferItemInput,
+  type InventoryTransferRequest,
+  type TransferredItem,
+  type InventoryTransferResult,
+  type InsufficientStockError as TransferInsufficientStockError,
+} from './inventory-transfer-service';
+
+// Sync Data service
+export {
+  SyncDataService,
+  syncDataService,
+  UNITS_BY_STORE_TYPE,
+  SUPPLIERS_BY_STORE_TYPE,
+  SAMPLE_CUSTOMERS,
+  type SyncDataResult,
+} from './sync-data-service';

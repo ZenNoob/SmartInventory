@@ -64,7 +64,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { CustomerForm } from "./components/customer-form"
-import { getCustomers, deleteCustomer, updateCustomerStatus, generateCustomerTemplate, getCustomerDebt } from "./actions"
+import { getCustomers, deleteCustomer, updateCustomerStatus, generateCustomerTemplate, getCustomerDebt, CustomerWithDebt, CustomerDebtHistory } from "./actions"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
@@ -97,12 +97,6 @@ interface Customer {
   status: 'active' | 'inactive';
   createdAt: string;
   updatedAt: string;
-}
-
-interface CustomerWithDebt extends Customer {
-  totalSales: number;
-  totalPayments: number;
-  calculatedDebt: number;
 }
 
 interface DebtHistoryItem {
@@ -206,7 +200,7 @@ export default function CustomersPage() {
       if (viewingPaymentsFor) {
         const result = await getCustomerDebt(viewingPaymentsFor.id, true);
         if (result.success && result.history) {
-          setPaymentHistory(result.history.filter(h => h.type === 'payment'));
+          setPaymentHistory(result.history.filter(h => h.type === 'payment') as DebtHistoryItem[]);
         }
       } else {
         setPaymentHistory([]);
@@ -420,7 +414,6 @@ export default function CustomersPage() {
           debtInfo={{
             paid: customerForPayment.totalPayments,
             debt: customerForPayment.calculatedDebt || customerForPayment.currentDebt,
-            payments: [],
           }}
         />
       )}
@@ -601,7 +594,7 @@ export default function CustomersPage() {
                     <TableCell className="font-medium">
                       <Link href={`/customers/${customer.id}`} className="hover:underline flex items-center gap-1">
                         {customer.name}
-                        {isOverLimit && <AlertTriangle className="h-4 w-4 text-destructive" title="Vượt hạn mức tín dụng" />}
+                        {isOverLimit && <AlertTriangle className="h-4 w-4 text-destructive" aria-label="Vượt hạn mức tín dụng" />}
                       </Link>
                     </TableCell>
                     <TableCell>

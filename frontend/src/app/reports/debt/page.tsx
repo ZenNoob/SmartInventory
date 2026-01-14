@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Search, ArrowUp, ArrowDown, File, FileText } from "lucide-react"
 import * as xlsx from 'xlsx';
 import { exportToPDF, formatCurrencyForExport } from "@/lib/export-utils"
+import { apiClient } from "@/lib/api-client"
 
 import {
   Card,
@@ -64,7 +65,7 @@ interface DebtReportResponse {
   overCreditCount: number;
 }
 
-type SortKey = 'customerName' | 'customerPhone' | 'totalSales' | 'totalPayments' | 'currentDebt';
+type SortKey = 'name' | 'phone' | 'totalSales' | 'totalPayments' | 'totalDebt';
 
 const formatPhoneNumber = (phone?: string) => {
   if (!phone) return 'N/A';
@@ -80,7 +81,7 @@ const formatPhoneNumber = (phone?: string) => {
 
 export default function DebtReportPage() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>('currentDebt');
+  const [sortKey, setSortKey] = useState<SortKey>('totalDebt');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [isPaymentFormOpen, setIsPaymentFormOpen] = useState(false);
   const [selectedCustomerForPayment, setSelectedCustomerForPayment] = useState<CustomerDebtInfo | undefined>(undefined);
@@ -101,20 +102,8 @@ export default function DebtReportPage() {
       if (searchTerm) {
         params.set('search', searchTerm);
       }
-      params.set('hasDebtOnly', 'false'); // Show all customers with transactions
 
-      const response = await fetch(`/api/reports/debt?${params.toString()}`, {
-        headers: {
-          'x-store-id': currentStore.id,
-        },
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch report');
-      }
-
-      const data = await response.json();
+      const data = await apiClient.getDebtReport({ hasDebtOnly: false });
       setReportData(data);
     } catch (err) {
       console.error('Error fetching debt report:', err);
@@ -139,12 +128,12 @@ export default function DebtReportPage() {
     sortableItems.sort((a, b) => {
       let valA: string | number, valB: string | number;
 
-      if (sortKey === 'customerPhone') {
-        valA = a.customerPhone || '';
-        valB = b.customerPhone || '';
-      } else if (sortKey === 'currentDebt') {
-        valA = a.currentDebt;
-        valB = b.currentDebt;
+      if (sortKey === 'phone') {
+        valA = a.phone || '';
+        valB = b.phone || '';
+      } else if (sortKey === 'totalDebt') {
+        valA = a.totalDebt || 0;
+        valB = b.totalDebt || 0;
       } else {
         valA = a[sortKey] as string | number;
         valB = b[sortKey] as string | number;
@@ -171,14 +160,14 @@ export default function DebtReportPage() {
     }
   };
 
-  const handleOpenPaymentForm = (customer: DebtReportItem) => {
+  const handleOpenPaymentForm = (customer: any) => {
     setSelectedCustomerForPayment({
-      customerId: customer.customerId,
-      customerName: customer.customerName,
-      customerPhone: customer.customerPhone,
-      totalSales: customer.totalSales,
-      totalPayments: customer.totalPayments,
-      finalDebt: customer.currentDebt,
+      customerId: customer.id,
+      customerName: customer.name,
+      customerPhone: customer.phone,
+      totalSales: customer.totalSales || 0,
+      totalPayments: customer.totalPayments || 0,
+      finalDebt: customer.totalDebt || 0,
     });
     setIsPaymentFormOpen(true);
   }
@@ -199,11 +188,11 @@ export default function DebtReportPage() {
   const handleExportExcel = () => {
     const dataToExport = sortedDebtData.map((data, index) => ({
       'STT': index + 1,
-      'Tên khách hàng': data.customerName,
-      'Số điện thoại': formatPhoneNumber(data.customerPhone),
-      'Tổng phát sinh': data.totalSales,
-      'Đã trả': data.totalPayments,
-      'Nợ cuối kỳ': data.currentDebt,
+      'Tên khách hàng': data.name,
+      'Số điện thoại': formatPhoneNumber(data.phone),
+      'Tổng phát sinh': data.totalSales || 0,
+      'Đã trả': data.totalPayments || 0,
+      'Nợ cuối kỳ': data.totalDebt || 0,
     }));
 
     const totalRowData = {
@@ -251,11 +240,11 @@ export default function DebtReportPage() {
     const headers = ["STT", "Tên khách hàng", "Số điện thoại", "Tổng phát sinh", "Đã trả", "Nợ cuối kỳ"];
     const data = sortedDebtData.map((item, index) => [
       index + 1,
-      item.customerName,
-      formatPhoneNumber(item.customerPhone),
-      formatCurrencyForExport(item.totalSales),
-      formatCurrencyForExport(item.totalPayments),
-      formatCurrencyForExport(item.currentDebt),
+      item.name,
+      formatPhoneNumber(item.phone),
+      formatCurrencyForExport(item.totalSales || 0),
+      formatCurrencyForExport(item.totalPayments || 0),
+      formatCurrencyForExport(item.totalDebt || 0),
     ]);
 
     exportToPDF(
@@ -329,11 +318,11 @@ export default function DebtReportPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-16">STT</TableHead>
-                <SortableHeader sortKey="customerName">Tên khách hàng</SortableHeader>
-                <SortableHeader sortKey="customerPhone">Số điện thoại</SortableHeader>
+                <SortableHeader sortKey="name">Tên khách hàng</SortableHeader>
+                <SortableHeader sortKey="phone">Số điện thoại</SortableHeader>
                 <SortableHeader sortKey="totalSales" className="text-right">Tổng phát sinh</SortableHeader>
                 <SortableHeader sortKey="totalPayments" className="text-right">Đã trả</SortableHeader>
-                <SortableHeader sortKey="currentDebt" className="text-right">Nợ cuối kỳ</SortableHeader>
+                <SortableHeader sortKey="totalDebt" className="text-right">Nợ cuối kỳ</SortableHeader>
                 <TableHead className="text-right">Hành động</TableHead>
               </TableRow>
             </TableHeader>
@@ -341,21 +330,21 @@ export default function DebtReportPage() {
               {isLoading && <TableRow><TableCell colSpan={7} className="text-center h-24">Đang tải dữ liệu...</TableCell></TableRow>}
               {error && <TableRow><TableCell colSpan={7} className="text-center h-24 text-destructive">{error}</TableCell></TableRow>}
               {!isLoading && !error && sortedDebtData.map((data, index) => (
-                <TableRow key={data.customerId} className={data.isOverCredit ? 'bg-destructive/10' : ''}>
+                <TableRow key={data.id || `debt-${index}`} className={data.isOverCredit ? 'bg-destructive/10' : ''}>
                   <TableCell>{index + 1}</TableCell>
                   <TableCell className="font-medium">
-                    <Link href={`/customers/${data.customerId}`} className="hover:underline">
-                      {data.customerName}
+                    <Link href={`/customers/${data.id}`} className="hover:underline">
+                      {data.name}
                     </Link>
                   </TableCell>
-                  <TableCell>{formatPhoneNumber(data.customerPhone)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(data.totalSales)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(data.totalPayments)}</TableCell>
-                  <TableCell className={`text-right font-semibold ${data.currentDebt > 0 ? 'text-destructive' : ''}`}>
-                    {formatCurrency(data.currentDebt)}
+                  <TableCell>{formatPhoneNumber(data.phone)}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(data.totalSales || 0)}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(data.totalPayments || 0)}</TableCell>
+                  <TableCell className={`text-right font-semibold ${(data.totalDebt || 0) > 0 ? 'text-destructive' : ''}`}>
+                    {formatCurrency(data.totalDebt || 0)}
                   </TableCell>
                   <TableCell className="text-right">
-                    {data.currentDebt > 0 && (
+                    {(data.totalDebt || 0) > 0 && (
                       <Button variant="outline" size="sm" onClick={() => handleOpenPaymentForm(data)}>
                         Thanh toán
                       </Button>

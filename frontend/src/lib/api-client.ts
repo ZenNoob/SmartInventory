@@ -21,6 +21,7 @@ export interface Store {
   id: string;
   ownerId: string;
   name: string;
+  code?: string;
   slug?: string;
   description?: string;
   logoUrl?: string;
@@ -510,10 +511,13 @@ class ApiClient {
     return this.request(`/reports/sales${query ? `?${query}` : ''}`);
   }
 
-  async getInventoryReport(params?: { categoryId?: string; lowStockOnly?: boolean }) {
+  async getInventoryReport(params?: { categoryId?: string; lowStockOnly?: boolean; dateFrom?: string; dateTo?: string; search?: string; [key: string]: any }) {
     const searchParams = new URLSearchParams();
     if (params?.categoryId) searchParams.set('categoryId', params.categoryId);
     if (params?.lowStockOnly) searchParams.set('lowStockOnly', 'true');
+    if (params?.dateFrom) searchParams.set('dateFrom', params.dateFrom);
+    if (params?.dateTo) searchParams.set('dateTo', params.dateTo);
+    if (params?.search) searchParams.set('search', params.search);
     const query = searchParams.toString();
     return this.request(`/reports/inventory${query ? `?${query}` : ''}`);
   }

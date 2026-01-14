@@ -35,36 +35,6 @@ export const DEFAULT_PERMISSIONS: Record<UserRole, Permissions> = {
     ai_forecast: ['view'],
   },
 
-  // Admin has same permissions as owner (legacy role support)
-  admin: {
-    dashboard: ['view'],
-    stores: ['view', 'add', 'edit', 'delete'],
-    users: ['view', 'add', 'edit', 'delete'],
-    products: ['view', 'add', 'edit', 'delete'],
-    categories: ['view', 'add', 'edit', 'delete'],
-    units: ['view', 'add', 'edit', 'delete'],
-    sales: ['view', 'add', 'edit', 'delete'],
-    purchases: ['view', 'add', 'edit', 'delete'],
-    customers: ['view', 'add', 'edit', 'delete'],
-    suppliers: ['view', 'add', 'edit', 'delete'],
-    'cash-flow': ['view', 'add', 'edit', 'delete'],
-    reports_shifts: ['view'],
-    reports_income_statement: ['view'],
-    reports_profit: ['view'],
-    reports_debt: ['view'],
-    reports_supplier_debt: ['view'],
-    reports_transactions: ['view'],
-    reports_supplier_debt_tracking: ['view'],
-    reports_revenue: ['view'],
-    reports_sold_products: ['view'],
-    reports_inventory: ['view'],
-    reports_ai_segmentation: ['view'],
-    reports_ai_basket_analysis: ['view'],
-    settings: ['view', 'edit'],
-    pos: ['view', 'add'],
-    ai_forecast: ['view'],
-  },
-
   company_manager: {
     // All stores, no user management
     dashboard: ['view'],

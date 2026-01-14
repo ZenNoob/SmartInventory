@@ -7,6 +7,7 @@ import * as xlsx from 'xlsx';
 import { DateRange } from "react-day-picker"
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, startOfQuarter, endOfQuarter } from "date-fns"
 import * as React from "react"
+import { apiClient } from "@/lib/api-client"
 
 import {
   Card,
@@ -82,43 +83,28 @@ export default function SoldProductsReportPage() {
     const fetchData = async () => {
       try {
         setProductsLoading(true);
-        const productsRes = await fetch('/api/products');
-        if (productsRes.ok) {
-          const data = await productsRes.json();
-          setProducts(data.data || []);
-        }
+        const productsData = await apiClient.getProducts();
+        setProducts(productsData.data || []);
         setProductsLoading(false);
 
         setCategoriesLoading(true);
-        const categoriesRes = await fetch('/api/categories');
-        if (categoriesRes.ok) {
-          const data = await categoriesRes.json();
-          setCategories(data.data || []);
-        }
+        const categoriesData = await apiClient.getCategories();
+        setCategories(categoriesData.data || []);
         setCategoriesLoading(false);
 
         setUnitsLoading(true);
-        const unitsRes = await fetch('/api/units');
-        if (unitsRes.ok) {
-          const data = await unitsRes.json();
-          setUnits(data.data || []);
-        }
+        const unitsData = await apiClient.getUnits();
+        setUnits(unitsData.data || []);
         setUnitsLoading(false);
 
         setSalesLoading(true);
-        const salesRes = await fetch('/api/sales');
-        if (salesRes.ok) {
-          const data = await salesRes.json();
-          setSales(data.data || []);
-        }
+        const salesData = await apiClient.getSales();
+        setSales(salesData.data || []);
         setSalesLoading(false);
 
         setCustomersLoading(true);
-        const customersRes = await fetch('/api/customers');
-        if (customersRes.ok) {
-          const data = await customersRes.json();
-          setCustomers(data.data || []);
-        }
+        const customersData = await apiClient.getCustomers();
+        setCustomers(customersData.data || []);
         setCustomersLoading(false);
       } catch (error) {
         console.error('Error fetching sold products data:', error);
@@ -145,7 +131,7 @@ export default function SoldProductsReportPage() {
 
   useEffect(() => {
     async function fetchAllSalesItems() {
-      if (!firestore || !sales) {
+      if (!sales || sales.length === 0) {
         if (!salesLoading) setSalesItemsLoading(false);
         return;
       }
@@ -161,11 +147,14 @@ export default function SoldProductsReportPage() {
         });
 
         for (const sale of salesToFetch) {
-          const itemsCollectionRef = collection(firestore, `sales_transactions/${sale.id}/sales_items`);
-          const itemsSnapshot = await getDocs(itemsCollectionRef);
-          itemsSnapshot.forEach(doc => {
-            items.push({ id: doc.id, salesTransactionId: sale.id, ...doc.data() } as SalesItem);
-          });
+          const response = await fetch(`/api/sales/${sale.id}/items`);
+          if (response.ok) {
+            const data = await response.json();
+            const saleItems = data.data || [];
+            saleItems.forEach((item: any) => {
+              items.push({ ...item, salesTransactionId: sale.id } as SalesItem);
+            });
+          }
         }
         setAllSalesItems(items);
       } catch (error) {
@@ -175,7 +164,7 @@ export default function SoldProductsReportPage() {
       }
     }
     fetchAllSalesItems();
-  }, [sales, firestore, salesLoading, dateRange]);
+  }, [sales, salesLoading, dateRange]);
 
 
   const soldProductsData = useMemo((): SoldProductInfo[] => {
@@ -201,7 +190,7 @@ export default function SoldProductsReportPage() {
         results.push({
           productId,
           productName: product.name,
-          categoryName: categoriesMap.get(product.categoryId) || 'N/A',
+          categoryName: categoriesMap.get(product.categoryId) || 'Chưa phân loại',
           totalQuantity: data.totalQuantity,
           totalRevenue: data.totalRevenue,
           avgPrice: data.totalRevenue / data.totalQuantity,
@@ -217,11 +206,19 @@ export default function SoldProductsReportPage() {
 
   const formatSoldQuantity = (item: SoldProductInfo) => {
     const { totalQuantity, baseUnitName, saleUnitName, conversionFactor } = item;
+    
+    // If no unit name, just show the quantity
+    if (!baseUnitName && !saleUnitName) {
+      return totalQuantity.toLocaleString();
+    }
+    
     if (saleUnitName && conversionFactor && conversionFactor > 1 && saleUnitName !== baseUnitName) {
       const quantityInSaleUnit = totalQuantity / conversionFactor;
       return `${totalQuantity.toLocaleString()} ${baseUnitName} (${quantityInSaleUnit.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${saleUnitName})`;
     }
-    return `${totalQuantity.toLocaleString()} ${baseUnitName}`;
+    
+    const unitName = baseUnitName || saleUnitName || '';
+    return unitName ? `${totalQuantity.toLocaleString()} ${unitName}` : totalQuantity.toLocaleString();
   };
 
   const filteredSoldProducts = useMemo(() => {

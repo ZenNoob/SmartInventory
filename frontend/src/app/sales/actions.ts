@@ -127,16 +127,17 @@ export async function updateSaleStatus(
 export async function upsertSaleTransaction(sale: Record<string, unknown>): Promise<{ 
   success: boolean; 
   sale?: Record<string, unknown>;
+  saleData?: Record<string, unknown>;
   error?: string 
 }> {
   try {
     const id = sale.id as string | undefined;
     if (id) {
       await apiClient.updateSale(id, sale);
-      return { success: true, sale };
+      return { success: true, sale, saleData: sale };
     } else {
-      const result = await apiClient.createSale(sale);
-      return { success: true, sale: result as Record<string, unknown> };
+      const result = await apiClient.createSale(sale) as Record<string, unknown>;
+      return { success: true, sale: result, saleData: result };
     }
   } catch (error: unknown) {
     console.error('Error upserting sale:', error);

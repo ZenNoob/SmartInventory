@@ -93,7 +93,7 @@ export class SalesRepository extends BaseRepository<Sale> {
    * Map database record to Sale entity
    */
   protected mapToEntity(record: Record<string, unknown>): Sale {
-    const r = record as SaleRecord;
+    const r = record as any as SaleRecord;
     return {
       id: r.id,
       storeId: r.store_id,
@@ -146,7 +146,7 @@ export class SalesRepository extends BaseRepository<Sale> {
     }
 
     const results = await query<SaleRecord>(queryString, { storeId });
-    return results.map((r) => this.mapToEntity(r as Record<string, unknown>));
+    return results.map((r) => this.mapToEntity(r as any));
   }
 
   /**
@@ -157,7 +157,7 @@ export class SalesRepository extends BaseRepository<Sale> {
       `SELECT * FROM Sales WHERE id = @id AND store_id = @storeId`,
       { id, storeId }
     );
-    return result ? this.mapToEntity(result as Record<string, unknown>) : null;
+    return result ? this.mapToEntity(result as any) : null;
   }
 
   /**
@@ -176,7 +176,7 @@ export class SalesRepository extends BaseRepository<Sale> {
        ORDER BY transaction_date DESC`,
       { storeId, dateFrom, dateTo }
     );
-    return results.map((r) => this.mapToEntity(r as Record<string, unknown>));
+    return results.map((r) => this.mapToEntity(r as any));
   }
 
   /**
@@ -189,7 +189,7 @@ export class SalesRepository extends BaseRepository<Sale> {
        ORDER BY transaction_date DESC`,
       { storeId, customerId }
     );
-    return results.map((r) => this.mapToEntity(r as Record<string, unknown>));
+    return results.map((r) => this.mapToEntity(r as any));
   }
 
   /**
@@ -348,3 +348,4 @@ export class SalesRepository extends BaseRepository<Sale> {
 
 // Export singleton instance
 export const salesRepository = new SalesRepository();
+

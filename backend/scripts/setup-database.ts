@@ -1,5 +1,5 @@
-import { getConnection, closeConnection, sql } from '../src/lib/db';
-import { hashPassword } from '../src/lib/auth/password';
+import { getConnection, closeConnection, sql } from '../src/db';
+import { hashPassword } from '../src/auth/password';
 import { v4 as uuidv4 } from 'uuid';
 
 async function setupDatabase() {

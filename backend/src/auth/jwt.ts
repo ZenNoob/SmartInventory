@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import type { Permissions, UserRole } from '../types';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'smart-inventory-secret-key-change-in-production';
@@ -87,7 +87,7 @@ export function generateToken(user: {
     permissions: user.permissions,
   };
 
-  return jwt.sign(payload as object, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN as string });
+  return jwt.sign(payload as object, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN } as SignOptions);
 }
 
 /**
@@ -118,7 +118,7 @@ export function generateMultiTenantToken(payload: {
     session_id: payload.sessionId,
   };
 
-  return jwt.sign(tokenPayload as object, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN as string });
+  return jwt.sign(tokenPayload as object, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN } as SignOptions);
 }
 
 /**

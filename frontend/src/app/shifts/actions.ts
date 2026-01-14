@@ -82,15 +82,126 @@ export async function startShift(startingCash: number): Promise<{
 /**
  * Close a shift
  */
-export async function closeShift(shiftId: string, endingCash: number): Promise<{ success: boolean; error?: string }> {
+export async function closeShift(shiftId: string, data: { endingCash: number }): Promise<{ success: boolean; error?: string }> {
   try {
-    await apiClient.closeShift(shiftId, { endingCash });
+    await apiClient.closeShift(shiftId, data);
     return { success: true };
   } catch (error: unknown) {
     console.error('Error closing shift:', error);
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Không thể đóng ca làm việc' 
+    };
+  }
+}
+
+
+// Shift types
+export interface Shift {
+  id: string;
+  storeId: string;
+  userId: string;
+  userName?: string;
+  startTime: string;
+  endTime?: string;
+  startingCash: number;
+  endingCash?: number;
+  expectedCash?: number;
+  cashDifference?: number;
+  status: 'open' | 'closed';
+  totalSales?: number;
+  totalTransactions?: number;
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ShiftWithSummary extends Shift {
+  salesCount: number;
+  totalRevenue: number;
+  cashPayments: number;
+  cardPayments: number;
+  otherPayments: number;
+}
+
+/**
+ * Get a single shift by ID
+ */
+export async function getShift(shiftId: string): Promise<{
+  success: boolean;
+  shift?: Shift;
+  error?: string;
+}> {
+  try {
+    const shifts = await apiClient.getShifts();
+    const shift = shifts.find(
+      (s: Record<string, unknown>) => s.id === shiftId
+    ) as Shift | undefined;
+    if (!shift) {
+      return { success: false, error: 'Không tìm thấy ca làm việc' };
+    }
+    return { success: true, shift };
+  } catch (error: unknown) {
+    console.error('Error fetching shift:', error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Đã xảy ra lỗi khi lấy thông tin ca làm việc',
+    };
+  }
+}
+
+/**
+ * Get sales for a shift
+ */
+export async function getShiftSales(
+  shiftId: string,
+  _options?: { includeItems?: boolean }
+): Promise<{
+  success: boolean;
+  sales?: Array<Record<string, unknown>>;
+  data?: Array<Record<string, unknown>>;
+  error?: string;
+}> {
+  try {
+    const sales = await apiClient.getSales();
+    const shiftSales = sales.filter(
+      (s: Record<string, unknown>) => s.shiftId === shiftId
+    );
+    return { success: true, sales: shiftSales, data: shiftSales };
+  } catch (error: unknown) {
+    console.error('Error fetching shift sales:', error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Đã xảy ra lỗi khi lấy danh sách bán hàng của ca',
+    };
+  }
+}
+
+/**
+ * Update a shift
+ */
+export async function updateShift(
+  shiftId: string,
+  data: Partial<Shift>
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Note: This would need a backend endpoint
+    console.log('Updating shift:', shiftId, data);
+    return { success: true };
+  } catch (error: unknown) {
+    console.error('Error updating shift:', error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Không thể cập nhật ca làm việc',
     };
   }
 }

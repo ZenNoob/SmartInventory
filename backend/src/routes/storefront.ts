@@ -109,7 +109,7 @@ router.get('/:slug/products', async (req: Request, res: Response) => {
       countQuery += ` AND (p.name LIKE @search OR op.online_description LIKE @search)`;
     }
     
-    const countResult = await queryOne(countQuery, params);
+    const countResult = await queryOne<{ total: number }>(countQuery, params);
     const total = countResult?.total || 0;
 
     res.json({
@@ -173,7 +173,20 @@ router.get('/:slug/products/:productSlug', async (req: Request, res: Response) =
       return;
     }
 
-    const product = await queryOne(
+    const product = await queryOne<{
+      id: string;
+      product_name: string;
+      seo_slug: string;
+      online_description: string;
+      online_price: number;
+      images: string;
+      category_id: string;
+      category_name: string;
+      sku: string;
+      seo_title: string;
+      seo_description: string;
+      stock_quantity: number;
+    }>(
       `SELECT op.*, p.name as product_name, p.sku, p.stock_quantity, c.name as category_name
        FROM OnlineProducts op
        LEFT JOIN Products p ON op.product_id = p.id
@@ -357,7 +370,11 @@ router.post('/:slug/cart/items', async (req: Request, res: Response) => {
     }
 
     // Get the online product
-    const product = await queryOne(
+    const product = await queryOne<{
+      id: string;
+      online_price: number;
+      stock_quantity: number;
+    }>(
       `SELECT op.*, p.stock_quantity 
        FROM OnlineProducts op
        LEFT JOIN Products p ON op.product_id = p.id
@@ -376,7 +393,13 @@ router.post('/:slug/cart/items', async (req: Request, res: Response) => {
     }
 
     // Get or create cart
-    let cart = await queryOne(
+    let cart = await queryOne<{
+      id: string;
+      subtotal: number;
+      discount_amount: number;
+      shipping_fee: number;
+      total: number;
+    }>(
       `SELECT * FROM ShoppingCarts WHERE online_store_id = @onlineStoreId AND session_id = @sessionId`,
       { onlineStoreId: store.id, sessionId }
     );
@@ -393,7 +416,10 @@ router.post('/:slug/cart/items', async (req: Request, res: Response) => {
     }
 
     // Check if item already exists in cart
-    const existingItem = await queryOne(
+    const existingItem = await queryOne<{
+      id: string;
+      quantity: number;
+    }>(
       `SELECT * FROM CartItems WHERE cart_id = @cartId AND online_product_id = @productId`,
       { cartId: cart.id, productId }
     );
@@ -421,7 +447,7 @@ router.post('/:slug/cart/items', async (req: Request, res: Response) => {
     }
 
     // Update cart totals
-    const cartTotals = await queryOne(
+    const cartTotals = await queryOne<{ subtotal: number }>(
       `SELECT SUM(total_price) as subtotal FROM CartItems WHERE cart_id = @cartId`,
       { cartId: cart.id }
     );
@@ -472,7 +498,13 @@ router.post('/:slug/checkout', async (req: Request, res: Response) => {
     }
 
     // Get cart
-    const cart = await queryOne(
+    const cart = await queryOne<{
+      id: string;
+      subtotal: number;
+      discount_amount: number;
+      shipping_fee: number;
+      total: number;
+    }>(
       `SELECT * FROM ShoppingCarts WHERE online_store_id = @onlineStoreId AND session_id = @sessionId`,
       { onlineStoreId: store.id, sessionId }
     );
@@ -644,7 +676,7 @@ router.get('/:slug/orders/:orderNumber', async (req: Request, res: Response) => 
   try {
     const { slug, orderNumber } = req.params;
 
-    const store = await queryOne(
+    const store = await queryOne<{ id: string }>(
       `SELECT id FROM OnlineStores WHERE slug = @slug AND is_active = 1`,
       { slug }
     );
@@ -654,7 +686,23 @@ router.get('/:slug/orders/:orderNumber', async (req: Request, res: Response) => 
       return;
     }
 
-    const order = await queryOne(
+    const order = await queryOne<{
+      id: string;
+      order_number: string;
+      status: string;
+      payment_status: string;
+      payment_method: string;
+      shipping_address: string;
+      customer_email: string;
+      customer_name: string;
+      customer_phone: string;
+      subtotal: number;
+      shipping_fee: number;
+      discount_amount: number;
+      total: number;
+      customer_note: string;
+      created_at: string;
+    }>(
       `SELECT * FROM OnlineOrders WHERE online_store_id = @onlineStoreId AND order_number = @orderNumber`,
       { onlineStoreId: store.id, orderNumber }
     );

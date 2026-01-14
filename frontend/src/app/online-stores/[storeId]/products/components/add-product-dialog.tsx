@@ -42,7 +42,7 @@ import {
 } from "@/components/ui/popover"
 import { useToast } from "@/hooks/use-toast"
 import { cn, formatCurrency } from "@/lib/utils"
-import { createOnlineProduct } from "../../../actions"
+import { addOnlineProduct } from "../../../actions"
 import { getProducts } from "@/app/products/actions"
 
 interface Product {
@@ -135,7 +135,7 @@ export function AddProductDialog({ isOpen, onOpenChange, onlineStoreId }: AddPro
   const onSubmit = async (values: FormValues) => {
     setIsSubmitting(true);
     try {
-      const result = await createOnlineProduct(onlineStoreId, {
+      const result = await addOnlineProduct(onlineStoreId, {
         productId: values.productId,
         seoSlug: values.seoSlug,
         isPublished: values.isPublished,

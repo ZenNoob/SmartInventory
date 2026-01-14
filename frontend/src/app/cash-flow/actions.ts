@@ -2,13 +2,36 @@
 
 import { apiClient } from '@/lib/api-client';
 
+// Types
+export interface CashTransaction {
+  id: string;
+  type: 'thu' | 'chi';
+  amount: number;
+  category: string;
+  reason?: string;
+  description?: string;
+  date: string;
+  transactionDate?: string;
+  createdAt: string;
+  updatedAt?: string;
+  [key: string]: unknown; // Allow indexing by string
+}
+
+export interface CashFlowSummary {
+  totalIncome: number;
+  totalExpense: number;
+  balance: number;
+  incomeByCategory?: Record<string, number>;
+  expenseByCategory?: Record<string, number>;
+}
+
 /**
  * Fetch all cash transactions for the current store
  */
 export async function getCashFlow(): Promise<{
   success: boolean;
-  transactions?: Array<Record<string, unknown>>;
-  summary?: Record<string, unknown>;
+  transactions?: CashTransaction[];
+  summary?: CashFlowSummary | null;
   error?: string;
 }> {
   try {
@@ -19,8 +42,8 @@ export async function getCashFlow(): Promise<{
     // API returns { data: [...], summary: {...} }
     return { 
       success: true, 
-      transactions: result.data || [],
-      summary: result.summary
+      transactions: (result.data || []) as CashTransaction[],
+      summary: (result.summary as unknown as CashFlowSummary) || null
     };
   } catch (error: unknown) {
     console.error('Error fetching cash flow:', error);
@@ -58,24 +81,32 @@ export async function createCashTransaction(transaction: Record<string, unknown>
 export async function getCashTransactions(params?: {
   pageSize?: number;
   includeSummary?: boolean;
+  type?: 'thu' | 'chi';
+  category?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }): Promise<{
   success: boolean;
-  transactions?: Array<Record<string, unknown>>;
-  summary?: Record<string, unknown>;
+  transactions?: CashTransaction[];
+  summary?: CashFlowSummary | null;
   error?: string;
 }> {
   try {
     const result = await apiClient.getCashFlow({ 
       includeSummary: params?.includeSummary ?? true, 
-      pageSize: params?.pageSize ?? 1000 
+      pageSize: params?.pageSize ?? 1000,
+      type: params?.type,
+      category: params?.category,
+      dateFrom: params?.dateFrom,
+      dateTo: params?.dateTo,
     }) as {
       data?: Array<Record<string, unknown>>;
       summary?: Record<string, unknown>;
     };
     return { 
       success: true, 
-      transactions: result.data || [],
-      summary: result.summary
+      transactions: (result.data || []) as CashTransaction[],
+      summary: (result.summary as unknown as CashFlowSummary) || null
     };
   } catch (error: unknown) {
     console.error('Error fetching cash transactions:', error);
@@ -110,7 +141,9 @@ export async function deleteCashTransaction(transactionId: string): Promise<{ su
 /**
  * Generate cash transactions Excel
  */
-export async function generateCashTransactionsExcel(): Promise<{
+export async function generateCashTransactionsExcel(
+  _transactions?: Array<Record<string, unknown>>
+): Promise<{
   success: boolean;
   data?: string;
   error?: string;

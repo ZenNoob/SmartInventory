@@ -122,3 +122,40 @@ export async function backupAllTransactionalData(): Promise<{
   console.warn('backupAllTransactionalData: Not implemented');
   return { success: false, error: 'Chức năng này chưa được triển khai' };
 }
+
+/**
+ * Sync and seed sample data for suppliers, customers, and units
+ */
+export async function syncSampleData(): Promise<{ 
+  success: boolean; 
+  results?: {
+    units: { added: number; existing: number };
+    suppliers: { added: number; existing: number };
+    customers: { added: number; existing: number };
+    purchases: { added: number };
+    sales: { added: number };
+  };
+  error?: string 
+}> {
+  try {
+    const response = await apiClient.request<{
+      success: boolean;
+      message: string;
+      results: {
+        units: { added: number; existing: number };
+        suppliers: { added: number; existing: number };
+        customers: { added: number; existing: number };
+        purchases: { added: number };
+        sales: { added: number };
+      };
+    }>('/sync-data', { method: 'POST' });
+    
+    return { success: true, results: response.results };
+  } catch (error: unknown) {
+    console.error('Error syncing data:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Không thể đồng bộ dữ liệu' 
+    };
+  }
+}

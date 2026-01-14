@@ -138,8 +138,9 @@ export default function CashFlowPage() {
         const typeMatch = typeFilter === 'all' || transaction.type === typeFilter;
         
         const term = searchTerm.toLowerCase();
+        const reason = transaction.reason || '';
         const searchMatch = !term ||
-            transaction.reason.toLowerCase().includes(term) ||
+            reason.toLowerCase().includes(term) ||
             (transaction.category && transaction.category.toLowerCase().includes(term));
             
         return typeMatch && searchMatch;
@@ -162,8 +163,8 @@ export default function CashFlowPage() {
         let valA, valB;
         switch (sortKey) {
             case 'transactionDate':
-                valA = new Date(a.transactionDate).getTime();
-                valB = new Date(b.transactionDate).getTime();
+                valA = new Date(a.transactionDate || a.date).getTime();
+                valB = new Date(b.transactionDate || b.date).getTime();
                 break;
             case 'amount':
                 valA = a.amount;
@@ -377,7 +378,7 @@ export default function CashFlowPage() {
               {!isLoading && sortedTransactions.map((transaction, index) => (
                   <TableRow key={transaction.id}>
                     <TableCell className="font-medium hidden md:table-cell">{index + 1}</TableCell>
-                    <TableCell>{new Date(transaction.transactionDate).toLocaleDateString()}</TableCell>
+                    <TableCell>{new Date(transaction.transactionDate || transaction.date).toLocaleDateString()}</TableCell>
                     <TableCell>
                       <Badge variant={transaction.type === 'thu' ? 'default' : 'destructive'}>
                         {transaction.type === 'thu' ? 'Phiếu thu' : 'Phiếu chi'}
@@ -386,7 +387,7 @@ export default function CashFlowPage() {
                     <TableCell className="text-right font-semibold">
                       {transaction.type === 'thu' ? '+' : '-'}{formatCurrency(transaction.amount)}
                     </TableCell>
-                    <TableCell>{transaction.reason}</TableCell>
+                    <TableCell>{transaction.reason || ''}</TableCell>
                     <TableCell>{transaction.category}</TableCell>
                     <TableCell>
                       <DropdownMenu>

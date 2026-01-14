@@ -124,7 +124,7 @@ export function MainNav() {
               <SidebarMenuButton asChild isActive={isActive('/pos')} tooltip="POS Bán tại quầy">
                 <Link href="/pos">
                   <Store />
-                  {state === 'expanded' && <span className='text-primary font-bold'>POS Bán tại quầy</span>}
+                  {state === 'expanded' && <span className='font-bold'>POS Bán tại quầy</span>}
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

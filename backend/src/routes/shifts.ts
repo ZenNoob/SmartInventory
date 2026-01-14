@@ -148,7 +148,11 @@ router.post('/:id/close', async (req: AuthRequest, res: Response) => {
     }
 
     // Calculate totals
-    const salesResult = await queryOne(
+    const salesResult = await queryOne<{
+      cashSales: number;
+      totalRevenue: number;
+      salesCount: number;
+    }>(
       `SELECT 
         ISNULL(SUM(CASE WHEN payment_method = 'cash' THEN final_amount ELSE 0 END), 0) as cashSales,
         ISNULL(SUM(final_amount), 0) as totalRevenue,
@@ -159,7 +163,7 @@ router.post('/:id/close', async (req: AuthRequest, res: Response) => {
       { storeId, id }
     );
 
-    const cashPayments = await queryOne(
+    const cashPayments = await queryOne<{ total: number }>(
       `SELECT ISNULL(SUM(amount), 0) as total
        FROM Payments 
        WHERE store_id = @storeId 
@@ -172,7 +176,7 @@ router.post('/:id/close', async (req: AuthRequest, res: Response) => {
     const totalRevenue = salesResult?.totalRevenue || 0;
     const salesCount = salesResult?.salesCount || 0;
     const cashPaymentsTotal = cashPayments?.total || 0;
-    const startingCash = shift.starting_cash || 0;
+    const startingCash = (shift as { starting_cash?: number }).starting_cash || 0;
     const totalCashInDrawer = startingCash + cashSales + cashPaymentsTotal;
     const cashDifference = endingCash - totalCashInDrawer;
 

@@ -27,7 +27,27 @@ import {
 
 import { formatCurrency } from "@/lib/utils"
 import { PredictRiskForm } from "./components/predict-risk-form"
-import { getCustomer, getCustomerDebt } from "../actions"
+import { getCustomer, getCustomerDebt, CustomerDebtHistory } from "../actions"
+
+// Customer data interface
+interface CustomerData {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  customerType?: string;
+  gender?: string;
+  birthday?: string;
+  bankName?: string;
+  bankAccountNumber?: string;
+  bankBranch?: string;
+  creditLimit: number;
+  currentDebt?: number;
+  loyaltyTier?: string;
+  loyaltyPoints?: number;
+  lifetimePoints?: number;
+}
 
 const getTierIcon = (tier: string | undefined) => {
   switch (tier) {
@@ -62,9 +82,9 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
     notFound();
   }
 
-  const customer = customerResult.customer;
+  const customer = customerResult.customer as unknown as CustomerData;
   const debtInfo = debtResult.debtInfo;
-  const history = debtResult.history || [];
+  const history: CustomerDebtHistory[] = debtResult.history || [];
 
 
   // Separate sales and payments from history
@@ -72,7 +92,8 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   const paymentsHistory = history.filter(h => h.type === 'payment').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const totalDebt = debtInfo?.currentDebt || customer.currentDebt || 0;
-  const isOverLimit = debtInfo?.isOverLimit || (customer.creditLimit > 0 && totalDebt > customer.creditLimit);
+  const creditLimit = customer.creditLimit || 0;
+  const isOverLimit = debtInfo?.isOverLimit || (creditLimit > 0 && totalDebt > creditLimit);
 
   return (
     <div className="grid gap-4 md:gap-8">
@@ -100,7 +121,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Cảnh báo vượt hạn mức tín dụng</AlertTitle>
           <AlertDescription>
-            Khách hàng đã vượt hạn mức tín dụng. Nợ hiện tại: {formatCurrency(totalDebt)}, Hạn mức: {formatCurrency(customer.creditLimit)}
+            Khách hàng đã vượt hạn mức tín dụng. Nợ hiện tại: {formatCurrency(totalDebt)}, Hạn mức: {formatCurrency(creditLimit)}
           </AlertDescription>
         </Alert>
       )}
@@ -115,11 +136,11 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           </CardHeader>
           <CardContent>
             <div className="text-xs text-muted-foreground">
-              Hạn mức tín dụng: {formatCurrency(customer.creditLimit)}
+              Hạn mức tín dụng: {formatCurrency(creditLimit)}
             </div>
             {debtInfo && (
               <div className="text-xs text-muted-foreground mt-1">
-                Còn lại: {formatCurrency(debtInfo.availableCredit)}
+                Còn lại: {formatCurrency(debtInfo.availableCredit ?? 0)}
               </div>
             )}
           </CardContent>
@@ -159,11 +180,11 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             </div>
             <div className="flex items-center gap-2 col-span-2">
               <MapPin className="h-4 w-4 text-muted-foreground" />
-              <span>{customer.address || 'Chưa có'}</span>
+              <span>{customer.address ? String(customer.address) : 'Chưa có'}</span>
             </div>
             <div className="flex items-center gap-2">
               <Cake className="h-4 w-4 text-muted-foreground" />
-              <span>{customer.birthday ? new Date(customer.birthday).toLocaleDateString('vi-VN') : 'Chưa có'}</span>
+              <span>{customer.birthday ? new Date(String(customer.birthday)).toLocaleDateString('vi-VN') : 'Chưa có'}</span>
             </div>
              <div className="flex items-center gap-2">
                <User className="h-4 w-4 text-muted-foreground" />
@@ -176,7 +197,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             {customer.bankBranch && (
               <div className="flex items-center gap-2 col-span-2">
                 <MapPin className="h-4 w-4 text-muted-foreground" />
-                <span>Chi nhánh: {customer.bankBranch}</span>
+                <span>Chi nhánh: {String(customer.bankBranch)}</span>
               </div>
             )}
           </CardContent>
@@ -218,7 +239,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
                       {item.type === 'sale' ? '+' : '-'}{formatCurrency(Math.abs(item.amount))}
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      {formatCurrency(item.runningBalance)}
+                      {formatCurrency(item.runningBalance ?? 0)}
                     </TableCell>
                   </TableRow>
                 ))

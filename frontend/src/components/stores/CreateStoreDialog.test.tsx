@@ -33,6 +33,8 @@ const mockStore = {
   name: 'Test Store',
   code: 'TS1',
   status: 'active' as const,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
 };
 
 const mockUser = {

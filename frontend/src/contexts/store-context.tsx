@@ -7,13 +7,15 @@ export interface Store {
   id: string;
   ownerId: string;
   name: string;
-  code: string;
+  code?: string;
   address?: string;
   phone?: string;
   businessType?: string;
   logo?: string;
   settings?: Record<string, unknown>;
   status: 'active' | 'inactive';
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // Store info from auth response (includes role override)
@@ -190,7 +192,10 @@ export function StoreProvider({ children }: StoreProviderProps) {
 
         // Fetch stores - this returns only stores user has access to
         const storesData = await apiClient.getStores();
-        const userStores = storesData as Store[];
+        const userStores = storesData.map(s => ({
+          ...s,
+          code: s.code || s.slug || '',
+        })) as Store[];
 
         const userData: StoreUser = {
           id: data.user.id,
@@ -284,7 +289,8 @@ export function StoreProvider({ children }: StoreProviderProps) {
     try {
       const storeData = await apiClient.getStore(storeId);
       if (storeData) {
-        setCurrentStore(storeData as Store);
+        const store = { ...storeData, code: storeData.code || storeData.slug || '' } as Store;
+        setCurrentStore(store);
         saveStoreId(storeId);
         setError(null);
         return true;
@@ -325,28 +331,33 @@ export function StoreProvider({ children }: StoreProviderProps) {
     const newStore = await apiClient.createStore(data);
     // Refresh stores list to include the new store
     const storesData = await apiClient.getStores();
-    const userStores = storesData as Store[];
+    const userStores = storesData.map(s => ({
+      ...s,
+      code: s.code || s.slug || '',
+    })) as Store[];
     setStores(userStores);
     // Add new store to accessible stores
     setAccessibleStoreIds(prev => new Set([...prev, newStore.id]));
     // Auto-switch to the new store
-    setCurrentStore(newStore as Store);
+    const storeWithCode = { ...newStore, code: newStore.code || newStore.slug || '' } as Store;
+    setCurrentStore(storeWithCode);
     saveStoreId(newStore.id);
-    return newStore as Store;
+    return storeWithCode;
   }, [saveStoreId]);
 
   // Update an existing store
   const updateStore = useCallback(async (id: string, data: UpdateStoreRequest): Promise<Store> => {
     const updatedStore = await apiClient.updateStore(id, data);
+    const storeWithCode = { ...updatedStore, code: updatedStore.code || updatedStore.slug || '' } as Store;
     // Update local state
     setStores(prevStores => 
-      prevStores.map(store => store.id === id ? { ...store, ...updatedStore } as Store : store)
+      prevStores.map(store => store.id === id ? { ...store, ...storeWithCode } : store)
     );
     // Update current store if it's the one being updated
     if (currentStore?.id === id) {
-      setCurrentStore(prev => prev ? { ...prev, ...updatedStore } as Store : null);
+      setCurrentStore(prev => prev ? { ...prev, ...storeWithCode } : null);
     }
-    return updatedStore as Store;
+    return storeWithCode;
   }, [currentStore?.id]);
 
   // Deactivate a store (soft delete)

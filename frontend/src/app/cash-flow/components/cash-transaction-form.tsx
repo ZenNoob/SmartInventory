@@ -96,9 +96,9 @@ export function CashTransactionForm({ isOpen, onOpenChange, transaction, categor
         transaction 
         ? { 
             type: transaction.type,
-            transactionDate: new Date(transaction.transactionDate).toISOString().split('T')[0],
+            transactionDate: new Date(transaction.transactionDate || transaction.date).toISOString().split('T')[0],
             amount: transaction.amount,
-            reason: transaction.reason,
+            reason: transaction.reason || '',
             category: transaction.category || '',
           } 
         : {

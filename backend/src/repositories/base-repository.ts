@@ -70,8 +70,8 @@ export abstract class BaseRepository<
   /**
    * Map entity to database record (override in subclass for custom mapping)
    */
-  protected mapToRecord(entity: Partial<T>): Record<string, SqlValue> {
-    return entity as Record<string, SqlValue>;
+  protected mapToRecord(entity: Partial<T>): Record<string, SqlValue | unknown> {
+    return entity as Record<string, SqlValue | unknown>;
   }
 
   /**
@@ -244,7 +244,7 @@ export abstract class BaseRepository<
       record.updated_at = now;
     }
 
-    const result = await insert<Record<string, unknown>>(this.tableName, record);
+    const result = await insert<Record<string, unknown>>(this.tableName, record as Record<string, SqlValue>);
     if (!result) {
       throw new Error(`Failed to create record in ${this.tableName}`);
     }
@@ -255,11 +255,11 @@ export abstract class BaseRepository<
   /**
    * Update an existing record with storeId verification
    */
-  async update(id: string, data: Partial<T>, storeId: string): Promise<T> {
+  async update(id: string, data: Partial<T>, storeId: string): Promise<T | null> {
     // Verify record belongs to store
     const existing = await this.findById(id, storeId);
     if (!existing) {
-      throw new Error(`Record not found or access denied`);
+      return null;
     }
 
     const record = this.mapToRecord(data);
@@ -274,7 +274,7 @@ export abstract class BaseRepository<
     const result = await update<Record<string, unknown>>(
       this.tableName,
       id,
-      record,
+      record as Record<string, SqlValue>,
       this.idColumn
     );
 
@@ -402,14 +402,14 @@ export class TransactionRepository<
   private idColumn: string;
   private transaction: sql.Transaction;
   private mapToEntity: (record: Record<string, unknown>) => T;
-  private mapToRecord: (entity: Partial<T>) => Record<string, SqlValue>;
+  private mapToRecord: (entity: Partial<T>) => Record<string, SqlValue | unknown>;
 
   constructor(
     tableName: string,
     idColumn: string,
     transaction: sql.Transaction,
     mapToEntity: (record: Record<string, unknown>) => T,
-    mapToRecord: (entity: Partial<T>) => Record<string, SqlValue>
+    mapToRecord: (entity: Partial<T>) => Record<string, SqlValue | unknown>
   ) {
     this.tableName = tableName;
     this.idColumn = idColumn;
@@ -455,7 +455,7 @@ export class TransactionRepository<
     const result = await transactionInsert<Record<string, unknown>>(
       this.transaction,
       this.tableName,
-      record
+      record as Record<string, SqlValue>
     );
 
     if (!result) {
@@ -480,7 +480,7 @@ export class TransactionRepository<
       this.transaction,
       this.tableName,
       id,
-      record,
+      record as Record<string, SqlValue>,
       this.idColumn
     );
 

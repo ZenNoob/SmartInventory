@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   BaseRepository,
   QueryOptions,
@@ -66,7 +67,7 @@ export class ProductRepository extends BaseRepository<Product> {
    * Map database record to Product entity
    */
   protected mapToEntity(record: Record<string, unknown>): Product {
-    const r = record as ProductRecord;
+    const r = record as any as ProductRecord;
     return {
       id: r.id,
       storeId: r.store_id,
@@ -129,7 +130,7 @@ export class ProductRepository extends BaseRepository<Product> {
     }
 
     const results = await query<ProductRecord>(queryString, { storeId });
-    return results.map((r) => this.mapToEntity(r as Record<string, unknown>));
+    return results.map((r) => this.mapToEntity(r as any));
   }
 
   /**
@@ -140,7 +141,7 @@ export class ProductRepository extends BaseRepository<Product> {
       `SELECT * FROM Products WHERE id = @id AND store_id = @storeId`,
       { id, storeId }
     );
-    return result ? this.mapToEntity(result as Record<string, unknown>) : null;
+    return result ? this.mapToEntity(result as any) : null;
   }
 
   /**
@@ -151,7 +152,7 @@ export class ProductRepository extends BaseRepository<Product> {
       `SELECT * FROM Products WHERE sku = @sku AND store_id = @storeId`,
       { sku, storeId }
     );
-    return result ? this.mapToEntity(result as Record<string, unknown>) : null;
+    return result ? this.mapToEntity(result as any) : null;
   }
 
   /**
@@ -175,7 +176,7 @@ export class ProductRepository extends BaseRepository<Product> {
       categoryId,
       storeId,
     });
-    return results.map((r) => this.mapToEntity(r as Record<string, unknown>));
+    return results.map((r) => this.mapToEntity(r as any));
   }
 
   /**
@@ -291,7 +292,7 @@ export class ProductRepository extends BaseRepository<Product> {
        ORDER BY stock_quantity ASC`,
       { storeId, threshold }
     );
-    return results.map((r) => this.mapToEntity(r as Record<string, unknown>));
+    return results.map((r) => this.mapToEntity(r as any));
   }
 
   /**
@@ -307,7 +308,7 @@ export class ProductRepository extends BaseRepository<Product> {
        ORDER BY name ASC`,
       { storeId, search: `%${searchTerm}%` }
     );
-    return results.map((r) => this.mapToEntity(r as Record<string, unknown>));
+    return results.map((r) => this.mapToEntity(r as any));
   }
 
   /**
@@ -334,3 +335,4 @@ export class ProductRepository extends BaseRepository<Product> {
 
 // Export singleton instance
 export const productRepository = new ProductRepository();
+

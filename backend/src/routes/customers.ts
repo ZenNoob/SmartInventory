@@ -13,27 +13,54 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const storeId = req.storeId!;
     
+    // Get customers with debt from Customers table columns
+    // Also try to calculate from Sales/Payments if available
     const customers = await query(
-      'SELECT * FROM Customers WHERE store_id = @storeId ORDER BY full_name',
+      `SELECT c.*,
+        COALESCE(c.total_debt, 0) as customer_total_debt,
+        COALESCE(c.total_paid, 0) as customer_total_paid,
+        COALESCE((
+          SELECT SUM(s.remaining_debt) 
+          FROM Sales s 
+          WHERE s.customer_id = c.id AND s.remaining_debt > 0
+        ), 0) as sales_debt,
+        COALESCE((
+          SELECT SUM(p.amount) 
+          FROM Payments p 
+          WHERE p.customer_id = c.id
+        ), 0) as payments_total
+       FROM Customers c
+       WHERE c.store_id = @storeId 
+       ORDER BY c.full_name`,
       { storeId }
     );
 
-    res.json(customers.map((c: Record<string, unknown>) => ({
-      id: c.id,
-      storeId: c.store_id,
-      email: c.email,
-      name: c.full_name,
-      phone: c.phone,
-      address: c.address,
-      status: c.status,
-      loyaltyTier: c.loyalty_tier,
-      customerType: c.customer_type,
-      customerGroup: c.customer_group,
-      lifetimePoints: c.lifetime_points,
-      notes: c.notes,
-      createdAt: c.created_at,
-      updatedAt: c.updated_at,
-    })));
+    res.json(customers.map((c: Record<string, unknown>) => {
+      // Use customer table values if available, otherwise use calculated values
+      const totalDebt = (c.customer_total_debt as number) || (c.sales_debt as number) || 0;
+      const totalPaid = (c.customer_total_paid as number) || (c.payments_total as number) || 0;
+      
+      return {
+        id: c.id,
+        storeId: c.store_id,
+        email: c.email,
+        name: c.full_name,
+        phone: c.phone,
+        address: c.address,
+        status: c.status,
+        loyaltyTier: c.loyalty_tier,
+        customerType: c.customer_type,
+        customerGroup: c.customer_group,
+        lifetimePoints: c.lifetime_points,
+        notes: c.notes,
+        totalDebt,
+        totalPaid,
+        calculatedDebt: totalDebt,
+        totalPayments: totalPaid,
+        createdAt: c.created_at,
+        updatedAt: c.updated_at,
+      };
+    }));
   } catch (error) {
     console.error('Get customers error:', error);
     res.status(500).json({ error: 'Failed to get customers' });

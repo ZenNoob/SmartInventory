@@ -8,6 +8,7 @@ import { Search, ArrowUp, ArrowDown, File, Calendar as CalendarIcon, ChevronDown
 import * as xlsx from 'xlsx';
 import { DateRange } from "react-day-picker"
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfYear, endOfYear, startOfQuarter, endOfQuarter } from "date-fns"
+import { apiClient } from "@/lib/api-client"
 
 import {
   Card,
@@ -81,27 +82,19 @@ export default function TransactionHistoryPage() {
     const fetchData = async () => {
       try {
         setCustomersLoading(true);
-        const customersRes = await fetch('/api/customers');
-        if (customersRes.ok) {
-          const data = await customersRes.json();
-          setCustomers(data.data || []);
-        }
+        const customersData = await apiClient.getCustomers();
+        // Handle both array and { data: array } response
+        setCustomers(Array.isArray(customersData) ? customersData : (customersData as any).data || []);
         setCustomersLoading(false);
 
         setSalesLoading(true);
-        const salesRes = await fetch('/api/sales');
-        if (salesRes.ok) {
-          const data = await salesRes.json();
-          setSales(data.data || []);
-        }
+        const salesData = await apiClient.getSales();
+        setSales(Array.isArray(salesData) ? salesData : (salesData as any).data || []);
         setSalesLoading(false);
 
         setPaymentsLoading(true);
-        const paymentsRes = await fetch('/api/payments');
-        if (paymentsRes.ok) {
-          const data = await paymentsRes.json();
-          setPayments(data.data || []);
-        }
+        const paymentsData = await apiClient.getPayments();
+        setPayments(Array.isArray(paymentsData) ? paymentsData : (paymentsData as any).data || []);
         setPaymentsLoading(false);
       } catch (error) {
         console.error('Error fetching transaction history data:', error);

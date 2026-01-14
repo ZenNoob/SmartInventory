@@ -2,16 +2,52 @@
 
 import { apiClient } from '@/lib/api-client';
 
+export interface SupplierWithDebt {
+  id: string;
+  name: string;
+  contactPerson?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  taxCode?: string;
+  notes?: string;
+  totalPurchases: number;
+  totalPayments: number;
+  debt: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 /**
  * Fetch all suppliers for the current store
+ * @param withDebt - If true, includes debt calculation (totalPurchases, totalPayments, debt)
  */
-export async function getSuppliers(): Promise<{
+export async function getSuppliers(withDebt: boolean = false): Promise<{
   success: boolean;
-  suppliers?: Array<Record<string, unknown>>;
+  suppliers?: SupplierWithDebt[];
   error?: string;
 }> {
   try {
-    const suppliers = await apiClient.getSuppliers();
+    const rawSuppliers = await apiClient.getSuppliers();
+    
+    // Map backend fields to frontend expected fields
+    const suppliers: SupplierWithDebt[] = rawSuppliers.map((s: Record<string, unknown>) => ({
+      id: s.id as string,
+      name: s.name as string,
+      contactPerson: s.contactPerson as string | undefined,
+      email: s.email as string | undefined,
+      phone: s.phone as string | undefined,
+      address: s.address as string | undefined,
+      taxCode: s.taxCode as string | undefined,
+      notes: s.notes as string | undefined,
+      // Map backend totalPurchase/totalPaid/totalDebt to frontend totalPurchases/totalPayments/debt
+      totalPurchases: (s.totalPurchase as number) || 0,
+      totalPayments: (s.totalPaid as number) || 0,
+      debt: (s.totalDebt as number) || 0,
+      createdAt: s.createdAt as string | undefined,
+      updatedAt: s.updatedAt as string | undefined,
+    }));
+    
     return { success: true, suppliers };
   } catch (error: unknown) {
     console.error('Error fetching suppliers:', error);

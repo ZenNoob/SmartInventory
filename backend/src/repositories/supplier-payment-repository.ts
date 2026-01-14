@@ -50,7 +50,7 @@ export class SupplierPaymentRepository extends BaseRepository<SupplierPayment> {
    * Map database record to SupplierPayment entity
    */
   protected mapToEntity(record: Record<string, unknown>): SupplierPayment {
-    const r = record as SupplierPaymentRecord;
+    const r = record as any as SupplierPaymentRecord;
     return {
       id: r.Id,
       storeId: r.StoreId,
@@ -101,7 +101,7 @@ export class SupplierPaymentRepository extends BaseRepository<SupplierPayment> {
     }
     
     const results = await query<SupplierPaymentRecord>(queryString, { supplierId, storeId });
-    return results.map(r => this.mapToEntity(r as Record<string, unknown>));
+    return results.map(r => this.mapToEntity(r as any));
   }
 
   /**
@@ -162,7 +162,7 @@ export class SupplierPaymentRepository extends BaseRepository<SupplierPayment> {
 
     return {
       data: results.map(r => ({
-        ...this.mapToEntity(r as Record<string, unknown>),
+        ...this.mapToEntity(r as any),
         supplierName: r.SupplierName,
         supplierPhone: r.SupplierPhone || undefined,
       })),
@@ -213,3 +213,4 @@ export class SupplierPaymentRepository extends BaseRepository<SupplierPayment> {
 
 // Export singleton instance
 export const supplierPaymentRepository = new SupplierPaymentRepository();
+

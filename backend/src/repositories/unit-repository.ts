@@ -44,7 +44,7 @@ export class UnitRepository extends BaseRepository<Unit> {
    * Map database record to Unit entity
    */
   protected mapToEntity(record: Record<string, unknown>): Unit {
-    const r = record as UnitRecord;
+    const r = record as any as UnitRecord;
     return {
       id: r.id,
       storeId: r.store_id,
@@ -88,7 +88,7 @@ export class UnitRepository extends BaseRepository<Unit> {
     }
 
     const results = await query<UnitRecord>(queryString, { storeId });
-    return results.map((r) => this.mapToEntity(r as Record<string, unknown>));
+    return results.map((r) => this.mapToEntity(r as any));
   }
 
   /**
@@ -99,7 +99,7 @@ export class UnitRepository extends BaseRepository<Unit> {
       `SELECT * FROM Units WHERE id = @id AND store_id = @storeId`,
       { id, storeId }
     );
-    return result ? this.mapToEntity(result as Record<string, unknown>) : null;
+    return result ? this.mapToEntity(result as any) : null;
   }
 
   /**
@@ -110,7 +110,7 @@ export class UnitRepository extends BaseRepository<Unit> {
       `SELECT * FROM Units WHERE name = @name AND store_id = @storeId`,
       { name, storeId }
     );
-    return result ? this.mapToEntity(result as Record<string, unknown>) : null;
+    return result ? this.mapToEntity(result as any) : null;
   }
 
   /**
@@ -226,7 +226,7 @@ export class UnitRepository extends BaseRepository<Unit> {
     );
 
     return results.map((r) => ({
-      ...this.mapToEntity(r as Record<string, unknown>),
+      ...this.mapToEntity(r as any),
       baseUnitName: r.base_unit_name || undefined,
     }));
   }
@@ -239,7 +239,7 @@ export class UnitRepository extends BaseRepository<Unit> {
       `SELECT * FROM Units WHERE store_id = @storeId AND base_unit_id IS NULL ORDER BY name ASC`,
       { storeId }
     );
-    return results.map((r) => this.mapToEntity(r as Record<string, unknown>));
+    return results.map((r) => this.mapToEntity(r as any));
   }
 
   /**
@@ -279,3 +279,4 @@ export class UnitRepository extends BaseRepository<Unit> {
 
 // Export singleton instance
 export const unitRepository = new UnitRepository();
+

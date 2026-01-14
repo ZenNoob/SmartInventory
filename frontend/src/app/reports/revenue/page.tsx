@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect, useCallback } from "react"
+import { apiClient } from "@/lib/api-client"
 import {
   Card,
   CardContent,
@@ -94,29 +95,17 @@ export default function RevenueReportPage() {
     setError(null);
 
     try {
-      const params = new URLSearchParams();
+      const params: any = {};
       if (dateRange?.from) {
-        params.set('dateFrom', dateRange.from.toISOString());
+        params.dateFrom = dateRange.from.toISOString();
       }
       if (dateRange?.to) {
-        params.set('dateTo', dateRange.to.toISOString());
+        params.dateTo = dateRange.to.toISOString();
       }
-      params.set('groupBy', 'month');
-      params.set('includeDetails', 'true');
+      params.includeDetails = true;
 
-      const response = await fetch(`/api/reports/sales?${params.toString()}`, {
-        headers: {
-          'x-store-id': currentStore.id,
-        },
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch report');
-      }
-
-      const data = await response.json();
-      setReportData(data);
+      const data = await apiClient.getSalesReport(params);
+      setReportData(data as SalesReportResponse);
     } catch (err) {
       console.error('Error fetching sales report:', err);
       setError('Đã xảy ra lỗi khi tải báo cáo');

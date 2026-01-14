@@ -1,7 +1,21 @@
-import * as nodemailer from 'nodemailer';
-import type { Transporter } from 'nodemailer';
+// Note: nodemailer is optional - install with: npm install nodemailer @types/nodemailer
+// import * as nodemailer from 'nodemailer';
+// import type { Transporter } from 'nodemailer';
 import type { OnlineOrderWithItems, OrderStatus } from '../repositories/online-order-repository';
 import type { OnlineStore } from '../repositories/online-store-repository';
+
+// Placeholder types when nodemailer is not installed
+type Transporter = {
+  sendMail: (options: unknown) => Promise<{ messageId: string }>;
+};
+
+let nodemailer: { createTransport: (config: unknown) => Transporter } | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  nodemailer = require('nodemailer');
+} catch {
+  console.warn('nodemailer not installed - email notifications will be disabled');
+}
 
 /**
  * Email configuration interface
@@ -106,6 +120,11 @@ export class EmailNotificationService {
    * Initialize the email transporter from environment variables
    */
   private initializeTransporter(): void {
+    if (!nodemailer) {
+      console.warn('nodemailer not installed. Email notifications will be disabled.');
+      return;
+    }
+
     const host = process.env.SMTP_HOST;
     const port = parseInt(process.env.SMTP_PORT || '587', 10);
     const user = process.env.SMTP_USER;
