@@ -98,6 +98,12 @@ export function PurchaseOrderForm({ products, suppliers, units, allSalesItems, p
   const [productSearchOpen, setProductSearchOpen] = useState(false);
   const [supplierSearchOpen, setSupplierSearchOpen] = useState(false);
   const isEditMode = !!purchaseOrder;
+  
+  // Debug logging
+  useEffect(() => {
+    console.log('PurchaseOrderForm received products:', products?.length || 0, 'items');
+    console.log('Products:', products);
+  }, [products]);
   const [barcode, setBarcode] = useState('');
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 

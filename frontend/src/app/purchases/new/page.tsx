@@ -23,37 +23,54 @@ export default function NewPurchasePage() {
             
             setIsLoading(true);
             try {
+                // Get auth token from localStorage
+                const token = localStorage.getItem('auth_token');
+                const headers: Record<string, string> = {
+                    'X-Store-Id': currentStore.id,
+                };
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+                
                 // Fetch products
-                const productsResponse = await fetch('/api/products?pageSize=1000', {
-                    headers: {
-                        'X-Store-Id': currentStore.id,
-                    },
-                });
+                const productsResponse = await fetch('/api/products?pageSize=1000', { headers });
                 if (productsResponse.ok) {
                     const productsResult = await productsResponse.json();
-                    setProducts(productsResult.data || []);
+                    console.log('Products response:', productsResult);
+                    console.log('Is array?', Array.isArray(productsResult));
+                    console.log('Products count:', Array.isArray(productsResult) ? productsResult.length : 'not array');
+                    // Backend returns array directly, not wrapped in data property
+                    const productsList = Array.isArray(productsResult) ? productsResult : (productsResult.data || []);
+                    console.log('Setting products:', productsList.length, 'items');
+                    setProducts(productsList);
+                } else {
+                    console.error('Products fetch failed:', productsResponse.status, productsResponse.statusText);
                 }
                 
                 // Fetch suppliers
-                const suppliersResponse = await fetch('/api/suppliers', {
-                    headers: {
-                        'X-Store-Id': currentStore.id,
-                    },
-                });
+                const suppliersResponse = await fetch('/api/suppliers', { headers });
                 if (suppliersResponse.ok) {
                     const suppliersResult = await suppliersResponse.json();
-                    setSuppliers(suppliersResult.suppliers || []);
+                    console.log('Suppliers response:', suppliersResult);
+                    // Backend returns array directly, not wrapped in suppliers property
+                    const suppliersList = Array.isArray(suppliersResult) ? suppliersResult : (suppliersResult.suppliers || []);
+                    console.log('Setting suppliers:', suppliersList.length, 'items');
+                    setSuppliers(suppliersList);
+                } else {
+                    console.error('Suppliers fetch failed:', suppliersResponse.status, suppliersResponse.statusText);
                 }
                 
                 // Fetch units
-                const unitsResponse = await fetch('/api/units', {
-                    headers: {
-                        'X-Store-Id': currentStore.id,
-                    },
-                });
+                const unitsResponse = await fetch('/api/units', { headers });
                 if (unitsResponse.ok) {
                     const unitsResult = await unitsResponse.json();
-                    setUnits(unitsResult.units || []);
+                    console.log('Units response:', unitsResult);
+                    // Backend returns object with units property
+                    const unitsList = unitsResult.units || [];
+                    console.log('Setting units:', unitsList.length, 'items');
+                    setUnits(unitsList);
+                } else {
+                    console.error('Units fetch failed:', unitsResponse.status, unitsResponse.statusText);
                 }
                 
                 // Sales items are not needed for new purchase, set empty array

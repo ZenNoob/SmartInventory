@@ -31,9 +31,12 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       price: p.price,
       costPrice: p.cost_price,
       sku: p.sku,
+      barcode: p.sku, // Use sku as barcode for now
       stockQuantity: p.stock_quantity,
+      unitId: p.unit_id,
       images: p.images,
       status: p.status,
+      purchaseLots: [], // Empty array for now
       createdAt: p.created_at,
       updatedAt: p.updated_at,
     })));

@@ -237,18 +237,20 @@ async function seedSampleData(storeId?: string) {
       for (const product of SAMPLE_PRODUCTS) {
         const id = uuidv4();
         const categoryId = categoryIds[product.categoryIndex % categoryIds.length];
+        const unitId = unitIds[0]; // Use first unit as default
         await pool.request()
           .input('id', sql.UniqueIdentifier, id)
           .input('storeId', sql.UniqueIdentifier, targetStoreId)
           .input('name', sql.NVarChar, product.name)
           .input('sku', sql.NVarChar, product.barcode)
           .input('categoryId', sql.UniqueIdentifier, categoryId)
+          .input('unitId', sql.UniqueIdentifier, unitId)
           .input('price', sql.Decimal(18, 2), product.sellingPrice)
           .input('costPrice', sql.Decimal(18, 2), Math.round(product.sellingPrice * 0.7))
           .input('stockQuantity', sql.Int, 100)
           .input('status', sql.NVarChar, 'active')
-          .query(`INSERT INTO Products (id, store_id, name, sku, category_id, price, cost_price, stock_quantity, status, created_at, updated_at) 
-                  VALUES (@id, @storeId, @name, @sku, @categoryId, @price, @costPrice, @stockQuantity, @status, GETDATE(), GETDATE())`);
+          .query(`INSERT INTO Products (id, store_id, name, sku, category_id, unit_id, price, cost_price, stock_quantity, status, created_at, updated_at) 
+                  VALUES (@id, @storeId, @name, @sku, @categoryId, @unitId, @price, @costPrice, @stockQuantity, @status, GETDATE(), GETDATE())`);
         products.push({ id, name: product.name, sellingPrice: product.sellingPrice });
       }
       console.log(`   ✅ Created ${SAMPLE_PRODUCTS.length} products`);

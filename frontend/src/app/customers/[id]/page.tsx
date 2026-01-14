@@ -1,4 +1,7 @@
-import { notFound } from "next/navigation"
+'use client';
+
+import { useEffect, useState } from "react"
+import { notFound, useParams } from "next/navigation"
 import { ChevronLeft, Phone, Mail, MapPin, Cake, User, Landmark, Trophy, Gem, Star, Shield, AlertTriangle } from "lucide-react"
 
 import Link from "next/link"
@@ -69,31 +72,62 @@ const getTierName = (tier: string | undefined) => {
   }
 }
 
-export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default function CustomerDetailPage() {
+  const params = useParams();
+  const id = params.id as string;
   
-  // Fetch customer data from SQL Server API
-  const [customerResult, debtResult] = await Promise.all([
-    getCustomer(id, { includeDebt: true, includeLoyalty: true }),
-    getCustomerDebt(id, true),
-  ]);
+  const [customer, setCustomer] = useState<CustomerData | null>(null);
+  const [history, setHistory] = useState<CustomerDebtHistory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  if (!customerResult.success || !customerResult.customer) {
-    notFound();
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true);
+        const [customerResult, debtResult] = await Promise.all([
+          getCustomer(id, { includeDebt: true, includeLoyalty: true }),
+          getCustomerDebt(id, true),
+        ]);
+
+        if (!customerResult.success || !customerResult.customer) {
+          setError(true);
+          return;
+        }
+
+        setCustomer(customerResult.customer as unknown as CustomerData);
+        setHistory(debtResult.history || []);
+      } catch (err) {
+        console.error('Error fetching customer:', err);
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-muted-foreground">Đang tải...</div>
+      </div>
+    );
   }
 
-  const customer = customerResult.customer as unknown as CustomerData;
-  const debtInfo = debtResult.debtInfo;
-  const history: CustomerDebtHistory[] = debtResult.history || [];
-
+  if (error || !customer) {
+    notFound();
+    return null;
+  }
 
   // Separate sales and payments from history
   const salesHistory = history.filter(h => h.type === 'sale').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   const paymentsHistory = history.filter(h => h.type === 'payment').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  const totalDebt = debtInfo?.currentDebt || customer.currentDebt || 0;
+  const totalDebt = customer.currentDebt || 0;
   const creditLimit = customer.creditLimit || 0;
-  const isOverLimit = debtInfo?.isOverLimit || (creditLimit > 0 && totalDebt > creditLimit);
+  const isOverLimit = creditLimit > 0 && totalDebt > creditLimit;
 
   return (
     <div className="grid gap-4 md:gap-8">
@@ -138,11 +172,9 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
             <div className="text-xs text-muted-foreground">
               Hạn mức tín dụng: {formatCurrency(creditLimit)}
             </div>
-            {debtInfo && (
-              <div className="text-xs text-muted-foreground mt-1">
-                Còn lại: {formatCurrency(debtInfo.availableCredit ?? 0)}
-              </div>
-            )}
+            <div className="text-xs text-muted-foreground mt-1">
+              Còn lại: {formatCurrency(Math.max(0, creditLimit - totalDebt))}
+            </div>
           </CardContent>
         </Card>
          <Card>
