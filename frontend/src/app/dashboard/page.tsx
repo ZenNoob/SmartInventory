@@ -119,7 +119,7 @@ export default function Dashboard() {
         setCustomersLoading(true);
         try {
           const customersData = await apiClient.getCustomers();
-          setCustomers(customersData as Customer[]);
+          setCustomers(((customersData as any).data || customersData || []) as Customer[]);
         } catch (e) {
           console.error('Error fetching customers:', e);
         }
@@ -149,7 +149,7 @@ export default function Dashboard() {
         setProductsLoading(true);
         try {
           const productsData = await apiClient.getProducts();
-          setProducts(productsData as Product[]);
+          setProducts(((productsData as any).data || productsData || []) as Product[]);
         } catch (e) {
           console.error('Error fetching products:', e);
         }
@@ -159,7 +159,7 @@ export default function Dashboard() {
         setUnitsLoading(true);
         try {
           const unitsData = await apiClient.getUnits();
-          setUnits(unitsData as Unit[]);
+          setUnits(((unitsData as any).data || unitsData || []) as Unit[]);
         } catch (e) {
           console.error('Error fetching units:', e);
         }
@@ -169,7 +169,7 @@ export default function Dashboard() {
         setCategoriesLoading(true);
         try {
           const categoriesData = await apiClient.getCategories();
-          setCategories(categoriesData as Category[]);
+          setCategories(((categoriesData as any).data || categoriesData || []) as Category[]);
         } catch (e) {
           console.error('Error fetching categories:', e);
         }
@@ -198,7 +198,9 @@ export default function Dashboard() {
     const fetchSalesItems = async () => {
       setSalesItemsLoading(true);
       try {
-        const items = await apiClient.getAllSaleItems();
+        const response = await apiClient.getAllSaleItems();
+        // Handle response format: { success: true, data: [...] }
+        const items = Array.isArray(response) ? response : ((response as any)?.data || []);
         setAllSalesItems(items as SalesItem[]);
       } catch (e) {
         console.error('Error fetching sales items:', e);

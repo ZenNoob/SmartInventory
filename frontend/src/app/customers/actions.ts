@@ -20,7 +20,8 @@ export async function getCustomers(
   error?: string;
 }> {
   try {
-    const customers = await apiClient.getCustomers();
+    const response = await apiClient.getCustomers();
+    const customers = (response as any).data || response || [];
     return { success: true, customers: customers as unknown as CustomerWithDebt[] };
   } catch (error: unknown) {
     console.error('Error fetching customers:', error);
@@ -134,7 +135,7 @@ export async function generateCustomerTemplate(): Promise<{
  */
 export async function getCustomerDebt(
   customerId: string,
-  _includeHistory?: boolean
+  includeHistory?: boolean
 ): Promise<{
   success: boolean;
   debt?: number;
@@ -154,7 +155,20 @@ export async function getCustomerDebt(
 
     const currentDebt = customerData.currentDebt || customerData.debt || 0;
     const creditLimit = customerData.creditLimit || 0;
-    
+
+    // Fetch debt history if requested
+    let history: CustomerDebtHistory[] = [];
+    if (includeHistory) {
+      try {
+        const historyResponse = await apiClient.getCustomerDebtHistory(customerId);
+        if (historyResponse.success && historyResponse.history) {
+          history = historyResponse.history;
+        }
+      } catch (historyError) {
+        console.warn('Could not fetch debt history:', historyError);
+      }
+    }
+
     const debtInfo: CustomerDebtInfo = {
       totalDebt: customerData.debt || customerData.currentDebt || 0,
       currentDebt: currentDebt,
@@ -162,23 +176,20 @@ export async function getCustomerDebt(
       totalPayments: customerData.totalPayments || 0,
       isOverLimit: creditLimit > 0 && currentDebt > creditLimit,
       availableCredit: creditLimit > 0 ? Math.max(0, creditLimit - currentDebt) : 0,
-      history: [],
+      history: history,
     };
 
-    // Create history items with required fields
-    const history: CustomerDebtHistory[] = [];
-
-    return { 
-      success: true, 
+    return {
+      success: true,
       debt: debtInfo.totalDebt,
       debtInfo,
       history,
     };
   } catch (error: unknown) {
     console.error('Error fetching customer debt:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Đã xảy ra lỗi khi lấy công nợ khách hàng' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Đã xảy ra lỗi khi lấy công nợ khách hàng'
     };
   }
 }
@@ -271,7 +282,7 @@ export interface CustomerDebtInfo {
  */
 export async function getCustomerDebtWithHistory(
   customerId: string,
-  _includeHistory: boolean = true
+  includeHistory: boolean = true
 ): Promise<{
   success: boolean;
   debtInfo?: CustomerDebtInfo;
@@ -282,21 +293,35 @@ export async function getCustomerDebtWithHistory(
     const customer = await apiClient.getCustomer(customerId);
     const customerData = customer as {
       debt?: number;
+      currentDebt?: number;
       totalSales?: number;
       totalPayments?: number;
     };
 
+    // Fetch debt history if requested
+    let history: CustomerDebtHistory[] = [];
+    if (includeHistory) {
+      try {
+        const historyResponse = await apiClient.getCustomerDebtHistory(customerId);
+        if (historyResponse.success && historyResponse.history) {
+          history = historyResponse.history;
+        }
+      } catch (historyError) {
+        console.warn('Could not fetch debt history:', historyError);
+      }
+    }
+
     const debtInfo: CustomerDebtInfo = {
-      totalDebt: customerData.debt || 0,
+      totalDebt: customerData.debt || customerData.currentDebt || 0,
       totalSales: customerData.totalSales || 0,
       totalPayments: customerData.totalPayments || 0,
-      history: [],
+      history: history,
     };
 
     return {
       success: true,
       debtInfo,
-      history: [],
+      history,
     };
   } catch (error: unknown) {
     console.error('Error fetching customer debt with history:', error);

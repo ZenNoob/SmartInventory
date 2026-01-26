@@ -92,31 +92,30 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    // Check store limit for this user
-    // First check if StoreOwner exists and get their max_stores limit
-    const storeOwnerLimit = await queryOne<{ id: string; max_stores: number }>(
-      'SELECT id, max_stores FROM StoreOwners WHERE email = @email',
-      { email: userEmail }
+    // Check store limit for this user from Users table
+    const userLimits = await queryOne<{ max_stores: number }>(
+      'SELECT ISNULL(max_stores, 999) as max_stores FROM Users WHERE id = @userId',
+      { userId }
+    );
+    const maxStores = userLimits?.max_stores || 999;
+
+    // Count current stores the user has access to
+    const currentStoreCount = await queryOne<{ count: number }>(
+      `SELECT COUNT(DISTINCT us.store_id) as count
+       FROM UserStores us
+       INNER JOIN Stores s ON us.store_id = s.id
+       WHERE us.user_id = @userId AND s.status = 'active'`,
+      { userId }
     );
 
-    // If StoreOwner exists, check their store limit
-    if (storeOwnerLimit) {
-      const currentStoreCount = await queryOne<{ count: number }>(
-        'SELECT COUNT(*) as count FROM Stores WHERE owner_id = @ownerId AND status = @status',
-        { ownerId: storeOwnerLimit.id, status: 'active' }
-      );
-
-      const maxStores = storeOwnerLimit.max_stores || 3; // Default to 3 if not set
-
-      if (currentStoreCount && currentStoreCount.count >= maxStores) {
-        res.status(403).json({ 
-          error: `Bạn đã đạt giới hạn ${maxStores} cửa hàng. Vui lòng nâng cấp gói để tạo thêm cửa hàng.`,
-          errorCode: 'STORE_LIMIT_REACHED',
-          maxStores: maxStores,
-          currentStores: currentStoreCount.count
-        });
-        return;
-      }
+    if (currentStoreCount && currentStoreCount.count >= maxStores) {
+      res.status(403).json({
+        error: `Bạn đã đạt giới hạn ${maxStores} cửa hàng. Vui lòng nâng cấp gói để tạo thêm cửa hàng.`,
+        errorCode: 'STORE_LIMIT_REACHED',
+        maxStores: maxStores,
+        currentStores: currentStoreCount.count
+      });
+      return;
     }
 
     // Find or create StoreOwner for this user

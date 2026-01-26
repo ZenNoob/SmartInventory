@@ -10,29 +10,30 @@ router.use(authenticate);
 router.get('/current', async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.id;
-    
+
     if (!userId) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
 
-    // Get user's max_stores (default to 3 if not set)
+    // Get user's max_stores (default to 999 if not set - enterprise plan)
     const userQuery = `
-      SELECT ISNULL(max_stores, 3) as max_stores
+      SELECT ISNULL(max_stores, 999) as max_stores
       FROM Users
       WHERE id = @userId
     `;
-    
-    const user = await queryOne(userQuery, { userId });
-    const maxStores = user?.max_stores || 3;
 
-    // Count current stores owned by user
+    const user = await queryOne(userQuery, { userId });
+    const maxStores = user?.max_stores || 999;
+
+    // Count current stores the user has access to (via UserStores table)
     const storesQuery = `
-      SELECT COUNT(*) as count
-      FROM Stores
-      WHERE owner_id = @userId AND status = 'active'
+      SELECT COUNT(DISTINCT us.store_id) as count
+      FROM UserStores us
+      INNER JOIN Stores s ON us.store_id = s.id
+      WHERE us.user_id = @userId AND s.status = 'active'
     `;
-    
+
     const storesResult = await queryOne(storesQuery, { userId });
     const currentStores = storesResult?.count || 0;
 

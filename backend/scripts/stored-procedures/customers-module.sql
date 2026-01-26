@@ -222,7 +222,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
-    SELECT 
+    SELECT
         c.id,
         c.store_id AS storeId,
         c.full_name AS name,
@@ -237,18 +237,18 @@ BEGIN
         c.notes,
         ISNULL(c.total_debt, 0) AS totalDebt,
         ISNULL(c.total_paid, 0) AS totalPaid,
-        -- Calculate debt from Sales if total_debt column is not available
-        COALESCE(c.total_debt, (
-            SELECT COALESCE(SUM(s.remaining_debt), 0) 
-            FROM Sales s 
+        -- Always calculate debt from Sales remaining_debt (prioritize calculated value)
+        (
+            SELECT COALESCE(SUM(s.remaining_debt), 0)
+            FROM Sales s
             WHERE s.customer_id = c.id AND s.remaining_debt > 0
-        ), 0) AS calculatedDebt,
-        -- Calculate payments total
-        COALESCE(c.total_paid, (
-            SELECT COALESCE(SUM(p.amount), 0) 
-            FROM Payments p 
+        ) AS calculatedDebt,
+        -- Always calculate payments total
+        (
+            SELECT COALESCE(SUM(p.amount), 0)
+            FROM Payments p
             WHERE p.customer_id = c.id
-        ), 0) AS totalPayments,
+        ) AS totalPayments,
         c.created_at AS createdAt,
         c.updated_at AS updatedAt
     FROM Customers c
@@ -276,8 +276,8 @@ CREATE PROCEDURE sp_Customers_GetById
 AS
 BEGIN
     SET NOCOUNT ON;
-    
-    SELECT 
+
+    SELECT
         c.id,
         c.store_id AS storeId,
         c.full_name AS name,
@@ -292,6 +292,18 @@ BEGIN
         c.notes,
         ISNULL(c.total_debt, 0) AS totalDebt,
         ISNULL(c.total_paid, 0) AS totalPaid,
+        -- Always calculate debt from Sales remaining_debt (prioritize calculated value)
+        (
+            SELECT COALESCE(SUM(s.remaining_debt), 0)
+            FROM Sales s
+            WHERE s.customer_id = c.id AND s.remaining_debt > 0
+        ) AS calculatedDebt,
+        -- Always calculate payments total
+        (
+            SELECT COALESCE(SUM(p.amount), 0)
+            FROM Payments p
+            WHERE p.customer_id = c.id
+        ) AS totalPayments,
         c.created_at AS createdAt,
         c.updated_at AS updatedAt
     FROM Customers c
@@ -343,6 +355,87 @@ BEGIN
         updated_at AS updatedAt
     FROM Customers
     WHERE id = @id AND store_id = @storeId;
+END
+GO
+
+-- =============================================
+-- sp_Customers_GetDebtHistory
+-- Description: Gets customer debt history from Sales and Payments
+-- Requirements: 3.6
+-- =============================================
+
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'P' AND name = 'sp_Customers_GetDebtHistory')
+    DROP PROCEDURE sp_Customers_GetDebtHistory;
+GO
+
+CREATE PROCEDURE sp_Customers_GetDebtHistory
+    @customerId NVARCHAR(36),
+    @storeId NVARCHAR(36)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Check if customer exists
+    IF NOT EXISTS (SELECT 1 FROM Customers WHERE id = @customerId AND store_id = @storeId)
+    BEGIN
+        RAISERROR('Customer not found', 16, 1);
+        RETURN;
+    END
+
+    -- Return combined history of Sales (debt) and Payments
+    -- Using UNION ALL to combine multiple sources
+    SELECT * FROM (
+        -- Sales transactions (debt additions) - show remaining_debt as the debt amount
+        SELECT
+            s.id AS id,
+            @customerId AS customerId,
+            s.remaining_debt AS amount,  -- Use remaining_debt (unpaid portion)
+            'sale' AS type,
+            s.transaction_date AS date,
+            CONCAT(N'Hóa đơn #', s.invoice_number, N' (Tổng: ', FORMAT(s.final_amount, 'N0'), N'đ)') AS description,
+            s.remaining_debt AS remainingDebt,
+            s.created_at AS createdAt
+        FROM Sales s
+        WHERE s.customer_id = @customerId
+            AND s.store_id = @storeId
+            AND s.status IN ('completed', 'pending')
+            AND s.remaining_debt > 0  -- Only show sales with remaining debt
+
+        UNION ALL
+
+        -- Payments at time of sale (from Sales.paid_amount)
+        SELECT
+            CONCAT(s.id, '-payment') AS id,
+            @customerId AS customerId,
+            s.paid_amount AS amount,
+            'payment' AS type,
+            s.transaction_date AS date,
+            CONCAT(N'Thanh toán tại quầy - HĐ #', s.invoice_number) AS description,
+            NULL AS remainingDebt,
+            s.created_at AS createdAt
+        FROM Sales s
+        WHERE s.customer_id = @customerId
+            AND s.store_id = @storeId
+            AND s.status IN ('completed', 'pending')
+            AND s.paid_amount > 0  -- Only show if there was a payment
+
+        UNION ALL
+
+        -- Separate payments from Payments table (debt reductions)
+        SELECT
+            p.id AS id,
+            @customerId AS customerId,
+            p.amount AS amount,
+            'payment' AS type,
+            p.payment_date AS date,
+            ISNULL(p.notes, N'Thanh toán công nợ') AS description,
+            NULL AS remainingDebt,
+            p.created_at AS createdAt
+        FROM Payments p
+        WHERE p.customer_id = @customerId
+            AND p.store_id = @storeId
+    ) AS history
+    ORDER BY date ASC, createdAt ASC;
 END
 GO
 

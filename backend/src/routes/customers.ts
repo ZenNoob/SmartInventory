@@ -8,35 +8,91 @@ const router = Router();
 router.use(authenticate);
 router.use(storeContext);
 
+/**
+ * Calculate loyalty tier based on lifetime points
+ * Default thresholds:
+ * - Diamond: 10000+ points
+ * - Gold: 5000+ points
+ * - Silver: 1000+ points
+ * - Bronze: < 1000 points
+ */
+function calculateLoyaltyTier(lifetimePoints: number): string {
+  if (lifetimePoints >= 10000) return 'diamond';
+  if (lifetimePoints >= 5000) return 'gold';
+  if (lifetimePoints >= 1000) return 'silver';
+  return 'bronze';
+}
+
 // GET /api/customers
 // Requirements: 3.4 - Uses sp_Customers_GetByStore
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const storeId = req.storeId!;
-    
-    // Use SP Repository instead of inline query
-    const customers = await customersSPRepository.getByStore(storeId);
+    const { page = '1', pageSize = '50', search, status, customerType } = req.query;
 
-    res.json(customers.map((c) => ({
-      id: c.id,
-      storeId: c.storeId,
-      email: c.email,
-      name: c.name,
-      phone: c.phone,
-      address: c.address,
-      status: c.status,
-      loyaltyTier: c.loyaltyTier,
-      customerType: c.customerType,
-      customerGroup: c.customerGroup,
-      lifetimePoints: c.lifetimePoints,
-      notes: c.notes,
-      totalDebt: c.totalDebt ?? 0,
-      totalPaid: c.totalPaid ?? 0,
-      calculatedDebt: c.totalDebt ?? 0,
-      totalPayments: c.totalPaid ?? 0,
-      createdAt: c.createdAt,
-      updatedAt: c.updatedAt,
-    })));
+    const pageNum = parseInt(page as string);
+    const pageSizeNum = parseInt(pageSize as string);
+
+    // Use SP Repository instead of inline query
+    let customers = await customersSPRepository.getByStore(storeId);
+
+    // Apply filters
+    if (search) {
+      const searchLower = (search as string).toLowerCase();
+      customers = customers.filter(
+        (c) =>
+          c.name?.toLowerCase().includes(searchLower) ||
+          c.phone?.toLowerCase().includes(searchLower) ||
+          c.email?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    if (status && status !== 'all') {
+      customers = customers.filter((c) => c.status === status);
+    }
+
+    if (customerType && customerType !== 'all') {
+      customers = customers.filter((c) => c.customerType === customerType);
+    }
+
+    // Calculate pagination
+    const total = customers.length;
+    const totalPages = Math.ceil(total / pageSizeNum);
+    const offset = (pageNum - 1) * pageSizeNum;
+    const paginatedCustomers = customers.slice(offset, offset + pageSizeNum);
+
+    res.json({
+      success: true,
+      data: paginatedCustomers.map((c) => {
+        const lifetimePoints = c.lifetimePoints ?? 0;
+        const debt = c.calculatedDebt ?? c.totalDebt ?? 0;
+        return {
+          id: c.id,
+          storeId: c.storeId,
+          email: c.email,
+          name: c.name,
+          phone: c.phone,
+          address: c.address,
+          status: c.status,
+          loyaltyTier: calculateLoyaltyTier(lifetimePoints), // Use calculated tier
+          customerType: c.customerType,
+          customerGroup: c.customerGroup,
+          lifetimePoints: lifetimePoints,
+          notes: c.notes,
+          totalDebt: debt,
+          totalPaid: c.totalPaid ?? 0,
+          calculatedDebt: debt,
+          currentDebt: debt,
+          totalPayments: c.totalPaid ?? 0,
+          createdAt: c.createdAt,
+          updatedAt: c.updatedAt,
+        };
+      }),
+      total,
+      page: pageNum,
+      pageSize: pageSizeNum,
+      totalPages,
+    });
   } catch (error) {
     console.error('Get customers error:', error);
     res.status(500).json({ error: 'Failed to get customers' });
@@ -57,6 +113,11 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
       return;
     }
 
+    // Calculate tier based on lifetime points (auto-correct if mismatch)
+    const lifetimePoints = customer.lifetimePoints ?? 0;
+    const calculatedTier = calculateLoyaltyTier(lifetimePoints);
+    const debt = customer.calculatedDebt ?? customer.totalDebt ?? 0;
+
     res.json({
       id: customer.id,
       storeId: customer.storeId,
@@ -65,14 +126,15 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
       phone: customer.phone,
       address: customer.address,
       status: customer.status,
-      loyaltyTier: customer.loyaltyTier,
+      loyaltyTier: calculatedTier, // Use calculated tier instead of stored
       customerType: customer.customerType,
       customerGroup: customer.customerGroup,
-      lifetimePoints: customer.lifetimePoints ?? 0,
-      loyaltyPoints: customer.lifetimePoints ?? 0, // Same as lifetimePoints for now
+      lifetimePoints: lifetimePoints,
+      loyaltyPoints: lifetimePoints, // Same as lifetimePoints for now
       notes: customer.notes,
-      totalDebt: customer.totalDebt ?? 0,
-      currentDebt: customer.totalDebt ?? 0, // Alias for frontend
+      totalDebt: debt,
+      currentDebt: debt, // Alias for frontend
+      calculatedDebt: debt,
       totalPaid: customer.totalPaid ?? 0,
       creditLimit: 0, // Default credit limit
       createdAt: customer.createdAt,
@@ -198,6 +260,34 @@ router.put('/:id/debt', async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Update customer debt error:', error);
     res.status(500).json({ error: 'Failed to update customer debt' });
+  }
+});
+
+// GET /api/customers/:id/history
+// Requirements: 3.6 - Uses sp_Customers_GetDebtHistory
+router.get('/:id/history', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const storeId = req.storeId!;
+
+    // Get customer to validate it exists
+    const customer = await customersSPRepository.getById(id, storeId);
+    if (!customer) {
+      res.status(404).json({ error: 'Customer not found' });
+      return;
+    }
+
+    // Get debt history
+    const history = await customersSPRepository.getDebtHistory(id, storeId);
+
+    res.json({
+      success: true,
+      customerId: id,
+      history,
+    });
+  } catch (error) {
+    console.error('Get customer debt history error:', error);
+    res.status(500).json({ error: 'Failed to get customer debt history' });
   }
 });
 

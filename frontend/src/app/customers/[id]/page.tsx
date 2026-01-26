@@ -47,9 +47,13 @@ interface CustomerData {
   bankBranch?: string;
   creditLimit: number;
   currentDebt?: number;
+  calculatedDebt?: number;
+  totalDebt?: number;
   loyaltyTier?: string;
   loyaltyPoints?: number;
   lifetimePoints?: number;
+  totalSpent?: number;
+  totalPaid?: number;
 }
 
 const getTierIcon = (tier: string | undefined) => {
@@ -125,9 +129,21 @@ export default function CustomerDetailPage() {
   const salesHistory = history.filter(h => h.type === 'sale').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   const paymentsHistory = history.filter(h => h.type === 'payment').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  const totalDebt = customer.currentDebt || 0;
+  // Calculate total debt: prioritize calculatedDebt > currentDebt > totalDebt > history's last runningBalance
+  const lastHistoryBalance = history.length > 0
+    ? [...history].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]?.runningBalance || 0
+    : 0;
+  const totalDebt = customer.calculatedDebt || customer.currentDebt || customer.totalDebt || lastHistoryBalance || 0;
   const creditLimit = customer.creditLimit || 0;
   const isOverLimit = creditLimit > 0 && totalDebt > creditLimit;
+
+  // Calculate loyalty points from history (total spent)
+  const totalSpent = customer.totalSpent || salesHistory.reduce((sum, s) => sum + s.amount, 0);
+  const totalPaid = customer.totalPaid || paymentsHistory.reduce((sum, p) => sum + p.amount, 0);
+  // Points = 1 point per 10,000 VND spent (configurable)
+  const calculatedLifetimePoints = Math.floor(totalSpent / 10000);
+  const displayLifetimePoints = customer.lifetimePoints || calculatedLifetimePoints;
+  const displayLoyaltyPoints = customer.loyaltyPoints || displayLifetimePoints;
 
   return (
     <div className="grid gap-4 md:gap-8">
@@ -187,10 +203,10 @@ export default function CustomerDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="text-xs text-muted-foreground">
-              Điểm tích lũy: {customer.loyaltyPoints?.toLocaleString() || 0} điểm
+              Điểm tích lũy: {displayLoyaltyPoints.toLocaleString()} điểm
             </div>
             <div className="text-xs text-muted-foreground">
-              Tổng điểm: {customer.lifetimePoints?.toLocaleString() || 0} điểm
+              Tổng điểm: {displayLifetimePoints.toLocaleString()} điểm
             </div>
           </CardContent>
         </Card>

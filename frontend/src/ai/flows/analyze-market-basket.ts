@@ -4,24 +4,25 @@ export interface MarketBasketInput {
 }
 
 export interface ProductPair {
-  product1: string;
-  product2: string;
+  productA_name: string;
+  productB_name: string;
+  frequency: number;
   support: number;
   confidence: number;
   lift: number;
+  suggestion: string;
 }
 
 export interface ProductCluster {
-  name: string;
   products: string[];
   frequency: number;
+  suggestion: string;
 }
 
 export interface MarketBasketAnalysisOutput {
   productPairs: ProductPair[];
   productClusters: ProductCluster[];
-  insights: string[];
-  recommendations: string[];
+  analysisSummary: string;
 }
 
 // Placeholder function - would be replaced with actual AI implementation
@@ -31,7 +32,6 @@ export async function analyzeMarketBasket(
   return {
     productPairs: [],
     productClusters: [],
-    insights: [],
-    recommendations: [],
+    analysisSummary: '',
   };
 }
